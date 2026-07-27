@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1b3a2b">
+<meta name="description" content="Wald- und Wiesengrundstücke in Bayern finden und den Preis gegen amtliche Vergleichswerte prüfen.">
+<title>Waldradar Bayern</title>
+<style>
+:root{
+  --bg:#f4f6f2; --bg2:#ffffff; --card:#ffffff; --line:#e2e6dd;
+  --txt:#16241c; --txt2:#5d6b60; --txt3:#8a978d;
+  --green:#2f6b45; --green-l:#e8f2ea; --green-d:#1b3a2b;
+  --amber:#b06f14; --amber-l:#fbf1e0;
+  --red:#b03b2e; --red-l:#fbe9e6;
+  --blue:#2c5c8a; --blue-l:#e7eff7;
+  --shadow:0 1px 2px rgba(22,36,28,.06), 0 6px 20px rgba(22,36,28,.06);
+  --r:16px;
+  --safe-b:env(safe-area-inset-bottom,0px);
+  --safe-t:env(safe-area-inset-top,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0f1512; --bg2:#151d18; --card:#171f1a; --line:#26302a;
+    --txt:#e8efe9; --txt2:#a3b0a7; --txt3:#75837a;
+    --green:#5fbf86; --green-l:#17281e; --green-d:#0b120e;
+    --amber:#dda257; --amber-l:#2a2015;
+    --red:#e58272; --red-l:#2c1a17;
+    --blue:#7fb1e0; --blue-l:#152430;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.3);
+  }
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;
+  background:var(--bg); color:var(--txt);
+  font-size:16px; line-height:1.5;
+  padding-bottom:calc(68px + var(--safe-b));
+  overscroll-behavior-y:none;
+}
+.wrap{max-width:720px;margin:0 auto;padding:0 16px}
+
+/* ---------- Header ---------- */
+header{
+  background:linear-gradient(160deg,#1b3a2b 0%,#2f6b45 70%,#3c8355 100%);
+  color:#fff; padding:calc(18px + var(--safe-t)) 0 20px;
+  border-radius:0 0 24px 24px;
+}
+.hd{display:flex;align-items:center;gap:12px}
+.hd-logo{width:40px;height:40px;flex:none}
+.hd h1{font-size:21px;font-weight:650;letter-spacing:-.02em;line-height:1.15}
+.hd p{font-size:13px;opacity:.82;margin-top:2px}
+
+/* ---------- Tabs (iOS bottom bar) ---------- */
+nav{
+  position:fixed;left:0;right:0;bottom:0;z-index:50;
+  background:color-mix(in srgb, var(--bg2) 88%, transparent);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);
+  backdrop-filter:saturate(180%) blur(20px);
+  border-top:1px solid var(--line);
+  padding-bottom:var(--safe-b);
+}
+.nav-in{max-width:720px;margin:0 auto;display:flex}
+.tab{
+  flex:1;background:none;border:none;color:var(--txt3);
+  padding:8px 2px 6px;font:inherit;font-size:10px;font-weight:550;
+  display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;
+}
+.tab svg{width:23px;height:23px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.tab[aria-selected="true"]{color:var(--green)}
+
+/* ---------- Layout bits ---------- */
+main{padding-top:18px}
+.view{display:none;animation:fade .22s ease}
+.view.on{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;box-shadow:var(--shadow);margin-bottom:14px}
+.card.flat{box-shadow:none}
+h2{font-size:19px;font-weight:650;letter-spacing:-.02em;margin-bottom:4px}
+h3{font-size:15px;font-weight:620;margin-bottom:8px}
+.sub{font-size:13.5px;color:var(--txt2);margin-bottom:14px}
+.lbl{display:block;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--txt3);margin-bottom:6px}
+.row{display:flex;gap:10px}
+.row>*{flex:1;min-width:0}
+.field{margin-bottom:14px}
+select,input[type=text],input[type=number],input[type=url],textarea{
+  width:100%;font:inherit;font-size:16px;color:var(--txt);
+  background:var(--bg2);border:1px solid var(--line);border-radius:11px;
+  padding:11px 12px;appearance:none;
+}
+select{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'><path d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%238a978d' stroke-width='1.6' stroke-linecap='round'/></svg>");background-repeat:no-repeat;background-position:right 12px center;background-size:12px;padding-right:34px}
+textarea{resize:vertical;min-height:64px}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--green);outline-offset:-1px;border-color:transparent}
+input[type=range]{width:100%;accent-color:var(--green)}
+
+.seg{display:flex;background:var(--bg2);border:1px solid var(--line);border-radius:11px;padding:3px;gap:3px}
+.seg button{flex:1;background:none;border:none;font:inherit;font-size:14px;font-weight:550;color:var(--txt2);padding:8px 4px;border-radius:8px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--green);color:#fff}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  background:var(--green);color:#fff;border:none;border-radius:11px;
+  font:inherit;font-size:15px;font-weight:600;padding:12px 16px;cursor:pointer;width:100%}
+.btn.sec{background:var(--bg2);color:var(--txt);border:1px solid var(--line)}
+.btn.sm{width:auto;padding:8px 13px;font-size:13.5px}
+.btn:active{opacity:.75}
+
+/* ---------- Source list ---------- */
+.src{border:1px solid var(--line);border-radius:14px;padding:13px 14px;margin-bottom:10px;background:var(--card)}
+.src-top{display:flex;align-items:flex-start;gap:11px}
+.src-ic{width:34px;height:34px;border-radius:9px;flex:none;display:grid;place-items:center;font-size:16px;background:var(--green-l)}
+.src-nm{font-size:15.5px;font-weight:620;letter-spacing:-.01em}
+.src-ds{font-size:12.5px;color:var(--txt2);margin-top:2px;line-height:1.42}
+.src-links{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px}
+.lnk{display:inline-flex;align-items:center;gap:5px;text-decoration:none;
+  background:var(--green);color:#fff;border-radius:9px;padding:8px 12px;font-size:13.5px;font-weight:600}
+.lnk.alt{background:var(--bg2);color:var(--txt2);border:1px solid var(--line)}
+.lnk:active{opacity:.75}
+.grp-h{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--txt3);margin:20px 0 9px}
+.grp-h:first-child{margin-top:0}
+
+/* ---------- Result / verdict ---------- */
+.big{font-size:34px;font-weight:700;letter-spacing:-.03em;line-height:1.1}
+.verdict{border-radius:13px;padding:14px;margin:14px 0;border:1px solid transparent}
+.v-good{background:var(--green-l);border-color:color-mix(in srgb,var(--green) 30%,transparent)}
+.v-mid{background:var(--amber-l);border-color:color-mix(in srgb,var(--amber) 30%,transparent)}
+.v-bad{background:var(--red-l);border-color:color-mix(in srgb,var(--red) 30%,transparent)}
+.v-ttl{font-size:16px;font-weight:680;margin-bottom:3px}
+.v-good .v-ttl{color:var(--green)} .v-mid .v-ttl{color:var(--amber)} .v-bad .v-ttl{color:var(--red)}
+.v-tx{font-size:13.5px;color:var(--txt2)}
+
+.scale{margin:18px 0 6px}
+.scale-bar{height:9px;border-radius:5px;position:relative}
+.scale-pin{position:absolute;top:-5px;width:3px;height:19px;border-radius:2px;background:var(--txt);
+  box-shadow:0 0 0 2.5px var(--card);transition:left .35s cubic-bezier(.3,1.2,.5,1);z-index:2}
+.scale-tick{position:absolute;top:-2px;bottom:-2px;width:2px;border-radius:1px;
+  background:var(--card);opacity:.9;transform:translateX(-1px)}
+.scale-marks{position:relative;height:15px;margin-top:7px}
+.scale-marks span{position:absolute;transform:translateX(-50%);font-size:11.5px;
+  color:var(--txt3);white-space:nowrap}
+.scale-cap{text-align:center;font-size:11.5px;color:var(--txt3);margin-top:1px}
+
+.kv{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14.5px}
+.kv:last-child{border-bottom:none}
+.kv dt{color:var(--txt2)} .kv dd{font-weight:620;text-align:right;font-variant-numeric:tabular-nums}
+.kv.tot{font-size:16px;border-top:1.5px solid var(--line);margin-top:4px;padding-top:12px}
+.kv.tot dd{color:var(--green)}
+
+/* ---------- Region ranking ---------- */
+.rk{display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px solid var(--line)}
+.rk:last-child{border-bottom:none}
+.rk-n{font-size:14.5px;font-weight:600;width:104px;flex:none}
+.rk-bar{flex:1;height:8px;border-radius:4px;background:var(--bg);overflow:hidden}
+.rk-fill{height:100%;border-radius:4px;background:var(--green);transition:width .5s ease}
+.rk-v{font-size:13px;font-weight:620;width:86px;text-align:right;flex:none;font-variant-numeric:tabular-nums}
+.rk.me{background:var(--green-l);margin:0 -8px;padding:11px 8px;border-radius:9px;border-bottom-color:transparent}
+
+/* ---------- Watchlist ---------- */
+.wl{border:1px solid var(--line);border-radius:13px;padding:13px;margin-bottom:10px;background:var(--card)}
+.wl-h{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.wl-t{font-size:15.5px;font-weight:620;letter-spacing:-.01em}
+.wl-m{font-size:12.5px;color:var(--txt2);margin-top:2px}
+.wl-p{font-size:17px;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums}
+.wl-f{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+.pill{font-size:11.5px;font-weight:650;padding:3px 9px;border-radius:99px}
+.p-good{background:var(--green-l);color:var(--green)}
+.p-mid{background:var(--amber-l);color:var(--amber)}
+.p-bad{background:var(--red-l);color:var(--red)}
+.p-neut{background:var(--bg);color:var(--txt2)}
+.icb{background:none;border:none;color:var(--txt3);font:inherit;font-size:13px;cursor:pointer;padding:4px 6px;text-decoration:underline}
+.empty{text-align:center;padding:36px 16px;color:var(--txt3)}
+.empty svg{width:44px;height:44px;stroke:currentColor;fill:none;stroke-width:1.4;opacity:.5;margin-bottom:10px}
+
+/* ---------- Info ---------- */
+.acc{border-bottom:1px solid var(--line)}
+.acc:last-child{border-bottom:none}
+.acc-h{width:100%;background:none;border:none;font:inherit;font-size:15px;font-weight:600;color:var(--txt);
+  text-align:left;padding:14px 0;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.acc-h::after{content:'';width:8px;height:8px;border-right:2px solid var(--txt3);border-bottom:2px solid var(--txt3);
+  transform:rotate(45deg);transition:transform .2s;flex:none;margin-right:3px}
+.acc.on .acc-h::after{transform:rotate(-135deg)}
+.acc-b{display:none;padding:0 0 15px;font-size:14px;color:var(--txt2);line-height:1.62}
+.acc.on .acc-b{display:block}
+.acc-b p+p{margin-top:9px}
+.acc-b ul{margin:8px 0 0 18px} .acc-b li{margin-bottom:6px}
+.acc-b strong{color:var(--txt);font-weight:620}
+a{color:var(--green)}
+.note{background:var(--blue-l);border:1px solid color-mix(in srgb,var(--blue) 25%,transparent);
+  border-radius:12px;padding:13px;font-size:13.5px;color:var(--txt2);line-height:1.55}
+.note b{color:var(--txt)}
+.foot{text-align:center;font-size:11.5px;color:var(--txt3);padding:6px 0 26px;line-height:1.6}
+.hint{font-size:12px;color:var(--txt3);margin-top:6px;line-height:1.45}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap hd">
+    <svg class="hd-logo" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+      <circle cx="24" cy="24" r="23" fill="rgba(255,255,255,.13)"/>
+      <path d="M24 9 33 22h-5l6.5 9.5h-6L32 39H16l3.5-7.5h-6L20 22h-5L24 9Z" fill="#fff" opacity=".95"/>
+      <rect x="22.6" y="36" width="2.8" height="6" rx="1.2" fill="#fff" opacity=".95"/>
+    </svg>
+    <div>
+      <h1>Waldradar Bayern</h1>
+      <p>Wald- &amp; Wiesengrundstücke finden und den Preis einordnen</p>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- ==================== SUCHEN ==================== -->
+<section id="v-suchen" class="view on">
+  <div class="card">
+    <h2>Deine Region</h2>
+    <p class="sub">Wähle Bezirk und Landkreis — die App baut daraus fertige Suchlinks für alle relevanten Marktplätze.</p>
+
+    <div class="field">
+      <label class="lbl" for="f-art">Was suchst du?</label>
+      <div class="seg" id="f-art" role="group">
+        <button type="button" data-art="wald" aria-pressed="true">Wald</button>
+        <button type="button" data-art="wiese" aria-pressed="false">Wiese / Grünland</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label class="lbl" for="f-bez">Regierungsbezirk</label>
+        <select id="f-bez"></select>
+      </div>
+      <div class="field">
+        <label class="lbl" for="f-lk">Landkreis</label>
+        <select id="f-lk"></select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label class="lbl" for="f-ort">Ort oder PLZ <span style="text-transform:none;font-weight:500">(für Umkreissuche)</span></label>
+        <input type="text" id="f-ort" placeholder="z. B. 83714 oder Miesbach" autocomplete="postal-code">
+      </div>
+      <div class="field" style="max-width:130px">
+        <label class="lbl" for="f-rad">Umkreis <span id="f-rad-v" style="text-transform:none;font-weight:600;color:var(--green)">50 km</span></label>
+        <input type="range" id="f-rad" min="10" max="200" step="10" value="50" style="margin-top:12px">
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="preis-teaser"></div>
+
+  <div id="quellen"></div>
+
+  <p class="foot">Die Links öffnen die jeweilige Plattform in einem neuen Tab. Waldradar speichert und überträgt dabei nichts.</p>
+</section>
+
+<!-- ==================== PREIS-CHECK ==================== -->
+<section id="v-preis" class="view">
+  <div class="card">
+    <h2>Preis-Check</h2>
+    <p class="sub">Trag ein Angebot ein — die App rechnet den Quadratmeterpreis aus und vergleicht ihn mit dem Preisniveau deiner Region.</p>
+
+    <div class="row">
+      <div class="field">
+        <label class="lbl" for="p-flaeche">Fläche</label>
+        <input type="number" id="p-flaeche" inputmode="decimal" placeholder="10000" min="0" step="any">
+      </div>
+      <div class="field" style="max-width:132px">
+        <label class="lbl" for="p-einheit">Einheit</label>
+        <select id="p-einheit">
+          <option value="1">m²</option>
+          <option value="10000">Hektar</option>
+          <option value="3407.27">Tagwerk</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="lbl" for="p-preis">Kaufpreis in €</label>
+      <input type="number" id="p-preis" inputmode="decimal" placeholder="28000" min="0" step="any">
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label class="lbl" for="p-art">Art</label>
+        <select id="p-art">
+          <option value="wald">Wald</option>
+          <option value="wiese">Wiese / Grünland</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="lbl" for="p-bez">Region</label>
+        <select id="p-bez"></select>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="p-out" hidden></div>
+
+  <div class="card" id="p-neben" hidden>
+    <h3>Was kostet es wirklich?</h3>
+    <p class="sub" style="margin-bottom:12px">Kaufpreis plus Erwerbsnebenkosten.</p>
+    <div class="row">
+      <div class="field">
+        <label class="lbl" for="p-notar">Notar &amp; Grundbuch</label>
+        <select id="p-notar">
+          <option value="1.5">1,5 %</option>
+          <option value="2.0" selected>2,0 %</option>
+          <option value="2.5">2,5 %</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="lbl" for="p-makler">Maklerprovision</label>
+        <select id="p-makler">
+          <option value="0" selected>keine</option>
+          <option value="3.57">3,57 %</option>
+          <option value="5.95">5,95 %</option>
+          <option value="7.14">7,14 %</option>
+        </select>
+      </div>
+    </div>
+    <dl id="p-kosten"></dl>
+  </div>
+
+  <div class="card" id="p-save" hidden>
+    <h3>Auf die Merkliste</h3>
+    <div class="field">
+      <label class="lbl" for="p-titel">Bezeichnung</label>
+      <input type="text" id="p-titel" placeholder="z. B. Fichtenbestand bei Hausham">
+    </div>
+    <div class="field">
+      <label class="lbl" for="p-link">Link zum Inserat <span style="text-transform:none;font-weight:500">(optional)</span></label>
+      <input type="url" id="p-link" placeholder="https://…" inputmode="url">
+    </div>
+    <div class="field">
+      <label class="lbl" for="p-notiz">Notiz <span style="text-transform:none;font-weight:500">(optional)</span></label>
+      <textarea id="p-notiz" placeholder="Zufahrt? Bestand? Ansprechpartner?"></textarea>
+    </div>
+    <button class="btn" id="p-add">Merken</button>
+  </div>
+</section>
+
+<!-- ==================== REGIONEN ==================== -->
+<section id="v-regionen" class="view">
+  <div class="card">
+    <h2>Wo ist es günstig?</h2>
+    <p class="sub">Amtliche Kaufwerte für landwirtschaftliche Grundstücke 2024 je Regierungsbezirk — der beste öffentliche Indikator dafür, wie teuer Grund und Boden in einer Region insgesamt ist.</p>
+    <div id="r-lf"></div>
+    <p class="hint">Quelle: Bayerisches Landesamt für Statistik, Kaufwerte landwirtschaftlicher Grundstücke 2024 (Pressemitteilung 278/2025). Bayernweiter Durchschnitt: 77.721 €/ha aus 5.965 Verkäufen über 8.167 ha.</p>
+  </div>
+
+  <div class="card">
+    <h3>Orientierungsband je m²</h3>
+    <p class="sub" style="margin-bottom:2px">Abgeleitete Preisspanne für <span id="r-art-lbl">Wald</span>.</p>
+    <div class="seg" id="r-art" role="group" style="margin:12px 0 16px">
+      <button type="button" data-art="wald" aria-pressed="true">Wald</button>
+      <button type="button" data-art="wiese" aria-pressed="false">Wiese / Grünland</button>
+    </div>
+    <div id="r-band"></div>
+  </div>
+
+  <div class="card">
+    <h3>Wie das Band gerechnet wird</h3>
+    <div class="acc-b" style="display:block;padding-bottom:0">
+      <p>Für Wald und Grünland gibt es keine amtliche Statistik je Regierungsbezirk. Deshalb rechnet die App so:</p>
+      <ul>
+        <li><strong>Basiswert Bayern.</strong> Wald rund <strong>29.000 €/ha</strong> (2,90 €/m²), Grünland <strong>60.335 €/ha</strong> (6,03 €/m²) — bundesweite Kaufwertestatistik, Bayern ist bei beidem das teuerste Bundesland.</li>
+        <li><strong>Regionalfaktor.</strong> Kaufwert des Bezirks geteilt durch den bayerischen Schnitt, gedämpft mit dem Exponenten 0,65 — Wald- und Wiesenpreise streuen regional deutlich weniger als Ackerland.</li>
+        <li><strong>Spanne.</strong> 0,6-facher bis 1,7-facher Mittelwert. Bestand, Zufahrt, Größe und Liebhaberinteresse bewegen den Preis innerhalb dieser Spanne stärker als die Region.</li>
+      </ul>
+      <p>Das Band ist eine Orientierung, kein Gutachten. Den amtlichen Wert für deine konkrete Lage bekommst du bei <a href="https://www.boris-bayern.de/" target="_blank" rel="noopener">BORIS-Bayern</a>.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== MERKLISTE ==================== -->
+<section id="v-merk" class="view">
+  <div class="card">
+    <h2>Merkliste</h2>
+    <p class="sub" style="margin-bottom:0">Gespeicherte Angebote, sortiert nach Preis pro m². Alles bleibt lokal auf diesem Gerät.</p>
+  </div>
+  <div id="m-list"></div>
+  <div class="card" id="m-tools" hidden>
+    <div class="row">
+      <button class="btn sec sm" id="m-export" style="width:100%">Als JSON sichern</button>
+      <button class="btn sec sm" id="m-csv" style="width:100%">Als CSV</button>
+    </div>
+    <button class="btn sec sm" id="m-clear" style="width:100%;margin-top:10px;color:var(--red)">Merkliste leeren</button>
+  </div>
+</section>
+
+<!-- ==================== INFO ==================== -->
+<section id="v-info" class="view">
+  <div class="card">
+    <h2>Gut zu wissen</h2>
+    <div id="info-acc"></div>
+  </div>
+  <p class="foot">Waldradar Bayern · Orientierungshilfe, keine Rechts-, Steuer- oder Anlageberatung.<br>Alle Angaben ohne Gewähr.</p>
+</section>
+
+</main>
+
+<nav>
+  <div class="nav-in" role="tablist">
+    <button class="tab" role="tab" data-v="suchen" aria-selected="true">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Suchen</button>
+    <button class="tab" role="tab" data-v="preis" aria-selected="false">
+      <svg viewBox="0 0 24 24"><path d="M12 2v20M17 6.5c0-2-2.2-3-5-3s-5 .9-5 2.9c0 4.6 10 2.3 10 6.9 0 2.1-2.2 3.2-5 3.2s-5-1.1-5-3.1"/></svg>Preis</button>
+    <button class="tab" role="tab" data-v="regionen" aria-selected="false">
+      <svg viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg>Regionen</button>
+    <button class="tab" role="tab" data-v="merk" aria-selected="false">
+      <svg viewBox="0 0 24 24"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z"/></svg>Merkliste</button>
+    <button class="tab" role="tab" data-v="info" aria-selected="false">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.6v.1"/></svg>Info</button>
+  </div>
+</nav>
+
+<script>
+'use strict';
+
+/* =========================================================================
+   DATEN
+   ========================================================================= */
+
+/* Amtliche Kaufwerte landwirtschaftlicher Grundstücke 2024 in €/ha.
+   Quelle: Bayerisches Landesamt für Statistik, PM 278/2025.
+   Schwaben wurde in der Pressemitteilung nicht beziffert -> null. */
+const BAYERN_LF = 77721;
+const BEZIRKE = [
+  {id:'ob',   name:'Oberbayern',    lf:150382},
+  {id:'nb',   name:'Niederbayern',  lf:126989},
+  {id:'opf',  name:'Oberpfalz',     lf:63875},
+  {id:'mfr',  name:'Mittelfranken', lf:59511},
+  {id:'ufr',  name:'Unterfranken',  lf:29715},
+  {id:'ofr',  name:'Oberfranken',   lf:26801},
+  {id:'schw', name:'Schwaben',      lf:null}
+];
+const BZ = Object.fromEntries(BEZIRKE.map(b => [b.id, b]));
+
+/* Basispreise Bayern in €/m². Wald ~29.000 €/ha, Grünland 60.335 €/ha. */
+const BASIS = {
+  wald:  {label:'Wald',              base:2.90, quelle:'≈ 29.000 €/ha (Bayern)'},
+  wiese: {label:'Wiese / Grünland',  base:6.03, quelle:'60.335 €/ha (Bayern, 2024)'}
+};
+
+/* Die 71 bayerischen Landkreise. Kreisfreie Städte sind bewusst nicht dabei —
+   Wald- und Wiesenflächen liegen praktisch immer im Landkreis.
+   is24: abweichender Slug für die Geo-Pfade von ImmobilienScout24. */
+const LANDKREISE = {
+  ob: [
+    ['Altötting'],['Bad Tölz-Wolfratshausen'],['Berchtesgadener Land'],['Dachau'],
+    ['Ebersberg'],['Eichstätt'],['Erding'],['Freising'],['Fürstenfeldbruck'],
+    ['Garmisch-Partenkirchen'],['Landsberg am Lech'],['Miesbach'],
+    ['Mühldorf a. Inn','muehldorf-am-inn'],['München','muenchen-kreis'],
+    ['Neuburg-Schrobenhausen'],['Pfaffenhofen a. d. Ilm','pfaffenhofen-an-der-ilm'],
+    ['Rosenheim','rosenheim-kreis'],['Starnberg'],['Traunstein'],['Weilheim-Schongau']
+  ],
+  nb: [
+    ['Deggendorf'],['Dingolfing-Landau'],['Freyung-Grafenau'],['Kelheim'],
+    ['Landshut','landshut-kreis'],['Passau','passau-kreis'],['Regen'],
+    ['Rottal-Inn'],['Straubing-Bogen']
+  ],
+  opf: [
+    ['Amberg-Sulzbach'],['Cham'],['Neumarkt i. d. OPf.','neumarkt-in-der-oberpfalz'],
+    ['Neustadt a. d. Waldnaab','neustadt-an-der-waldnaab'],['Regensburg','regensburg-kreis'],
+    ['Schwandorf'],['Tirschenreuth']
+  ],
+  ofr: [
+    ['Bamberg','bamberg-kreis'],['Bayreuth','bayreuth-kreis'],['Coburg','coburg-kreis'],
+    ['Forchheim'],['Hof','hof-kreis'],['Kronach'],['Kulmbach'],['Lichtenfels'],
+    ['Wunsiedel i. Fichtelgebirge','wunsiedel-im-fichtelgebirge']
+  ],
+  mfr: [
+    ['Ansbach','ansbach-kreis'],['Erlangen-Höchstadt'],['Fürth','fuerth-kreis'],
+    ['Neustadt a. d. Aisch-Bad Windsheim','neustadt-an-der-aisch-bad-windsheim'],
+    ['Nürnberger Land'],['Roth'],['Weißenburg-Gunzenhausen']
+  ],
+  ufr: [
+    ['Aschaffenburg','aschaffenburg-kreis'],['Bad Kissingen'],['Haßberge'],['Kitzingen'],
+    ['Main-Spessart'],['Miltenberg'],['Rhön-Grabfeld'],
+    ['Schweinfurt','schweinfurt-kreis'],['Würzburg','wuerzburg-kreis']
+  ],
+  schw: [
+    ['Aichach-Friedberg'],['Augsburg','augsburg-kreis'],
+    ['Dillingen a. d. Donau','dillingen-an-der-donau'],['Donau-Ries'],['Günzburg'],
+    ['Lindau (Bodensee)','lindau-bodensee'],['Neu-Ulm'],['Oberallgäu'],
+    ['Ostallgäu'],['Unterallgäu']
+  ]
+};
+
+/* Suchbegriffe je Flächenart */
+const KEYWORDS = {
+  wald:  {ka:'wald-waldgrundstueck-kaufen', q:'Waldgrundstück', awuw:'Wald'},
+  wiese: {ka:'wiese-wiesengrundstueck',      q:'Wiese Grünland', awuw:'Grünland'}
+};
+
+/* =========================================================================
+   HILFSFUNKTIONEN
+   ========================================================================= */
+const $  = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+
+function slug(s){
+  return s.toLowerCase()
+    .replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss')
+    .replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+}
+const eur = (n,d=0) => n.toLocaleString('de-DE',{minimumFractionDigits:d,maximumFractionDigits:d}) + ' €';
+const num = (n,d=2) => n.toLocaleString('de-DE',{minimumFractionDigits:d,maximumFractionDigits:d});
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* Regionalfaktor: Kaufwert des Bezirks relativ zu Bayern, gedämpft. */
+function faktor(bezId){
+  const lf = BZ[bezId] && BZ[bezId].lf;
+  if(!lf) return 1;                       // Schwaben: kein amtlicher Wert -> Landesschnitt
+  return Math.pow(lf / BAYERN_LF, 0.65);
+}
+function band(art, bezId){
+  const mid = BASIS[art].base * faktor(bezId);
+  return {low: mid*0.6, mid, high: mid*1.7};
+}
+function bewerten(pqm, art, bezId){
+  const b = band(art, bezId);
+  if(pqm < b.low)  return {key:'sehr', cls:'good', pill:'p-good', t:'Deutlich unter dem Niveau',
+    d:'Klar unterhalb der üblichen Spanne. Das ist entweder ein Fund — oder es hat einen Grund: keine Zufahrt, Schadfläche, Schutzgebiet, ungünstiger Zuschnitt. Vor Ort ansehen.'};
+  if(pqm < b.mid)  return {key:'guenstig', cls:'good', pill:'p-good', t:'Günstig',
+    d:'Im unteren Bereich der Spanne für diese Region. Genauer hinschauen lohnt sich.'};
+  if(pqm <= b.high)return {key:'markt', cls:'mid', pill:'p-mid', t:'Marktüblich',
+    d:'Liegt im normalen Rahmen für die Region. Über Bestand und Zufahrt entscheidet sich, ob es ein guter Kauf ist.'};
+  return {key:'teuer', cls:'bad', pill:'p-bad', t:'Über dem Niveau',
+    d:'Oberhalb der üblichen Spanne. Typisch für Kleinstparzellen, Liebhaberlagen oder aufgeteilte Angebote. Verhandeln oder weitersuchen.'};
+}
+
+/* =========================================================================
+   QUELLEN / DEEP LINKS
+   ========================================================================= */
+function quellen(art, lkName, is24Slug, ort, radius){
+  const kw = KEYWORDS[art];
+  const ortQ = encodeURIComponent(ort || lkName);
+  const lkQ  = encodeURIComponent(lkName);
+  const is24 = is24Slug || slug(lkName);
+
+  return [
+  {g:'Marktplätze', ic:'🔎', n:'ImmobilienScout24',
+   d:'Eigene Rubrik „Wald und Landwirtschaft". Der größte Bestand an gewerblich vermittelten Flächen.',
+   links:[
+     ['Landkreis '+lkName, `https://www.immobilienscout24.de/Suche/de/bayern/${is24}/wald-landwirtschaft-kaufen`],
+     ['bayernweit', `https://www.immobilienscout24.de/Suche/de/bayern/wald-landwirtschaft-kaufen`, true]
+   ]},
+
+  {g:'Marktplätze', ic:'📋', n:'Kleinanzeigen',
+   d:'Hier inserieren Privatleute — oft die günstigsten Flächen, häufig ohne Makler. Für kleine Parzellen die wichtigste Quelle.',
+   links:[
+     [`Umkreis ${radius} km`, `https://www.kleinanzeigen.de/s-suchanfrage.html?keywords=${encodeURIComponent(kw.q)}&categoryId=207&locationStr=${ortQ}&radius=${radius}`],
+     ['bayernweit', `https://www.kleinanzeigen.de/s-grundstuecke-garten/bayern/${kw.ka}/k0c207l5510`, true]
+   ]},
+
+  {g:'Marktplätze', ic:'🌾', n:'Acker, Wald und Wiese',
+   d:'Fachportal ausschließlich für land- und forstwirtschaftliche Flächen. Kleiner Bestand, dafür kein Rauschen.',
+   links:[
+     ['Bayern · '+BASIS[art].label, `https://ackerwaldundwiese.de/index.php?action=searchresults&land=Deutschland&bundesland=Bayern&pclass%5B%5D=1&typ_or%5B%5D=${encodeURIComponent(kw.awuw)}`]
+   ]},
+
+  {g:'Marktplätze', ic:'🌲', n:'MY FOREST',
+   d:'Auf Waldverkäufe spezialisierter Vermittler mit bundesweitem Angebot.',
+   links:[['Wald kaufen','https://my-forest.de/wald-kaufen/']]},
+
+  {g:'Auktionen & Zwangsversteigerungen', ic:'⚖️', n:'ZVG-Portal der Länder',
+   d:'Amtliches Portal aller Amtsgerichte. Zwangsversteigerungen sind der klassische Weg zu deutlich untermarktigen Flächen — dafür ohne Besichtigungsrecht und mit Bargebot.',
+   links:[['Bayern auswählen','https://www.zvg-portal.de/']]},
+
+  {g:'Auktionen & Zwangsversteigerungen', ic:'🔨', n:'ZVG-Info · Land &amp; Forst Bayern',
+   d:'Bereitet dieselben Gerichtstermine auf und filtert nach land- und forstwirtschaftlichen Objekten in Bayern.',
+   links:[['Bayern · Land- und Forstwirtschaft','https://www.zvginfo.com/de-de/l/bayern/t/land-forstwirtschaft']]},
+
+  {g:'Auktionen & Zwangsversteigerungen', ic:'🏛️', n:'BayernPortal · Verkaufsplattformen',
+   d:'Amtliche Übersicht des Freistaats über Veräußerungen und Versteigerungen der öffentlichen Hand.',
+   links:[['Übersicht öffnen','https://www.bayernportal.de/dokumente/lebenslage/360204776531503']]},
+
+  {g:'Regionale Wege — oft die günstigsten', ic:'🤝', n:'BBV LandSiedlung',
+   d:'Die Grundstücksgesellschaft des Bayerischen Bauernverbands vermittelt laufend Agrar- und Waldflächen in Bayern.',
+   links:[['Aktuelle Angebote','https://www.bbv-ls.de/angebote']]},
+
+  {g:'Regionale Wege — oft die günstigsten', ic:'📝', n:'Bauernverband · Käuferliste',
+   d:'Beim BBV kannst du dich als Kaufinteressent vormerken lassen. Viele Flächen wechseln in Bayern den Besitzer, bevor sie je inseriert werden.',
+   links:[['Flächenerwerb','https://www.bayerischerbauernverband.de/flaechenerwerb']]},
+
+  {g:'Regionale Wege — oft die günstigsten', ic:'🌳', n:'Waldbesitzervereinigung suchen',
+   d:`Die WBV im Landkreis ${lkName} kennt jede Fläche, die verkauft werden soll — meist Monate vor jedem Inserat. Ein Anruf dort bringt mehr als jedes Portal.`,
+   links:[['WBV '+lkName+' suchen', `https://duckduckgo.com/?q=${encodeURIComponent('Waldbesitzervereinigung '+lkName)}`],
+          ['AELF '+lkName, `https://duckduckgo.com/?q=${encodeURIComponent('AELF Amt für Ernährung Landwirtschaft Forsten '+lkName)}`, true]]},
+
+  {g:'Werte prüfen', ic:'📐', n:'BORIS-Bayern · Bodenrichtwerte',
+   d:'Amtliche Bodenrichtwerte, auch für land- und forstwirtschaftliche Flächen, im Zwei-Jahres-Rhythmus. Die belastbarste Zahl für deine konkrete Lage.',
+   links:[['BORIS-Bayern','https://www.boris-bayern.de/'],
+          ['Gutachterausschüsse','https://www.gutachterausschuesse-bayern.de/bodenrichtwerte/', true]]},
+
+  {g:'Werte prüfen', ic:'🗺️', n:'BayernAtlas',
+   d:'Amtliche Karte des Freistaats: Flurstücke, Grenzen, Schutzgebiete, Bodenrichtwerte. Vor jeder Besichtigung einmal reinschauen.',
+   links:[['BayernAtlas','https://geoportal.bayern.de/bayernatlas-klassik/bodenrichtwerte/']]}
+  ];
+}
+
+/* =========================================================================
+   ZUSTAND
+   ========================================================================= */
+const KEY = 'waldradar.v1';
+let state = {art:'wald', bez:'ob', lk:0, ort:'', rad:50, rArt:'wald'};
+let merk = [];
+
+function load(){
+  try{
+    const s = JSON.parse(localStorage.getItem(KEY+'.state')||'null');
+    if(s) state = Object.assign(state, s);
+    merk = JSON.parse(localStorage.getItem(KEY+'.merk')||'[]');
+  }catch(e){ /* erster Start oder blockierter Speicher */ }
+}
+function saveState(){ try{ localStorage.setItem(KEY+'.state', JSON.stringify(state)); }catch(e){} }
+function saveMerk(){ try{ localStorage.setItem(KEY+'.merk', JSON.stringify(merk)); }catch(e){} }
+
+/* =========================================================================
+   TABS
+   ========================================================================= */
+$$('.tab').forEach(t => t.addEventListener('click', () => {
+  $$('.tab').forEach(x => x.setAttribute('aria-selected', String(x === t)));
+  $$('.view').forEach(v => v.classList.toggle('on', v.id === 'v-'+t.dataset.v));
+  window.scrollTo({top:0, behavior:'instant'});
+}));
+
+/* =========================================================================
+   SUCHEN
+   ========================================================================= */
+function fillBezirke(sel, val){
+  sel.innerHTML = BEZIRKE.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+  sel.value = val;
+}
+function fillLandkreise(){
+  const list = LANDKREISE[state.bez];
+  $('#f-lk').innerHTML = list.map((l,i) => `<option value="${i}">${esc(l[0])}</option>`).join('');
+  if(state.lk >= list.length) state.lk = 0;
+  $('#f-lk').value = String(state.lk);
+}
+function aktLk(){ return LANDKREISE[state.bez][state.lk] || LANDKREISE[state.bez][0]; }
+
+function renderQuellen(){
+  const lk = aktLk();
+  const list = quellen(state.art, lk[0], lk[1], state.ort, state.rad);
+  let html = '', grp = null;
+  for(const q of list){
+    if(q.g !== grp){ grp = q.g; html += `<div class="grp-h">${grp}</div>`; }
+    html += `<div class="src">
+      <div class="src-top">
+        <div class="src-ic">${q.ic}</div>
+        <div style="min-width:0">
+          <div class="src-nm">${q.n}</div>
+          <div class="src-ds">${q.d}</div>
+        </div>
+      </div>
+      <div class="src-links">${
+        q.links.map(([t,u,alt]) =>
+          `<a class="lnk${alt?' alt':''}" href="${u}" target="_blank" rel="noopener">${esc(t)} ↗</a>`
+        ).join('')
+      }</div>
+    </div>`;
+  }
+  $('#quellen').innerHTML = html;
+}
+
+function renderTeaser(){
+  const b = band(state.art, state.bez);
+  const bez = BZ[state.bez];
+  const kein = bez.lf === null;
+  $('#preis-teaser').innerHTML = `
+    <h3>Preisniveau ${esc(bez.name)}</h3>
+    <p class="sub" style="margin-bottom:12px">Orientierung für ${BASIS[state.art].label}, damit du ein Angebot sofort einordnen kannst.</p>
+    <div class="big">${num(b.low)} – ${num(b.high)} <span style="font-size:17px;font-weight:600;color:var(--txt2)">€/m²</span></div>
+    <div class="hint" style="margin-top:8px">Mittelwert rund <strong>${num(b.mid)} €/m²</strong> — das sind ${eur(b.mid*10000)} je Hektar.
+    ${kein ? ' Für Schwaben liegt kein amtlicher Bezirkswert vor, gerechnet wird mit dem bayerischen Durchschnitt.' : ''}</div>`;
+}
+
+function renderSuchen(){ renderTeaser(); renderQuellen(); saveState(); }
+
+$('#f-art').addEventListener('click', e => {
+  const b = e.target.closest('button'); if(!b) return;
+  state.art = b.dataset.art;
+  $$('#f-art button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  renderSuchen();
+});
+$('#f-bez').addEventListener('change', e => {
+  state.bez = e.target.value; state.lk = 0;
+  fillLandkreise(); renderSuchen();
+});
+$('#f-lk').addEventListener('change', e => { state.lk = +e.target.value; renderSuchen(); });
+$('#f-ort').addEventListener('input', e => { state.ort = e.target.value.trim(); renderQuellen(); saveState(); });
+$('#f-rad').addEventListener('input', e => {
+  state.rad = +e.target.value;
+  $('#f-rad-v').textContent = state.rad + ' km';
+  renderQuellen(); saveState();
+});
+
+/* =========================================================================
+   PREIS-CHECK
+   ========================================================================= */
+function preisWerte(){
+  const flaeche = parseFloat($('#p-flaeche').value) * parseFloat($('#p-einheit').value);
+  const preis   = parseFloat($('#p-preis').value);
+  if(!(flaeche > 0) || !(preis > 0)) return null;
+  return {flaeche, preis, pqm: preis/flaeche, art: $('#p-art').value, bez: $('#p-bez').value};
+}
+
+function renderPreis(){
+  const w = preisWerte();
+  const out = $('#p-out'), neben = $('#p-neben'), save = $('#p-save');
+  if(!w){ out.hidden = neben.hidden = save.hidden = true; return; }
+  out.hidden = neben.hidden = save.hidden = false;
+
+  const b = band(w.art, w.bez);
+  const v = bewerten(w.pqm, w.art, w.bez);
+
+  /* Skala läuft von low/2 bis high*1.3; Farbwechsel liegen auf den echten Schwellen. */
+  const lo = b.low*0.5, hi = b.high*1.3;
+  const at  = v => (v - lo)/(hi - lo)*100;
+  const pos = Math.max(1.5, Math.min(98.5, at(w.pqm)));
+  const pLow = at(b.low), pMid = at(b.mid), pHigh = at(b.high);
+  const grad = `linear-gradient(90deg,var(--green) 0%,var(--green) ${pMid}%,`
+             + `var(--amber) ${pHigh}%,var(--red) 100%)`;
+
+  out.innerHTML = `
+    <h3>Ergebnis</h3>
+    <div class="big" style="margin:6px 0 2px">${num(w.pqm)} <span style="font-size:18px;font-weight:600;color:var(--txt2)">€/m²</span></div>
+    <div class="hint">${eur(w.pqm*10000)} je Hektar · ${num(w.flaeche,0)} m² = ${num(w.flaeche/10000,2)} ha = ${num(w.flaeche/3407.27,2)} Tagwerk</div>
+
+    <div class="scale">
+      <div class="scale-bar" style="background:${grad}">
+        <div class="scale-tick" style="left:${pLow}%"></div>
+        <div class="scale-tick" style="left:${pHigh}%"></div>
+        <div class="scale-pin" style="left:${pos}%"></div>
+      </div>
+      <div class="scale-marks">
+        <span style="left:${pLow}%">${num(b.low)}</span>
+        <span style="left:${pHigh}%">${num(b.high)} €/m²</span>
+      </div>
+      <div class="scale-cap">Übliche Spanne ${BZ[w.bez].name}</div>
+    </div>
+
+    <div class="verdict v-${v.cls}">
+      <div class="v-ttl">${v.t}</div>
+      <div class="v-tx">${v.d}</div>
+    </div>
+
+    <dl>
+      <div class="kv"><dt>Übliche Spanne</dt><dd>${num(b.low)} – ${num(b.high)} €/m²</dd></div>
+      <div class="kv"><dt>Mittelwert Region</dt><dd>${num(b.mid)} €/m²</dd></div>
+      <div class="kv"><dt>Differenz zum Mittel</dt><dd style="color:${w.pqm>b.mid?'var(--red)':'var(--green)'}">${w.pqm>b.mid?'+':''}${num((w.pqm/b.mid-1)*100,0)} %</dd></div>
+    </dl>`;
+
+  renderNeben(w);
+}
+
+function renderNeben(w){
+  const notar  = parseFloat($('#p-notar').value)/100;
+  const makler = parseFloat($('#p-makler').value)/100;
+  const gr = w.preis * 0.035;          // Grunderwerbsteuer Bayern 3,5 %
+  const no = w.preis * notar;
+  const ma = w.preis * makler;
+  const ges = w.preis + gr + no + ma;
+  $('#p-kosten').innerHTML = `
+    <div class="kv"><dt>Kaufpreis</dt><dd>${eur(w.preis)}</dd></div>
+    <div class="kv"><dt>Grunderwerbsteuer 3,5 %</dt><dd>${eur(gr)}</dd></div>
+    <div class="kv"><dt>Notar &amp; Grundbuch</dt><dd>${eur(no)}</dd></div>
+    ${ma ? `<div class="kv"><dt>Maklerprovision</dt><dd>${eur(ma)}</dd></div>` : ''}
+    <div class="kv tot"><dt>Gesamt</dt><dd>${eur(ges)}</dd></div>
+    <div class="kv"><dt>Effektiv je m²</dt><dd>${num(ges/w.flaeche)} €</dd></div>`;
+}
+
+['#p-flaeche','#p-einheit','#p-preis','#p-art','#p-bez','#p-notar','#p-makler']
+  .forEach(s => $(s).addEventListener('input', renderPreis));
+
+$('#p-add').addEventListener('click', () => {
+  const w = preisWerte();
+  if(!w) return;
+  merk.push({
+    id: Date.now(),
+    titel: $('#p-titel').value.trim() || (BASIS[w.art].label + ' ' + BZ[w.bez].name),
+    art: w.art, bez: w.bez,
+    flaeche: w.flaeche, preis: w.preis,
+    link: $('#p-link').value.trim(),
+    notiz: $('#p-notiz').value.trim()
+  });
+  saveMerk(); renderMerk();
+  ['#p-titel','#p-link','#p-notiz'].forEach(s => $(s).value = '');
+  $$('.tab').forEach(x => x.setAttribute('aria-selected', String(x.dataset.v === 'merk')));
+  $$('.view').forEach(v => v.classList.toggle('on', v.id === 'v-merk'));
+  window.scrollTo({top:0});
+});
+
+/* =========================================================================
+   REGIONEN
+   ========================================================================= */
+function renderRegionen(){
+  const sorted = BEZIRKE.filter(b => b.lf).sort((a,b) => a.lf - b.lf);
+  const max = Math.max(...sorted.map(b => b.lf));
+  $('#r-lf').innerHTML = sorted.map(b => `
+    <div class="rk${b.id===state.bez?' me':''}">
+      <div class="rk-n">${b.name}</div>
+      <div class="rk-bar"><div class="rk-fill" style="width:${b.lf/max*100}%"></div></div>
+      <div class="rk-v">${num(b.lf/1000,1)} T€/ha</div>
+    </div>`).join('') + `
+    <div class="rk${state.bez==='schw'?' me':''}">
+      <div class="rk-n">Schwaben</div>
+      <div class="rk-bar"></div>
+      <div class="rk-v" style="color:var(--txt3);font-weight:500">k. A.</div>
+    </div>`;
+
+  const art = state.rArt;
+  $('#r-art-lbl').textContent = BASIS[art].label;
+  const rows = BEZIRKE.map(b => ({b, band: band(art, b.id)})).sort((x,y) => x.band.mid - y.band.mid);
+  const bmax = Math.max(...rows.map(r => r.band.high));
+  $('#r-band').innerHTML = rows.map(r => `
+    <div class="rk${r.b.id===state.bez?' me':''}">
+      <div class="rk-n">${r.b.name}${r.b.lf===null?' <span style="color:var(--txt3);font-weight:400">*</span>':''}</div>
+      <div class="rk-bar"><div class="rk-fill" style="width:${r.band.mid/bmax*100}%"></div></div>
+      <div class="rk-v">${num(r.band.low,1)}–${num(r.band.high,1)} €</div>
+    </div>`).join('') +
+    `<p class="hint" style="margin-top:12px">Basiswert Bayern: ${BASIS[art].quelle}. * Für Schwaben liegt kein amtlicher Bezirkswert vor — gerechnet mit dem Landesdurchschnitt.</p>`;
+}
+$('#r-art').addEventListener('click', e => {
+  const b = e.target.closest('button'); if(!b) return;
+  state.rArt = b.dataset.art;
+  $$('#r-art button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  renderRegionen(); saveState();
+});
+
+/* =========================================================================
+   MERKLISTE
+   ========================================================================= */
+function renderMerk(){
+  const el = $('#m-list');
+  if(!merk.length){
+    el.innerHTML = `<div class="card empty">
+      <svg viewBox="0 0 24 24"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z"/></svg>
+      <div style="font-weight:600;color:var(--txt2);margin-bottom:4px">Noch nichts gemerkt</div>
+      <div style="font-size:13.5px">Rechne ein Angebot im Preis-Check durch und speichere es hier.</div>
+    </div>`;
+    $('#m-tools').hidden = true;
+    return;
+  }
+  $('#m-tools').hidden = false;
+  const sorted = merk.slice().sort((a,b) => a.preis/a.flaeche - b.preis/b.flaeche);
+  el.innerHTML = sorted.map(m => {
+    const pqm = m.preis/m.flaeche;
+    const v = bewerten(pqm, m.art, m.bez);
+    return `<div class="wl">
+      <div class="wl-h">
+        <div style="min-width:0">
+          <div class="wl-t">${esc(m.titel)}</div>
+          <div class="wl-m">${BASIS[m.art].label} · ${BZ[m.bez].name} · ${num(m.flaeche,0)} m² · ${eur(m.preis)}</div>
+        </div>
+        <div class="wl-p">${num(pqm)} €<span style="font-size:12px;color:var(--txt2)">/m²</span></div>
+      </div>
+      ${m.notiz ? `<div class="wl-m" style="margin-top:8px;color:var(--txt2)">${esc(m.notiz)}</div>` : ''}
+      <div class="wl-f">
+        <span class="pill ${v.pill}">${v.t}</span>
+        ${m.link ? `<a class="icb" href="${esc(m.link)}" target="_blank" rel="noopener">Inserat ↗</a>` : ''}
+        <button class="icb" data-del="${m.id}" style="margin-left:auto;color:var(--red)">Entfernen</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+$('#m-list').addEventListener('click', e => {
+  const b = e.target.closest('[data-del]'); if(!b) return;
+  merk = merk.filter(m => String(m.id) !== b.dataset.del);
+  saveMerk(); renderMerk();
+});
+$('#m-clear').addEventListener('click', () => {
+  if(confirm('Merkliste wirklich vollständig löschen?')){ merk = []; saveMerk(); renderMerk(); }
+});
+
+function download(name, text, mime){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], {type:mime}));
+  a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+$('#m-export').addEventListener('click', () =>
+  download('waldradar-merkliste.json', JSON.stringify(merk, null, 2), 'application/json'));
+$('#m-csv').addEventListener('click', () => {
+  const head = 'Bezeichnung;Art;Region;Flaeche_m2;Preis_EUR;Preis_pro_m2;Bewertung;Link;Notiz';
+  const rows = merk.map(m => {
+    const pqm = m.preis/m.flaeche;
+    return [m.titel, BASIS[m.art].label, BZ[m.bez].name, Math.round(m.flaeche),
+            Math.round(m.preis), num(pqm), bewerten(pqm,m.art,m.bez).t, m.link, m.notiz]
+      .map(f => `"${String(f??'').replace(/"/g,'""')}"`).join(';');
+  });
+  download('waldradar-merkliste.csv', '﻿'+[head, ...rows].join('\r\n'), 'text/csv');
+});
+
+/* =========================================================================
+   INFO
+   ========================================================================= */
+const INFO = [
+["Warum zeigt die App keine fertige Liste aller Grundstücke?", `
+<p>Weil es sie öffentlich nicht gibt. In Deutschland existiert <strong>kein amtliches und kein offenes Verzeichnis</strong> der Grundstücke, die gerade zum Verkauf stehen. Die Angebote liegen verteilt bei privaten Portalen, deren Nutzungsbedingungen das automatische Auslesen untersagen und die keine offene Schnittstelle anbieten.</p>
+<p>Waldradar geht deshalb den ehrlichen Weg: Es führt die Suche nicht zusammen, sondern <strong>bündelt die Zugänge</strong> — für deinen Landkreis vorgefiltert, mit einem Tipp — und gibt dir das Preiswissen an die Hand, um ein gefundenes Angebot in Sekunden einzuordnen.</p>
+<p>Der Teil, den sonst niemand automatisiert: In Bayern wechselt ein großer Teil der Wald- und Wiesenflächen den Besitzer, <strong>ohne je inseriert zu werden</strong>. Waldbesitzervereinigung, Bauernverband und die Ämter für Ernährung, Landwirtschaft und Forsten wissen davon zuerst. Diese Kontakte findest du unter „Regionale Wege".</p>`],
+
+["Angebote von Wald-Vermittlern richtig einordnen", `
+<p>Anbieter wie Waldbund und ähnliche Vermittler funktionieren nach einem klaren Modell: Sie kaufen oder sichern sich größere Waldflächen, <strong>teilen sie in kleine Parzellen auf</strong> und vermarkten diese einzeln — oft ab wenigen tausend Quadratmetern, mit Beratung, Kaufabwicklung und teils Bewirtschaftung im Paket.</p>
+<p>Das ist eine echte Leistung, und für viele Käufer der einzige realistische Einstieg. Es hat aber einen Preis: Kleine Parzellen kosten pro Quadratmeter <strong>fast immer deutlich mehr</strong> als eine zusammenhängende Fläche. Aufteilung, Vermessung, Vermarktung und Marge stecken im Quadratmeterpreis.</p>
+<p>Deshalb der einfache Test: Rechne jedes solche Angebot im <strong>Preis-Check</strong> durch. Liegt es weit über dem Band deiner Region, zahlst du den Aufschlag für Bequemlichkeit. Das kann es dir wert sein — du solltest es nur wissen.</p>
+<p>Und rechne die Nebenkosten mit: Bei einer 3.000-m²-Parzelle fallen Grunderwerbsteuer, Notar und Grundbuch prozentual genauso an wie bei zwei Hektar, die Mindestgebühren treffen dich aber härter.</p>`],
+
+["Bevor du unterschreibst — die Checkliste", `
+<ul>
+<li><strong>Zufahrt.</strong> Die entscheidende Frage. Ohne gesicherten Weg — im Grundbuch eingetragen, nicht nur mündlich geduldet — ist Wald kaum bewirtschaftbar und schwer weiterverkäuflich.</li>
+<li><strong>Grundbuch.</strong> Abteilung II lesen: Wegerechte, Leitungsrechte, Nießbrauch, Vorkaufsrechte. Bei land- und forstwirtschaftlichen Flächen kommen häufig Rechte Dritter vor.</li>
+<li><strong>Genehmigung.</strong> Der Verkauf land- und forstwirtschaftlicher Grundstücke ist nach dem Grundstückverkehrsgesetz genehmigungspflichtig. Die Behörde kann versagen, wenn ein Landwirt die Fläche dringender braucht. Der Kaufvertrag steht bis dahin unter Vorbehalt.</li>
+<li><strong>Bestand.</strong> Baumart, Alter, Zustand. Nach Sturm, Dürre und Borkenkäfer sind viele Flächen wertgemindert. Eine geräumte Kalamitätsfläche ist nicht dasselbe wie ein hiebsreifer Bestand — auch wenn beides „Wald" heißt.</li>
+<li><strong>Schutzstatus.</strong> Naturschutz-, FFH-, Wasserschutzgebiet oder Bannwald schränken die Nutzung teils erheblich ein. Im BayernAtlas prüfbar.</li>
+<li><strong>Pflichten.</strong> Mit dem Wald erbst du die Verkehrssicherungspflicht, die Wiederaufforstungspflicht nach dem Bayerischen Waldgesetz und die Mitgliedschaft in der Jagdgenossenschaft.</li>
+<li><strong>Bauen ist nicht.</strong> Wald und Wiese sind Außenbereich. Weder Hütte noch Wochenendhaus noch Zaun sind ohne Weiteres zulässig.</li>
+<li><strong>Vor Ort gewesen?</strong> Immer. Flurstücksgrenzen im Gelände sind selten offensichtlich — lass sie dir zeigen.</li>
+</ul>`],
+
+["Woher die Zahlen stammen", `
+<ul>
+<li><strong>Kaufwerte je Regierungsbezirk 2024</strong> — Bayerisches Landesamt für Statistik, Pressemitteilung 278/2025 zum Statistischen Bericht M1700C. 5.965 verkaufte Grundstücke, 8.167 ha, 634,7 Mio. €, im Schnitt 77.721 €/ha. Für Schwaben war in der Mitteilung kein Bezirkswert ausgewiesen.</li>
+<li><strong>Grünland Bayern 2024</strong> — 60.335 €/ha, höchster Wert aller Bundesländer (bundesweit 26.794 €/ha).</li>
+<li><strong>Wald Bayern</strong> — rund 29.000 €/ha gegenüber etwa 12.700 €/ha im Bundesschnitt. In Ballungsraumnähe sind 6 bis 8 €/m² keine Seltenheit.</li>
+<li><strong>Grunderwerbsteuer Bayern</strong> — 3,5 %, der niedrigste Satz in Deutschland.</li>
+<li><strong>Tagwerk</strong> — altes bayerisches Feldmaß, 3.407,27 m². Wird bei Verkäufen unter Landwirten bis heute benutzt.</li>
+</ul>
+<p>Die Kaufwertestatistik erfasst <strong>landwirtschaftliche</strong> Flächen und wird stark von Ackerland geprägt. Für Wald und Wiese dient sie hier nur als Regionalindikator, nicht als direkter Preis. Den amtlichen Wert für eine konkrete Lage liefert BORIS-Bayern.</p>`],
+
+["Datenschutz", `
+<p>Waldradar läuft vollständig in deinem Browser. Es gibt keinen Server, keine Konten, kein Tracking und keine Analyse. Region, Einstellungen und Merkliste liegen im lokalen Speicher deines Geräts und verlassen ihn nicht.</p>
+<p>Wenn du einen Suchlink antippst, öffnet sich die jeweilige Plattform — dort gelten deren Datenschutzbestimmungen.</p>`]
+];
+
+$('#info-acc').innerHTML = INFO.map(([h,b],i) => `
+  <div class="acc${i===0?' on':''}">
+    <button class="acc-h" type="button">${h}</button>
+    <div class="acc-b">${b}</div>
+  </div>`).join('');
+$('#info-acc').addEventListener('click', e => {
+  const h = e.target.closest('.acc-h'); if(!h) return;
+  h.parentElement.classList.toggle('on');
+});
+
+/* =========================================================================
+   START
+   ========================================================================= */
+load();
+
+fillBezirke($('#f-bez'), state.bez);
+fillBezirke($('#p-bez'), state.bez);
+fillLandkreise();
+$('#f-ort').value = state.ort;
+$('#f-rad').value = state.rad;
+$('#f-rad-v').textContent = state.rad + ' km';
+$$('#f-art button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.art === state.art)));
+$$('#r-art button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.art === state.rArt)));
+$('#p-art').value = state.art;
+
+renderSuchen();
+renderRegionen();
+renderMerk();
+</script>
+</body>
+</html>
