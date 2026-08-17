@@ -123,7 +123,8 @@
         flex: 0 0 52px; text-align: center; scroll-snap-align: start;
     }
     .hour-time { font-size: 12px; color: #9fb3d1; margin-bottom: 6px; }
-    .hour-prob { font-size: 13px; font-weight: 600; margin-bottom: 5px; }
+    .hour-temp { font-size: 14px; font-weight: 600; color: #ffd28a; margin-bottom: 4px; }
+    .hour-prob { font-size: 13px; font-weight: 600; color: #7cc4ff; margin-bottom: 5px; }
     .hour-track {
         height: 76px; width: 100%;
         background: rgba(255,255,255,0.07);
@@ -219,7 +220,7 @@
     </div>
 
     <div class="card">
-        <h2>Regenwahrscheinlichkeit <span>· stündlich, 48 Stunden</span></h2>
+        <h2>Temperatur &amp; Regenwahrscheinlichkeit <span>· stündlich, 48 Stunden</span></h2>
         <div id="hourly" class="skeleton">Daten werden geladen …</div>
         <div class="note" id="hourlyNote"></div>
     </div>
@@ -553,9 +554,13 @@ function renderHourly(fc, ens) {
         const night = h.is_day && h.is_day[i] === 0;
         const icon = wmo(h.weather_code[i]);
 
+        const temp = h.temperature_2m && typeof h.temperature_2m[i] === "number"
+                   ? Math.round(h.temperature_2m[i]) + "°" : "–";
+
         cols +=
             '<div class="hour' + (night ? ' night' : '') + (isNewDay ? ' newday' : '') + '">' +
                 '<div class="hour-time">' + (isNewDay ? weekday(d) : hhmm(t)) + '</div>' +
+                '<div class="hour-temp">' + temp + '</div>' +
                 '<div class="hour-prob">' + Math.round(prob) + '%</div>' +
                 '<div class="hour-track"><div class="hour-fill" style="height:' +
                     Math.max(2, Math.min(100, prob)) + '%"></div></div>' +
