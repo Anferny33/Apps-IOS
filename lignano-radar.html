@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Regenradar">
+<meta name="theme-color" content="#0b1a33">
+<title>Regenradar Lignano</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    html, body { height: 100%; }
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: linear-gradient(160deg, #0b1a33 0%, #12233f 45%, #0f3460 100%);
+        background-attachment: fixed;
+        color: #eaf1fb;
+        display: flex; flex-direction: column;
+        padding: calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 16px);
+        -webkit-font-smoothing: antialiased;
+    }
+
+    .wrap { max-width: 620px; margin: 0 auto; width: 100%; flex: 1; display: flex; flex-direction: column; }
+
+    .header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+    .header h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.3px; }
+    .header p { font-size: 13px; color: #9fb3d1; margin-top: 3px; }
+    .header-main { flex: 1; min-width: 0; }
+
+    .navbtn {
+        width: 42px; height: 42px; flex: none;
+        display: flex; align-items: center; justify-content: center;
+        border: 1px solid rgba(255,255,255,0.16);
+        background: rgba(255,255,255,0.07);
+        border-radius: 50%; color: #eaf1fb;
+        font-size: 18px; text-decoration: none;
+    }
+    .navbtn:active { background: rgba(255,255,255,0.16); }
+
+    /* ---------- Karte ---------- */
+    .map-card {
+        flex: 1; min-height: 320px;
+        border-radius: 20px; overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.12);
+        position: relative;
+        background: #0d1b30;
+    }
+    #map { position: absolute; inset: 0; background: #0d1b30; }
+
+    .map-badge {
+        position: absolute; top: 12px; left: 12px; z-index: 900;
+        background: rgba(11,26,51,0.82);
+        backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+        border: 1px solid rgba(255,255,255,0.14);
+        border-radius: 12px; padding: 8px 12px;
+        font-size: 14px; font-weight: 600;
+        display: flex; align-items: center; gap: 8px;
+    }
+    .map-badge .pill {
+        font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 8px;
+        background: rgba(124,196,255,0.2); color: #7cc4ff;
+    }
+    .map-badge .pill.fc { background: rgba(255,210,138,0.2); color: #ffd28a; }
+
+    .map-msg {
+        position: absolute; inset: 0; z-index: 950;
+        display: flex; align-items: center; justify-content: center;
+        text-align: center; padding: 24px;
+        font-size: 14px; color: #9fb3d1; line-height: 1.6;
+        background: rgba(11,26,51,0.85);
+    }
+    .map-msg.hidden { display: none; }
+
+    .leaflet-container { font: inherit; }
+    .leaflet-control-attribution {
+        background: rgba(11,26,51,0.75) !important;
+        color: #7f95b4 !important; font-size: 9px !important;
+    }
+    .leaflet-control-attribution a { color: #8fb6e6 !important; }
+    .leaflet-control-zoom a {
+        background: rgba(11,26,51,0.85) !important;
+        color: #eaf1fb !important;
+        border-color: rgba(255,255,255,0.15) !important;
+    }
+
+    .site-dot { background: transparent; border: none; }
+    .site-dot .pin {
+        width: 16px; height: 16px; border-radius: 50%;
+        background: #ffd28a; border: 3px solid #0b1a33;
+        box-shadow: 0 0 0 2px #ffd28a, 0 2px 8px rgba(0,0,0,0.6);
+    }
+
+    /* ---------- Steuerung ---------- */
+    .controls {
+        margin-top: 14px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 20px;
+        padding: 14px 16px;
+        backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    }
+    .controls-row { display: flex; align-items: center; gap: 14px; }
+
+    .play {
+        width: 46px; height: 46px; flex: none;
+        border-radius: 50%; border: none; cursor: pointer;
+        background: linear-gradient(135deg, #4a9de0, #2563b0);
+        color: #fff; font-size: 18px;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .play:active { filter: brightness(1.2); }
+
+    input[type="range"] {
+        flex: 1; -webkit-appearance: none; appearance: none;
+        height: 6px; border-radius: 3px;
+        background: rgba(255,255,255,0.14);
+        outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none; appearance: none;
+        width: 22px; height: 22px; border-radius: 50%;
+        background: #7cc4ff; border: 3px solid #0b1a33;
+        box-shadow: 0 1px 5px rgba(0,0,0,0.5);
+    }
+
+    .ticks { display: flex; justify-content: space-between; font-size: 11px; color: #7f95b4; margin-top: 8px; padding: 0 60px 0 60px; }
+
+    .legend { display: flex; align-items: center; gap: 10px; margin-top: 13px; }
+    .legend-bar {
+        flex: 1; height: 8px; border-radius: 4px;
+        background: linear-gradient(90deg, #8fd8ff, #3f97e0, #2455c8, #8a3fc4, #d63a6e);
+    }
+    .legend span { font-size: 11px; color: #9fb3d1; }
+
+    footer { font-size: 11.5px; color: #6f86a8; line-height: 1.7; text-align: center; margin-top: 14px; }
+    footer a { color: #8fb6e6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+    <div class="header">
+        <div class="header-main">
+            <h1>Regenradar</h1>
+            <p>Lignano Sabbiadoro &amp; nördliche Adria</p>
+        </div>
+        <a class="navbtn" href="lignano-wetter.html" aria-label="Wettervorhersage">🌦️</a>
+        <a class="navbtn" href="lignano-info.html" aria-label="Camping-Infos">ℹ️</a>
+    </div>
+
+    <div class="map-card">
+        <div id="map"></div>
+        <div class="map-badge">
+            <span id="frameTime">–:–</span>
+            <span class="pill" id="framePill">Radar</span>
+        </div>
+        <div class="map-msg" id="mapMsg">Radar wird geladen …</div>
+    </div>
+
+    <div class="controls">
+        <div class="controls-row">
+            <button class="play" id="play" aria-label="Abspielen">▶</button>
+            <input type="range" id="slider" min="0" max="0" value="0" step="1" aria-label="Zeitpunkt">
+        </div>
+        <div class="ticks"><span id="tickStart">–2 h</span><span>jetzt</span><span id="tickEnd">+30 min</span></div>
+        <div class="legend">
+            <span>leicht</span>
+            <div class="legend-bar"></div>
+            <span>stark</span>
+        </div>
+    </div>
+
+    <footer>
+        Radar: <a href="https://www.rainviewer.com/" rel="noopener">RainViewer</a> ·
+        Karte: <a href="https://carto.com/" rel="noopener">CARTO</a> /
+        <a href="https://www.openstreetmap.org/copyright" rel="noopener">OpenStreetMap</a> ·
+        gelber Punkt = Campingplatz
+    </footer>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+"use strict";
+
+/* Radaranimation nach dem Muster gängiger Regenradar-Apps:
+   RainViewer liefert alle 10 Minuten ein neues globales Komposit
+   (letzte 2 Stunden + 30 Minuten Nowcast) als Kachel-Layer. */
+
+const CAMP = { lat: 45.6957, lon: 13.1291 };
+const KEEP_PAST = 10;          // 10 Frames à 10 min ≈ 100 min Rückschau
+const RADAR_OPACITY = 0.72;
+const PLAY_MS = 650;
+const $ = function (id) { return document.getElementById(id); };
+
+let map = null;
+let frames = [];               // { time, layer, isForecast }
+let current = 0;
+let playing = false;
+let playTimer = null;
+let refreshTimer = null;
+
+function fmtTime(unix) {
+    return new Date(unix * 1000).toLocaleTimeString("de-DE", {
+        hour: "2-digit", minute: "2-digit", timeZone: "Europe/Rome"
+    });
+}
+
+function showMsg(text) {
+    const el = $("mapMsg");
+    el.textContent = text;
+    el.classList.remove("hidden");
+}
+function hideMsg() { $("mapMsg").classList.add("hidden"); }
+
+function initMap() {
+    map = L.map("map", {
+        center: [CAMP.lat, CAMP.lon],
+        zoom: 8,
+        minZoom: 5,
+        maxZoom: 11,
+        zoomControl: true,
+        attributionControl: true
+    });
+
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+        attribution: '&copy; OpenStreetMap &copy; CARTO',
+        subdomains: "abcd",
+        maxZoom: 19
+    }).addTo(map);
+
+    L.marker([CAMP.lat, CAMP.lon], {
+        icon: L.divIcon({ className: "site-dot", html: '<div class="pin"></div>', iconSize: [16, 16], iconAnchor: [8, 8] })
+    }).addTo(map).bindPopup("Camping Sabbiadoro");
+}
+
+function clearFrames() {
+    frames.forEach(function (f) { if (map.hasLayer(f.layer)) map.removeLayer(f.layer); });
+    frames = [];
+}
+
+function showFrame(i) {
+    if (!frames.length) return;
+    current = Math.max(0, Math.min(i, frames.length - 1));
+    frames.forEach(function (f, idx) {
+        f.layer.setOpacity(idx === current ? RADAR_OPACITY : 0);
+    });
+    const f = frames[current];
+    $("frameTime").textContent = fmtTime(f.time) + " Uhr";
+    const pill = $("framePill");
+    if (f.isForecast) {
+        pill.textContent = "Prognose";
+        pill.className = "pill fc";
+    } else {
+        pill.textContent = current === lastPastIndex() ? "jetzt" : "Radar";
+        pill.className = "pill";
+    }
+    $("slider").value = current;
+}
+
+function lastPastIndex() {
+    for (let i = frames.length - 1; i >= 0; i--) {
+        if (!frames[i].isForecast) return i;
+    }
+    return frames.length - 1;
+}
+
+async function loadFrames(keepPosition) {
+    let cfg;
+    try {
+        const res = await fetch("https://api.rainviewer.com/public/weather-maps.json", { cache: "no-store" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        cfg = await res.json();
+    } catch (e) {
+        if (!frames.length) {
+            showMsg("Radardaten konnten nicht geladen werden (" + e.message + "). Bitte Verbindung prüfen und Seite neu laden.");
+        }
+        return;
+    }
+
+    const past = (cfg.radar && cfg.radar.past ? cfg.radar.past : []).slice(-KEEP_PAST);
+    const nowcast = cfg.radar && cfg.radar.nowcast ? cfg.radar.nowcast : [];
+    if (!past.length) {
+        showMsg("Zurzeit liegen keine Radardaten vor.");
+        return;
+    }
+
+    const rel = keepPosition && frames.length ? current - lastPastIndex() : 0;
+
+    clearFrames();
+    past.concat(nowcast).forEach(function (item, idx) {
+        /* Farbschema 2 (universal), geglättet, mit Schnee-Unterscheidung */
+        const layer = L.tileLayer(cfg.host + item.path + "/256/{z}/{x}/{y}/2/1_1.png", {
+            opacity: 0, zIndex: 200, tileSize: 256
+        });
+        layer.addTo(map);   /* sofort einhängen = Kacheln werden vorgeladen */
+        frames.push({ time: item.time, layer: layer, isForecast: idx >= past.length });
+    });
+
+    $("slider").max = frames.length - 1;
+    $("tickStart").textContent = "–" + Math.round((frames[lastPastIndex()].time - frames[0].time) / 60) + " min";
+    $("tickEnd").textContent = nowcast.length ? "+" + Math.round((frames[frames.length - 1].time - frames[lastPastIndex()].time) / 60) + " min" : "jetzt";
+
+    hideMsg();
+    showFrame(lastPastIndex() + rel);
+}
+
+function setPlaying(on) {
+    playing = on;
+    $("play").textContent = on ? "❚❚" : "▶";
+    if (playTimer) { clearInterval(playTimer); playTimer = null; }
+    if (on) {
+        playTimer = setInterval(function () {
+            showFrame(current >= frames.length - 1 ? 0 : current + 1);
+        }, PLAY_MS);
+    }
+}
+
+function init() {
+    if (typeof L === "undefined") {
+        showMsg("Die Kartenbibliothek konnte nicht geladen werden. Bitte Verbindung prüfen und Seite neu laden.");
+        return;
+    }
+    initMap();
+    loadFrames(false).then(function () {
+        if (frames.length) setPlaying(true);
+    });
+
+    $("play").addEventListener("click", function () { setPlaying(!playing); });
+    $("slider").addEventListener("input", function () {
+        setPlaying(false);
+        showFrame(parseInt(this.value, 10) || 0);
+    });
+
+    /* Frisches Komposit alle 5 Minuten und beim Zurückkehren in die App */
+    refreshTimer = setInterval(function () { loadFrames(true); }, 5 * 60 * 1000);
+    document.addEventListener("visibilitychange", function () {
+        if (!document.hidden) loadFrames(true);
+    });
+}
+
+init();
+</script>
+</body>
+</html>
