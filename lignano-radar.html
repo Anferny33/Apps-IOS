@@ -92,6 +92,10 @@
         background: #ffd28a; border: 3px solid #0b1a33;
         box-shadow: 0 0 0 2px #ffd28a, 0 2px 8px rgba(0,0,0,0.6);
     }
+    .site-dot .pin.me {
+        background: #7cc4ff;
+        box-shadow: 0 0 0 2px #7cc4ff, 0 2px 8px rgba(0,0,0,0.6);
+    }
 
     /* ---------- Steuerung ---------- */
     .controls {
@@ -145,10 +149,10 @@
     <div class="header">
         <div class="header-main">
             <h1>Regenradar</h1>
-            <p>Lignano Sabbiadoro &amp; nördliche Adria</p>
+            <p>Ziehende Schauer im Zeitraffer – zentriert auf deine letzte Position</p>
         </div>
         <a class="navbtn" href="index.html" aria-label="Startseite">🏠</a>
-        <a class="navbtn" href="lignano-wetter.html" aria-label="Wettervorhersage">🌦️</a>
+        <a class="navbtn" href="lignano-wetter.html" aria-label="Wetter Lignano">⛺</a>
         <a class="navbtn" href="lignano-info.html" aria-label="Camping-Infos">ℹ️</a>
     </div>
 
@@ -178,7 +182,7 @@
         Radar: <a href="https://www.rainviewer.com/" rel="noopener">RainViewer</a> ·
         Karte: <a href="https://carto.com/" rel="noopener">CARTO</a> /
         <a href="https://www.openstreetmap.org/copyright" rel="noopener">OpenStreetMap</a> ·
-        gelber Punkt = Campingplatz
+        gelber Punkt = Campingplatz · blauer Punkt = dein Standort (falls bekannt)
     </footer>
 </div>
 
@@ -191,6 +195,16 @@
    (letzte 2 Stunden + 30 Minuten Nowcast) als Kachel-Layer. */
 
 const CAMP = { lat: 45.6957, lon: 13.1291 };
+
+/* Zuletzt bekannte Position der Startseite (dort per GPS ermittelt) –
+   kein eigener Standort-Prompt auf dieser Seite. */
+function lastKnownPos() {
+    try {
+        const raw = localStorage.getItem("lignano-wetter:geopos");
+        const p = raw ? JSON.parse(raw) : null;
+        return p && typeof p.lat === "number" && typeof p.lon === "number" ? p : null;
+    } catch (e) { return null; }
+}
 const KEEP_PAST = 10;          // 10 Frames à 10 min ≈ 100 min Rückschau
 const RADAR_OPACITY = 0.72;
 const PLAY_MS = 650;
@@ -217,8 +231,9 @@ function showMsg(text) {
 function hideMsg() { $("mapMsg").classList.add("hidden"); }
 
 function initMap() {
+    const pos = lastKnownPos();
     map = L.map("map", {
-        center: [CAMP.lat, CAMP.lon],
+        center: pos ? [pos.lat, pos.lon] : [CAMP.lat, CAMP.lon],
         zoom: 7,
         minZoom: 5,
         maxZoom: 11,
@@ -235,6 +250,12 @@ function initMap() {
     L.marker([CAMP.lat, CAMP.lon], {
         icon: L.divIcon({ className: "site-dot", html: '<div class="pin"></div>', iconSize: [16, 16], iconAnchor: [8, 8] })
     }).addTo(map).bindPopup("Camping Sabbiadoro");
+
+    if (pos) {
+        L.marker([pos.lat, pos.lon], {
+            icon: L.divIcon({ className: "site-dot", html: '<div class="pin me"></div>', iconSize: [16, 16], iconAnchor: [8, 8] })
+        }).addTo(map).bindPopup(pos.name || "Dein Standort");
+    }
 }
 
 function clearFrames() {

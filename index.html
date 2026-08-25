@@ -5,342 +5,73 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Camping Apps">
+<meta name="apple-mobile-web-app-title" content="Mein Wetter">
 <meta name="theme-color" content="#0b1a33">
-<title>Start – Camping Apps</title>
-<style>
-    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-
-    body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        background: linear-gradient(160deg, #0b1a33 0%, #12233f 45%, #0f3460 100%);
-        background-attachment: fixed;
-        min-height: 100vh;
-        color: #eaf1fb;
-        padding: calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 32px);
-        -webkit-font-smoothing: antialiased;
-    }
-
-    .wrap { max-width: 620px; margin: 0 auto; }
-
-    .header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 18px; }
-    .header h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.3px; }
-    .header p { font-size: 13px; color: #9fb3d1; margin-top: 3px; }
-    .header-main { flex: 1; min-width: 0; }
-
-    .reload {
-        width: 42px; height: 42px; flex: none;
-        border: 1px solid rgba(255,255,255,0.16);
-        background: rgba(255,255,255,0.07);
-        border-radius: 50%; color: #eaf1fb;
-        font-size: 18px; cursor: pointer;
-        display: flex; align-items: center; justify-content: center;
-    }
-    .reload:active { background: rgba(255,255,255,0.16); }
-    .reload.spin { animation: spin 0.9s linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .card {
-        background: rgba(255,255,255,0.06);
-        border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 20px;
-        padding: 18px;
-        margin-bottom: 14px;
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-    }
-    .card h2 {
-        font-size: 13px; font-weight: 600;
-        text-transform: uppercase; letter-spacing: 0.9px;
-        color: #9fb3d1; margin-bottom: 14px;
-    }
-    .card h2 span { text-transform: none; letter-spacing: 0; font-weight: 400; color: #6f86a8; }
-
-    .place { font-size: 16px; font-weight: 600; margin-bottom: 2px; }
-    .place-sub { font-size: 12.5px; color: #9fb3d1; margin-bottom: 14px; }
-
-    .now { display: flex; align-items: center; gap: 16px; }
-    .now-icon { font-size: 54px; line-height: 1; }
-    .now-temp { font-size: 42px; font-weight: 300; letter-spacing: -1.5px; }
-    .now-desc { font-size: 15px; color: #cfdcef; margin-top: 2px; }
-
-    .lead { font-size: 15px; font-weight: 500; line-height: 1.5; margin-top: 14px; }
-    .lead.dry { color: #8fe3b0; }
-    .lead.wet { color: #7cc4ff; }
-
-    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-    .chip {
-        font-size: 12.5px; color: #cfdcef;
-        background: rgba(255,255,255,0.07);
-        border-radius: 10px; padding: 7px 10px;
-    }
-    .chip b { color: #fff; font-weight: 600; }
-
-    .locbtn {
-        display: block; width: 100%;
-        margin-top: 14px; padding: 12px;
-        border: 1px solid rgba(255,255,255,0.16);
-        background: rgba(255,255,255,0.07);
-        border-radius: 14px; color: #eaf1fb;
-        font-size: 14.5px; font-family: inherit; cursor: pointer;
-        text-align: center;
-    }
-    .locbtn:active { background: rgba(255,255,255,0.16); }
-
-    .skeleton { color: #7f95b4; font-size: 14px; }
-    .errtext { color: #ffc9c9; font-size: 13.5px; line-height: 1.6; }
-
-    /* ---------- App-Kacheln ---------- */
-    .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .tile {
-        background: rgba(255,255,255,0.06);
-        border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 20px;
-        padding: 18px 16px;
-        color: #eaf1fb; text-decoration: none;
-        display: flex; flex-direction: column; gap: 8px;
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-    }
-    .tile:active { background: rgba(255,255,255,0.14); }
-    .tile .ico { font-size: 30px; }
-    .tile b { font-size: 15px; font-weight: 600; }
-    .tile small { font-size: 12px; color: #9fb3d1; line-height: 1.45; }
-
-    footer { font-size: 11.5px; color: #6f86a8; line-height: 1.7; text-align: center; margin-top: 20px; }
-    footer a { color: #8fb6e6; }
-</style>
+<title>Mein Wetter</title>
+<link rel="stylesheet" href="wetter.css">
 </head>
 <body>
 <div class="wrap">
 
     <div class="header">
         <div class="header-main">
-            <h1>Camping Apps</h1>
-            <p>Wetter an deinem Standort &amp; alles für Lignano</p>
+            <h1>Mein Wetter</h1>
+            <p id="subline">Standort wird ermittelt …</p>
         </div>
+        <a class="infobtn" href="lignano-wetter.html" aria-label="Wetter Lignano">⛺</a>
+        <a class="infobtn" href="lignano-radar.html" aria-label="Regenradar">🛰️</a>
         <button class="reload" id="reload" aria-label="Aktualisieren">&#8635;</button>
     </div>
 
+    <div class="banner error hidden" id="error"></div>
+    <div class="banner stale hidden" id="stale"></div>
+
     <div class="card">
-        <h2>Dein Standort <span>· jetzt</span></h2>
-        <div id="local" class="skeleton">Standort wird ermittelt …</div>
+        <h2>Aktuell</h2>
+        <div id="now" class="skeleton">Daten werden geladen …</div>
     </div>
 
-    <div class="tiles">
-        <a class="tile" href="lignano-wetter.html">
-            <span class="ico">🌦️</span>
-            <b>Wetter Lignano</b>
-            <small>Regenwahrscheinlichkeit &amp; Niederschlag am Campingplatz, 7 Tage</small>
-        </a>
-        <a class="tile" href="lignano-radar.html">
-            <span class="ico">🛰️</span>
-            <b>Regenradar</b>
-            <small>Ziehende Schauer live auf der Karte, mit Zeitraffer</small>
-        </a>
-        <a class="tile" href="lignano-info.html">
-            <span class="ico">⛺</span>
-            <b>Camping-Info</b>
-            <small>Öffnungszeiten, Shows, Märkte, Strand &amp; Stadt</small>
-        </a>
-        <a class="tile" href="box-breathing.html">
-            <span class="ico">🧘</span>
-            <b>Box Breathing</b>
-            <small>Atemübung zum Entspannen – 4-4-4-4</small>
-        </a>
+    <div class="card">
+        <h2>Nowcast <span>· nächste 4 Stunden, 15-Minuten-Schritte</span></h2>
+        <div id="nowcast" class="skeleton">Daten werden geladen …</div>
+    </div>
+
+    <div class="card">
+        <h2>Temperaturverlauf <span>· nächste 48 Stunden</span></h2>
+        <div id="tempchart" class="skeleton">Daten werden geladen …</div>
+    </div>
+
+    <div class="card">
+        <h2>Temperatur &amp; Regenwahrscheinlichkeit <span>· stündlich, 48 Stunden</span></h2>
+        <div id="hourly" class="skeleton">Daten werden geladen …</div>
+        <div class="note" id="hourlyNote"></div>
+    </div>
+
+    <div class="card">
+        <h2>7 Tage</h2>
+        <div id="daily" class="skeleton">Daten werden geladen …</div>
+    </div>
+
+    <div class="card">
+        <h2>Modellvergleich <span>· Niederschlag in mm</span></h2>
+        <div id="models" class="skeleton">Daten werden geladen …</div>
+        <div class="note">
+            Weichen die Modelle stark voneinander ab, ist die Lage unsicher – dann sagt die
+            Bandbreite mehr aus als der Einzelwert. Modelle ohne Abdeckung für diesen Ort
+            werden ausgeblendet.
+        </div>
     </div>
 
     <footer>
-        Wetterdaten: <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a> · CC BY 4.0 ·
+        Daten: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>
+        (DWD ICON, ECMWF IFS, NOAA GFS u. a.) · CC BY 4.0 ·
         Ortsname: <a href="https://www.bigdatacloud.com/" rel="noopener">BigDataCloud</a><br>
-        Der Standort wird nur im Browser verwendet und nicht gespeichert.
+        Der Standort wird nur im Browser verwendet · <span id="updated"></span><br>
+        <a href="lignano-info.html">⛺ Camping-Info Lignano</a> · <a href="box-breathing.html">🧘 Box Breathing</a>
     </footer>
 </div>
 
-<script>
-"use strict";
-
-const CAMP = { lat: 45.6957, lon: 13.1291, name: "Camping Sabbiadoro" };
-const $ = function (id) { return document.getElementById(id); };
-
-const WMO = {
-    0:["☀️","klar"],1:["🌤️","überwiegend klar"],2:["⛅","wolkig"],3:["☁️","bedeckt"],
-    45:["🌫️","Nebel"],48:["🌫️","gefrierender Nebel"],
-    51:["🌦️","leichter Nieselregen"],53:["🌦️","Nieselregen"],55:["🌧️","starker Nieselregen"],
-    56:["🌧️","gefrierender Niesel"],57:["🌧️","gefrierender Niesel"],
-    61:["🌦️","leichter Regen"],63:["🌧️","Regen"],65:["🌧️","starker Regen"],
-    66:["🌧️","gefrierender Regen"],67:["🌧️","gefrierender Regen"],
-    71:["🌨️","leichter Schneefall"],73:["🌨️","Schneefall"],75:["❄️","starker Schneefall"],77:["❄️","Schneegriesel"],
-    80:["🌦️","leichte Schauer"],81:["🌧️","Schauer"],82:["⛈️","kräftige Schauer"],
-    85:["🌨️","Schneeschauer"],86:["🌨️","starke Schneeschauer"],
-    95:["⛈️","Gewitter"],96:["⛈️","Gewitter mit Hagel"],99:["⛈️","schweres Gewitter mit Hagel"]
-};
-function wmo(code) { return WMO[code] || ["🌥️", "–"]; }
-
-function fmtMm(v) {
-    if (v === null || v === undefined || isNaN(v)) return "–";
-    if (v < 0.05) return "0";
-    return (v < 10 ? v.toFixed(1) : Math.round(v).toString()).replace(".", ",");
-}
-
-function hhmm(t) { return t.slice(11, 16); }
-
-/* Entfernung Luftlinie (Haversine) */
-function distanceKm(lat1, lon1, lat2, lon2) {
-    const r = Math.PI / 180;
-    const a = Math.sin((lat2 - lat1) * r / 2) ** 2 +
-              Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin((lon2 - lon1) * r / 2) ** 2;
-    return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-async function getJson(url) {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const data = await res.json();
-    if (data.error) throw new Error(data.reason || "API-Fehler");
-    return data;
-}
-
-function fetchWeather(lat, lon) {
-    const q = new URLSearchParams({
-        latitude: lat, longitude: lon,
-        timezone: "auto", forecast_days: 2,
-        current: "temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m",
-        minutely_15: "precipitation",
-        daily: "temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max"
-    });
-    return getJson("https://api.open-meteo.com/v1/forecast?" + q);
-}
-
-/* Ortsname per Reverse-Geocoding – für Clients gedacht, ohne Schlüssel */
-async function fetchPlace(lat, lon) {
-    try {
-        const q = new URLSearchParams({ latitude: lat, longitude: lon, localityLanguage: "de" });
-        const d = await getJson("https://api.bigdatacloud.net/data/reverse-geocode-client?" + q);
-        const parts = [d.city || d.locality, d.principalSubdivision || d.countryName]
-            .filter(function (x) { return x; });
-        return parts.length ? parts.join(", ") : null;
-    } catch (e) { return null; }
-}
-
-function nowcastLead(fc) {
-    const m = fc.minutely_15;
-    if (!m || !m.time || !m.precipitation) return null;
-    let start = -1;
-    const nowKey = fc.current.time.slice(0, 16);
-    for (let i = 0; i < m.time.length; i++) {
-        if (m.time[i] >= nowKey) { start = i; break; }
-    }
-    if (start < 0) return null;
-    const times = m.time.slice(start, start + 16);
-    const vals = m.precipitation.slice(start, start + 16).map(function (v) {
-        return typeof v === "number" && !isNaN(v) ? v : 0;
-    });
-    const total = vals.reduce(function (a, b) { return a + b; }, 0);
-    const firstWet = vals.findIndex(function (v) { return v >= 0.1; });
-    if (firstWet < 0) return { cls: "dry", text: "Kein Regen in den nächsten 4 Stunden." };
-    if (firstWet === 0) return { cls: "wet", text: "Es regnet gerade – in 4 Stunden zusammen etwa " + fmtMm(total) + " mm." };
-    return { cls: "wet", text: "Regen ab ca. " + hhmm(times[firstWet]) + " Uhr, insgesamt etwa " + fmtMm(total) + " mm." };
-}
-
-function renderLocal(fc, placeName, lat, lon) {
-    const c = fc.current;
-    const icon = wmo(c.weather_code);
-    const lead = nowcastLead(fc);
-    const d = fc.daily;
-    const dist = distanceKm(lat, lon, CAMP.lat, CAMP.lon);
-    const distText = dist < 2
-        ? "Du bist am Campingplatz 🏕️"
-        : "≈ " + (dist < 100 ? dist.toFixed(0) : Math.round(dist)) + " km Luftlinie bis " + CAMP.name;
-
-    const box = $("local");
-    box.classList.remove("skeleton");
-    box.innerHTML =
-        '<div class="place">📍 ' + (placeName || lat.toFixed(3) + "° N, " + lon.toFixed(3) + "° O") + '</div>' +
-        '<div class="place-sub">' + distText + '</div>' +
-        '<div class="now">' +
-            '<div class="now-icon">' + icon[0] + '</div>' +
-            '<div>' +
-                '<div class="now-temp">' + Math.round(c.temperature_2m) + '°</div>' +
-                '<div class="now-desc">' + icon[1] + ' · gefühlt ' + Math.round(c.apparent_temperature) + '°</div>' +
-            '</div>' +
-        '</div>' +
-        (lead ? '<div class="lead ' + lead.cls + '">' + lead.text + '</div>' : '') +
-        '<div class="chips">' +
-            '<span class="chip">Heute <b>' + Math.round(d.temperature_2m_max[0]) + '° / ' + Math.round(d.temperature_2m_min[0]) + '°</b></span>' +
-            '<span class="chip">Regenrisiko heute <b>' + (typeof d.precipitation_probability_max[0] === "number" ? d.precipitation_probability_max[0] + " %" : "–") + '</b></span>' +
-            '<span class="chip">Morgen <b>' + Math.round(d.temperature_2m_max[1]) + '°</b>, Regenrisiko <b>' + (typeof d.precipitation_probability_max[1] === "number" ? d.precipitation_probability_max[1] + " %" : "–") + '</b></span>' +
-        '</div>';
-}
-
-function renderError(message, showRetry) {
-    const box = $("local");
-    box.classList.remove("skeleton");
-    box.innerHTML =
-        '<div class="errtext">' + message + '</div>' +
-        (showRetry ? '<button class="locbtn" id="retry">📍 Standort erneut abfragen</button>' : '') +
-        '<button class="locbtn" id="fallback">🏕️ Stattdessen Wetter für Lignano zeigen</button>';
-    const retry = $("retry");
-    if (retry) retry.addEventListener("click", function () { locate(); });
-    $("fallback").addEventListener("click", function () { loadFor(CAMP.lat, CAMP.lon, CAMP.name + ", Lignano"); });
-}
-
-let loading = false;
-
-async function loadFor(lat, lon, knownName) {
-    if (loading) return;
-    loading = true;
-    $("reload").classList.add("spin");
-    try {
-        const results = await Promise.all([
-            fetchWeather(lat, lon),
-            knownName ? Promise.resolve(knownName) : fetchPlace(lat, lon)
-        ]);
-        renderLocal(results[0], results[1], lat, lon);
-    } catch (e) {
-        renderError("Die Wetterdaten konnten nicht geladen werden (" + e.message + "). Bitte Verbindung prüfen.", true);
-    }
-    $("reload").classList.remove("spin");
-    loading = false;
-}
-
-let lastPos = null;
-
-function locate() {
-    if (!("geolocation" in navigator)) {
-        renderError("Dein Browser unterstützt keine Standortabfrage.", false);
-        return;
-    }
-    $("local").innerHTML = "Standort wird ermittelt …";
-    $("local").classList.add("skeleton");
-
-    navigator.geolocation.getCurrentPosition(
-        function (pos) {
-            lastPos = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-            loadFor(lastPos.lat, lastPos.lon, null);
-        },
-        function (err) {
-            if (err.code === 1) {
-                renderError("Der Standortzugriff wurde abgelehnt. Du kannst ihn in den iPhone-Einstellungen unter Datenschutz → Ortungsdienste → Safari wieder erlauben.", false);
-            } else {
-                renderError("Der Standort konnte nicht ermittelt werden (" + (err.message || "Fehler") + ").", true);
-            }
-        },
-        { enableHighAccuracy: false, timeout: 12000, maximumAge: 5 * 60 * 1000 }
-    );
-}
-
-function refresh() {
-    if (lastPos) loadFor(lastPos.lat, lastPos.lon, null);
-    else locate();
-}
-
-$("reload").addEventListener("click", refresh);
-document.addEventListener("visibilitychange", function () {
-    if (!document.hidden) refresh();
-});
-
-locate();
-</script>
+<script src="wetter-core.js"></script>
+<script>initWeatherApp({ mode: "geo" });</script>
 </body>
 </html>
