@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Mein Wetter">
+<meta name="apple-mobile-web-app-title" content="Wetter">
 <meta name="theme-color" content="#0b1a33">
 <title>Mein Wetter</title>
 <link rel="stylesheet" href="wetter.css">
@@ -18,9 +18,14 @@
             <h1>Mein Wetter</h1>
             <p id="subline">Standort wird ermittelt …</p>
         </div>
-        <a class="infobtn" href="lignano-wetter.html" aria-label="Wetter Lignano">⛺</a>
-        <a class="infobtn" href="lignano-radar.html" aria-label="Regenradar">🛰️</a>
+        <a class="infobtn" href="radar.html" aria-label="Regenradar">🛰️</a>
         <button class="reload" id="reload" aria-label="Aktualisieren">&#8635;</button>
+    </div>
+
+    <div class="search">
+        <input type="search" id="placeSearch" placeholder="Anderen Ort suchen …" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Ort suchen">
+        <button type="button" class="gpsbtn hidden" id="gpsBtn">📍 Mein Standort</button>
+        <div class="place-results hidden" id="placeResults"></div>
     </div>
 
     <div class="banner error hidden" id="error"></div>
@@ -48,8 +53,25 @@
     </div>
 
     <div class="card">
+        <h2>Wind, UV &amp; Sonne <span>· heute</span></h2>
+        <div id="sun" class="skeleton">Daten werden geladen …</div>
+    </div>
+
+    <div class="card">
         <h2>7 Tage</h2>
         <div id="daily" class="skeleton">Daten werden geladen …</div>
+    </div>
+
+    <div class="card">
+        <h2>14-Tage-Trend <span>· Temperaturspanne &amp; Niederschlag</span></h2>
+        <div id="trend" class="skeleton">Daten werden geladen …</div>
+        <div class="note">Ab etwa Tag 7 sinkt die Verlässlichkeit deutlich – der Trend zeigt die Richtung, nicht den Tag.</div>
+    </div>
+
+    <div class="card">
+        <h2>Luftqualität &amp; Pollen <span>· jetzt</span></h2>
+        <div id="air" class="skeleton">Daten werden geladen …</div>
+        <div class="note">Pollenstufen nach gängigen Schwellenwerten, grob eingestuft. Werte in Pollen pro m³ Luft.</div>
     </div>
 
     <div class="card">
@@ -64,14 +86,14 @@
 
     <footer>
         Daten: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>
-        (DWD ICON, ECMWF IFS, NOAA GFS u. a.) · CC BY 4.0 ·
+        (DWD ICON, ECMWF, Météo-France, UKMO, NOAA; Luftqualität CAMS) · CC BY 4.0 ·
         Ortsname: <a href="https://www.bigdatacloud.com/" rel="noopener">BigDataCloud</a><br>
         Der Standort wird nur im Browser verwendet · <span id="updated"></span><br>
-        <a href="lignano-info.html">⛺ Camping-Info Lignano</a> · <a href="box-breathing.html">🧘 Box Breathing</a>
+        <a href="box-breathing.html">🧘 Box Breathing</a>
     </footer>
 </div>
 
 <script src="wetter-core.js"></script>
-<script>initWeatherApp({ mode: "geo" });</script>
+<script>initWeatherApp();</script>
 </body>
 </html>

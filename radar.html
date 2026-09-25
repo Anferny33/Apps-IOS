@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Regenradar">
 <meta name="theme-color" content="#0b1a33">
-<title>Regenradar Lignano</title>
+<title>Regenradar</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -89,11 +89,7 @@
     .site-dot { background: transparent; border: none; }
     .site-dot .pin {
         width: 16px; height: 16px; border-radius: 50%;
-        background: #ffd28a; border: 3px solid #0b1a33;
-        box-shadow: 0 0 0 2px #ffd28a, 0 2px 8px rgba(0,0,0,0.6);
-    }
-    .site-dot .pin.me {
-        background: #7cc4ff;
+        background: #7cc4ff; border: 3px solid #0b1a33;
         box-shadow: 0 0 0 2px #7cc4ff, 0 2px 8px rgba(0,0,0,0.6);
     }
 
@@ -149,11 +145,9 @@
     <div class="header">
         <div class="header-main">
             <h1>Regenradar</h1>
-            <p>Ziehende Schauer im Zeitraffer – zentriert auf deine letzte Position</p>
+            <p>Ziehende Schauer im Zeitraffer – zentriert auf deinen Standort</p>
         </div>
-        <a class="navbtn" href="index.html" aria-label="Startseite">🏠</a>
-        <a class="navbtn" href="lignano-wetter.html" aria-label="Wetter Lignano">⛺</a>
-        <a class="navbtn" href="lignano-info.html" aria-label="Camping-Infos">ℹ️</a>
+        <a class="navbtn" href="index.html" aria-label="Zur Wetter-App">🏠</a>
     </div>
 
     <div class="map-card">
@@ -182,7 +176,7 @@
         Radar: <a href="https://www.rainviewer.com/" rel="noopener">RainViewer</a> ·
         Karte: <a href="https://carto.com/" rel="noopener">CARTO</a> /
         <a href="https://www.openstreetmap.org/copyright" rel="noopener">OpenStreetMap</a> ·
-        gelber Punkt = Campingplatz · blauer Punkt = dein Standort (falls bekannt)
+        blauer Punkt = dein Standort (letzte Position aus der Wetter-App)
     </footer>
 </div>
 
@@ -194,13 +188,14 @@
    RainViewer liefert alle 10 Minuten ein neues globales Komposit
    (letzte 2 Stunden + 30 Minuten Nowcast) als Kachel-Layer. */
 
-const CAMP = { lat: 45.6957, lon: 13.1291 };
+/* Ohne bekannte Position: Mitte Deutschlands, ganz herausgezoomt */
+const DEFAULT_CENTER = [51.16, 10.45];
 
 /* Zuletzt bekannte Position der Startseite (dort per GPS ermittelt) –
    kein eigener Standort-Prompt auf dieser Seite. */
 function lastKnownPos() {
     try {
-        const raw = localStorage.getItem("lignano-wetter:geopos");
+        const raw = localStorage.getItem("wetter:pos");
         const p = raw ? JSON.parse(raw) : null;
         return p && typeof p.lat === "number" && typeof p.lon === "number" ? p : null;
     } catch (e) { return null; }
@@ -233,8 +228,8 @@ function hideMsg() { $("mapMsg").classList.add("hidden"); }
 function initMap() {
     const pos = lastKnownPos();
     map = L.map("map", {
-        center: pos ? [pos.lat, pos.lon] : [CAMP.lat, CAMP.lon],
-        zoom: 7,
+        center: pos ? [pos.lat, pos.lon] : DEFAULT_CENTER,
+        zoom: pos ? 7 : 6,
         minZoom: 5,
         maxZoom: 11,
         zoomControl: true,
@@ -247,13 +242,9 @@ function initMap() {
         maxZoom: 19
     }).addTo(map);
 
-    L.marker([CAMP.lat, CAMP.lon], {
-        icon: L.divIcon({ className: "site-dot", html: '<div class="pin"></div>', iconSize: [16, 16], iconAnchor: [8, 8] })
-    }).addTo(map).bindPopup("Camping Sabbiadoro");
-
     if (pos) {
         L.marker([pos.lat, pos.lon], {
-            icon: L.divIcon({ className: "site-dot", html: '<div class="pin me"></div>', iconSize: [16, 16], iconAnchor: [8, 8] })
+            icon: L.divIcon({ className: "site-dot", html: '<div class="pin"></div>', iconSize: [16, 16], iconAnchor: [8, 8] })
         }).addTo(map).bindPopup(pos.name || "Dein Standort");
     }
 }
