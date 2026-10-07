@@ -442,8 +442,13 @@ function lineChart(box, cfg) {
  * ------------------------------------------------------------------ */
 
 function renderNow(fc) {
-    const c = fc.current;
+    const c = fc.current, d = fc.daily || {};
     const icon = wmo(c.weather_code);
+    const tMax = d.temperature_2m_max && d.temperature_2m_max[0];
+    const tMin = d.temperature_2m_min && d.temperature_2m_min[0];
+    const range = isNum(tMax) && isNum(tMin)
+        ? '<div class="now-range">Heute <span class="hi">↑ ' + Math.round(tMax) + '°</span> <span class="lo">↓ ' + Math.round(tMin) + '°</span></div>'
+        : '';
     $("now").classList.remove("skeleton");
     $("now").innerHTML =
         '<div class="now">' +
@@ -451,6 +456,7 @@ function renderNow(fc) {
             '<div>' +
                 '<div class="now-temp">' + Math.round(c.temperature_2m) + '°</div>' +
                 '<div class="now-desc">' + icon[1] + ' · gefühlt ' + Math.round(c.apparent_temperature) + '°</div>' +
+                range +
             '</div>' +
         '</div>' +
         '<div class="now-meta">' +

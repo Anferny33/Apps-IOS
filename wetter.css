@@ -100,6 +100,9 @@ body {
 .now-icon { font-size: 54px; line-height: 1; }
 .now-temp { font-size: 42px; font-weight: 300; letter-spacing: -1.5px; }
 .now-desc { font-size: 15px; color: #cfdcef; margin-top: 2px; }
+.now-range { font-size: 15px; color: #9fb3d1; margin-top: 6px; }
+.now-range .hi { color: #ffd28a; font-weight: 600; margin-left: 2px; }
+.now-range .lo { color: #7cc4ff; font-weight: 600; margin-left: 8px; }
 .now-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
 .chip {
     font-size: 12.5px; color: #cfdcef;
