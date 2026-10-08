@@ -160,7 +160,7 @@ function startCounters(root) {
         countUpEl(el, parseFloat(el.getAttribute("data-count")), {
             decimals: parseInt(el.getAttribute("data-decimals") || "0", 10),
             delay: (isNaN(base) ? 0 : base) + 350,
-            dur: 900
+            dur: 1800
         });
     });
 }
@@ -355,7 +355,7 @@ function renderDays(fc) {
                 svgIcon(code, 1, "ic") +
                 '<div class="pp">' + (isNum(prob) ? Math.round(prob) + '%' : '') + '</div>' +
                 '<div class="lo">' + Math.round(lo) + '°</div>' +
-                '<div class="bar"><i style="left:' + left.toFixed(1) + '%;width:' + width.toFixed(1) + '%;animation-delay:' + (more ? '0.25' : (+delay + 0.2).toFixed(2)) + 's"></i>' +
+                '<div class="bar"><i style="left:' + left.toFixed(1) + '%;width:' + width.toFixed(1) + '%;animation-delay:' + (more ? '0.5' : (+delay + 0.2).toFixed(2)) + 's"></i>' +
                     (i === 0 && isNum(cur) ? '<b style="left:' + Math.max(0, Math.min(100, (cur - tLo) / span * 100)).toFixed(1) + '%"></b>' : '') +
                 '</div>' +
                 '<div class="hi">' + Math.round(hi) + '°</div>' +
@@ -881,7 +881,7 @@ function initDesignApp() {
         setTimeout(function () {
             swap();
             requestAnimationFrame(function () { requestAnimationFrame(function () { veil.classList.remove("on"); }); });
-        }, 260);
+        }, 520);
     }
 
     function initDesignToggle() {
