@@ -13,9 +13,9 @@ const name = process.argv[5] || 'München, Bayern';
 let app = fs.readFileSync(path.join(REPO, page + '.html'), 'utf8');
 
 // CSS- und JS-Dateien inline einbetten, damit die Vorschau aus einer Datei besteht
-app = app.replace(/<link rel="stylesheet" href="([a-z-]+\.css)">/g, (m, f) =>
+app = app.replace(/<link rel="stylesheet" href="([a-z-]+\.css)(?:\?[^"]*)?">/g, (m, f) =>
   '<style>' + fs.readFileSync(path.join(REPO, f), 'utf8') + '</style>');
-app = app.replace(/<script src="([a-z-]+\.js)"><\/script>/g, (m, f) =>
+app = app.replace(/<script src="([a-z-]+\.js)(?:\?[^"]*)?"><\/script>/g, (m, f) =>
   '<script>' + fs.readFileSync(path.join(REPO, f), 'utf8') + '</script>');
 
 // Fester Vorschau-Standort vor dem App-Start
