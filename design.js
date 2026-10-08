@@ -290,28 +290,64 @@ function isWetCode(code) {
     return code >= 51 && code <= 99;
 }
 
-function renderHero(fc) {
+/* Fakten des aktuellen Wetters in derselben Form wie hourFacts, plus Hoch/Tief */
+function nowFacts(fc) {
     const c = fc.current, d = fc.daily;
-    const code = c.weather_code, day = c.is_day;
-    setTheme(themeFor(code, day));
+    return {
+        now: true,
+        label: c.time ? longWeekday(c.time) + ", " + hhmm(c.time) : "",
+        desc: wmo(c.weather_code)[1],
+        temp: c.temperature_2m,
+        code: c.weather_code,
+        isDay: c.is_day,
+        apparent: c.apparent_temperature,
+        hi: d && isNum(d.temperature_2m_max[0]) ? Math.round(d.temperature_2m_max[0]) : null,
+        lo: d && isNum(d.temperature_2m_min[0]) ? Math.round(d.temperature_2m_min[0]) : null
+    };
+}
+
+function heroMetaHtml(f) {
+    return '<span>' + f.label + '</span><span>' + f.desc + '</span>';
+}
+
+/* intro: gestaffeltes Einblenden beim Laden; in der Vorschau (false) ohne Verzögerungen */
+function heroChipsHtml(f, intro) {
+    const chip = function (text, delay) {
+        return intro ? '<span class="a-up" style="animation-delay:' + dl(delay) + 's">' + text + '</span>' : '<span>' + text + '</span>';
+    };
+    let out = "";
+    if (f.now) {
+        if (f.hi !== null) out += chip("Hoch " + f.hi + "°", 0.5) + chip("Tief " + f.lo + "°", 0.58);
+        out += chip("Gefühlt " + Math.round(f.apparent) + "°", 0.66);
+    } else {
+        out += '<button type="button" class="now-btn" id="heroNow">Jetzt</button>';
+        if (isNum(f.apparent)) out += chip("Gefühlt " + Math.round(f.apparent) + "°", 0);
+        if (isNum(f.prob)) out += chip("Regen " + Math.round(f.prob) + " %", 0);
+        if (isNum(f.wind)) out += chip("Wind " + Math.round(f.wind) + " km/h", 0);
+    }
+    return out;
+}
+
+function heroHtml(f, intro) {
+    const metaOpen = intro ? '<div class="meta a-up" style="animation-delay:' + dl(0.4) + 's">' : '<div class="meta">';
+    const tempCls = intro ? 'temp fade-in' : 'temp';
+    return metaOpen + heroMetaHtml(f) + '</div>' +
+        '<div class="main"><div class="' + tempCls + '">' + (isNum(f.temp) ? Math.round(f.temp) + '°' : '–°') + '</div>' + heroIcon(f.code, f.isDay) + '</div>' +
+        '<div class="chips">' + heroChipsHtml(f, intro) + '</div>';
+}
+
+function renderHero(fc) {
+    const d = fc.daily;
+    const f = nowFacts(fc);
+    setTheme(themeFor(f.code, f.isDay));
 
     const nc = nowcastSummary(fc);
-    const hi = d && isNum(d.temperature_2m_max[0]) ? Math.round(d.temperature_2m_max[0]) : null;
-    const lo = d && isNum(d.temperature_2m_min[0]) ? Math.round(d.temperature_2m_min[0]) : null;
-    const when = c.time ? longWeekday(c.time) + ", " + hhmm(c.time) : "";
-
     const hero = D("hero");
     unskel(hero);
     const first = introElapsed() < 0.3;
-    lastTemp = Math.round(c.temperature_2m);
-    hero.innerHTML =
-        '<div class="meta a-up" style="animation-delay:' + dl(0.4) + 's"><span>' + when + '</span><span>' + wmo(code)[1] + '</span></div>' +
-        '<div class="main"><div class="temp fade-in">' + Math.round(c.temperature_2m) + '°</div>' + heroIcon(code, day) + '</div>' +
-        '<div class="chips">' +
-            (hi !== null ? '<span class="a-up" style="animation-delay:' + dl(0.5) + 's">Hoch ' + hi + '°</span><span class="a-up" style="animation-delay:' + dl(0.58) + 's">Tief ' + lo + '°</span>' : '') +
-            '<span class="a-up" style="animation-delay:' + dl(0.66) + 's">Gefühlt ' + Math.round(c.apparent_temperature) + '°</span>' +
-        '</div>';
-    if (first) countUp(hero.querySelector(".temp"), Math.round(c.temperature_2m));
+    lastTemp = isNum(f.temp) ? Math.round(f.temp) : null;
+    hero.innerHTML = heroHtml(f, true);
+    if (first && lastTemp !== null) countUp(hero.querySelector(".temp"), lastTemp);
 
     /* Hinweis-Feld: Nowcast als Satz, darunter eine Einordnung */
     const ins = D("insight");
