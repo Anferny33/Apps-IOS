@@ -54,6 +54,16 @@ function boot(opts) {
   sb.clearHour();
   const hb = G(sb,'hero').innerHTML;
   H.check('Zeitreise: Jetzt stellt Hoch/Tief/Gefühlt wieder her, kein Knopf mehr', hb.includes('Hoch 18°') && hb.includes('Tief 8°') && hb.includes('Gefühlt 16°') && hb.includes('>17°<') && !hb.includes('heroNow') && body.classList.contains('theme-partly-day'), hb.slice(0, 200));
+  // Rausgehen: Bewertung gegen die Mock-Daten (Jetzt = 25.09. 14:15)
+  const actOf = id => sb.activityById(id);
+  const walk = sb.activityWindows(sb.lastRendered(), actOf('walk'));
+  H.check('Rausgehen: Spaziergang, fünf Fenster in Zeitfolge, die ersten drei', walk.windows.length === 5 && walk.windows.slice(0, 3).map(w => w.when + ' · ' + w.facts).join(' | ') === 'Heute 15 bis 21 Uhr · 10°, kaum Regen, wenig Wind | Morgen 7 bis 11 Uhr · 17°, kaum Regen, wenig Wind | Morgen 12 bis 18 Uhr · 15°, kaum Regen, wenig Wind' && walk.windows[0].start === 15, walk.windows.map(w => w.when + ' · ' + w.facts).join(' | '));
+  const sit = sb.activityWindows(sb.lastRendered(), actOf('sit'));
+  H.check('Rausgehen: Draußen sitzen, Wochentag und Regen-/Windstufen', sit.windows.map(w => w.when + ' · ' + w.facts).join(' | ') === 'Morgen 9 bis 11 Uhr · 18°, kaum Regen, wenig Wind | Sonntag 10 bis 13 Uhr · 19°, Regen bis 20 %, windstill', sit.windows.map(w => w.when + ' · ' + w.facts).join(' | '));
+  const run = sb.activityWindows(sb.lastRendered(), actOf('run'));
+  H.check('Rausgehen: Fenster über Mitternacht', run.windows[1] && run.windows[1].when === 'Heute 22 bis Morgen 4 Uhr' && run.windows[1].facts.startsWith('4°'), run.windows[1] && run.windows[1].when);
+  const none = sb.activityWindows(sb.lastRendered(), { id: 'x', name: 'x', minH: 1, feel: [40, 50], prob: 30, light: 'any' });
+  H.check('Rausgehen: kein Fenster mit häufigstem Grund', none.windows.length === 0 && none.reason === 'kalt' && sb.activityNote('kalt').includes('meist zu kalt'), JSON.stringify(none));
   // Stufe 2: Ziehen vom Griff. Harness ohne Touch/Layout → Zustandsmaschine direkt, columnAt als Stub
   const colStub = (i, sel) => ({ classList: { contains: c => c === 'sel' && sel }, getAttribute: a => a === 'data-i' ? i : null });
   sb.selectHour(20);

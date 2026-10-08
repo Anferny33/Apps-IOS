@@ -432,6 +432,99 @@ function clearHour(quiet) {
     updateHero(nowFacts(lastData.fc), quiet);
 }
 
+/* ---- Rausgehen: Aktivitätsfenster ---- */
+
+const ACTIVITIES = [
+    { id: "walk", name: "Spaziergang",    minH: 1, feel: [5, 28],  prob: 30, gust: 45,           light: "dusk" },
+    { id: "bike", name: "Radfahren",      minH: 2, feel: [8, 30],  prob: 20, wind: 25, gust: 40, light: "day" },
+    { id: "run",  name: "Joggen",         minH: 1, feel: [2, 24],  prob: 40, gust: 50,           light: "any" },
+    { id: "sit",  name: "Draußen sitzen", minH: 2, feel: [17, 99], prob: 20, wind: 15, gust: 30, light: "any" }
+];
+const FAIL_WORDS = { nass: "meist zu nass", kalt: "meist zu kalt", warm: "meist zu warm", wind: "meist zu windig", dunkel: "nur bei Tageslicht" };
+
+function activityById(id) {
+    return ACTIVITIES.filter(function (a) { return a.id === id; })[0] || null;
+}
+
+function sunsetHour(fc, date) {
+    const d = fc.daily;
+    if (!d || !Array.isArray(d.time) || !Array.isArray(d.sunset)) return null;
+    const i = d.time.indexOf(date);
+    return i >= 0 && d.sunset[i] ? parseInt(d.sunset[i].slice(11, 13), 10) : null;
+}
+
+/* null = Stunde passt, sonst der erste verletzte Grund (kalt, warm, nass, wind, dunkel) */
+function hourFail(data, act, gi) {
+    const h = data.fc.hourly, t = h.time[gi];
+    const feel = h.apparent_temperature ? h.apparent_temperature[gi] : null;
+    if (!isNum(feel)) return "data";
+    if (feel < act.feel[0]) return "kalt";
+    if (feel > act.feel[1]) return "warm";
+    const rain = h.precipitation ? h.precipitation[gi] : null, code = h.weather_code ? h.weather_code[gi] : 0;
+    if (hourProb(data, gi) > act.prob || (isNum(rain) && rain >= 0.2) || code >= 95) return "nass";
+    const wind = h.wind_speed_10m ? h.wind_speed_10m[gi] : null, gust = h.wind_gusts_10m ? h.wind_gusts_10m[gi] : null;
+    if ((act.wind && isNum(wind) && wind > act.wind) || (act.gust && isNum(gust) && gust > act.gust)) return "wind";
+    const day = h.is_day ? h.is_day[gi] : 1;
+    if (act.light === "day" && day === 0) return "dunkel";
+    if (act.light === "dusk" && day === 0) {
+        /* Dämmerung: die Stunde des Sonnenuntergangs und die danach zählen noch */
+        const ss = sunsetHour(data.fc, dayOf(t)), hr = parseInt(t.slice(11, 13), 10);
+        if (ss === null || hr < ss || hr > ss + 1) return "dunkel";
+    }
+    return null;
+}
+
+function dayWordFor(fc, t) {
+    const today = dayOf(fc.current.time), d = dayOf(t);
+    return d === today ? "Heute" : (d === nextDay(today) ? "Morgen" : longWeekday(t));
+}
+
+function describeWindow(data, s, e) {
+    const h = data.fc.hourly;
+    let feel = 0, n = 0, prob = 0, wind = 0, uv = 0;
+    for (let gi = s; gi <= e; gi++) {
+        feel += h.apparent_temperature[gi]; n++;
+        prob = Math.max(prob, hourProb(data, gi));
+        if (h.wind_speed_10m && isNum(h.wind_speed_10m[gi])) wind = Math.max(wind, h.wind_speed_10m[gi]);
+        if (h.uv_index && isNum(h.uv_index[gi])) uv = Math.max(uv, h.uv_index[gi]);
+    }
+    const ts = h.time[s], te = h.time[e];
+    const endH = (parseInt(te.slice(11, 13), 10) + 1) % 24;
+    const crosses = dayOf(ts) !== dayOf(te) && endH !== 0;
+    const when = dayWordFor(data.fc, ts) + " " + parseInt(ts.slice(11, 13), 10) + " bis " + (crosses ? dayWordFor(data.fc, te) + " " : "") + endH + " Uhr";
+    const facts = [
+        Math.round(feel / n) + "°",
+        prob <= 10 ? "kaum Regen" : "Regen bis " + Math.round(prob) + " %",
+        wind <= 12 ? "windstill" : (wind <= 20 ? "wenig Wind" : "Wind bis " + Math.round(wind) + " km/h")
+    ];
+    if (uv >= 6) facts.push("UV hoch");
+    return { start: s, end: e, when: when, facts: facts.join(", ") };
+}
+
+/* Fenster = zusammenhängende passende Stunden ab Mindestdauer, in Zeitfolge; reason = häufigster Grund */
+function activityWindows(data, act) {
+    const out = { windows: [], reason: null };
+    if (!data || !data.fc || !data.fc.hourly || !data.fc.hourly.time) return out;
+    const w = hourlyWindow(data.fc, 48);
+    const fails = {};
+    let run = null;
+    const close = function () { if (run && run.e - run.s + 1 >= act.minH) out.windows.push(describeWindow(data, run.s, run.e)); run = null; };
+    for (let gi = w.start; gi < w.end; gi++) {
+        const r = hourFail(data, act, gi);
+        if (r === null) { if (run) run.e = gi; else run = { s: gi, e: gi }; }
+        else { if (r !== "data") fails[r] = (fails[r] || 0) + 1; close(); }
+    }
+    close();
+    let best = null;
+    Object.keys(fails).forEach(function (k) { if (best === null || fails[k] > fails[best]) best = k; });
+    out.reason = out.windows.length ? null : best;
+    return out;
+}
+
+function activityNote(reason) {
+    return "In den nächsten 48 Stunden passt keine Zeit" + (reason && FAIL_WORDS[reason] ? ", " + FAIL_WORDS[reason] : "") + ".";
+}
+
 /* ---- Zeitreise Stufe 2: Ziehen vom Griff (markierte Spalte) ---- */
 
 const scrub = { pending: false, active: false, x0: 0, y0: 0, lastX: 0, lastY: 0, raf: null, endedAt: 0 };
