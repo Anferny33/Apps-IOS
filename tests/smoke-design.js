@@ -24,6 +24,9 @@ function boot(opts) {
 (async () => {
   // 1) Ortung ok -> alles gerendert
   const sb = boot({ fetchImpl: H.okFetch(data), geolocation: granted });
+  // Inline-Höhen der Skelett-Platzhalter wie in index.html
+  const E = id => sb.document.getElementById(id);
+  E('hourly').style.height = '180px'; E('days').style.height = '260px'; E('models').style.height = '120px';
   await wait(300);
   const body = sb.document.body;
 
@@ -41,6 +44,7 @@ function boot(opts) {
   H.check('Stunden: Temperaturkurve + 48 Labels', hh.includes('<svg class="curve"') && (hh.match(/font-weight="600" fill="#fff">-?\d+°</g) || []).length === 48);
   H.check('Stunden: "Jetzt" und Tageswechsel', hh.includes('>Jetzt<') && hh.includes('hcol newday'));
   H.check('Stunden: Ensemble-Wahrscheinlichkeiten', /class="p">\d+%/.test(hh));
+  H.check('Stunden: Wahrscheinlichkeit in allen 48 Spalten (auch unter 10 %)', (hh.match(/class="p">\d+%/g) || []).length === 48, (hh.match(/class="p">\d+%/g) || []).length);
 
   H.check('Nowcast-Karte sichtbar (Regen in 4 h)', !G(sb,'nowcastCard').classList.contains('hidden') && (G(sb,'nowcast').innerHTML.match(/<i /g) || []).length === 16, G(sb,'nowcast').innerHTML.slice(0, 120));
 
@@ -48,6 +52,7 @@ function boot(opts) {
   H.check('Tage: 14 Zeilen', (dd.match(/class="drow"/g) || []).length === 14);
   H.check('Tage: Heute mit Jetzt-Punkt', /Heute[\s\S]*?<b style="left:/.test(dd));
   H.check('Tage: Spannen auf gemeinsamer Skala', (dd.match(/<i style="left:/g) || []).length === 14);
+  H.check('Tage: Wahrscheinlichkeit auch unter 10 % (5 %, 0 %)', dd.includes('"pp">5%') && dd.includes('"pp">0%'), dd.match(/"pp">[^<]*/g));
 
   const det = G(sb,'details').innerHTML;
   H.check('Details: 8 Kacheln (6 + Luft + Pollen)', (det.match(/class="tile /g) || []).length === 8, (det.match(/class="tile /g) || []).length);
@@ -57,6 +62,7 @@ function boot(opts) {
   H.check('Details: Luftqualität-Meter + Wort', det.includes('Luftqualität') && det.includes('mäßig') && det.includes('preserveAspectRatio'));
   H.check('Details: Pollen-Chips (Gräser, Beifuß, Ambrosia)', det.includes('Gräser · mäßig') && det.includes('Beifuß · hoch') && det.includes('Ambrosia · gering') && !det.includes('Birke'), det.match(/pollen-chips[\s\S]{0,300}/));
   H.check('Modelle gerendert', G(sb,'models').innerHTML.includes('ICON-D2') && !G(sb,'models').classList.contains('skel'));
+  H.check('Platzhalter-Höhen nach dem Rendern entfernt', ['hourly','days','models'].every(id => !G(sb,id).style.height), ['hourly','days','models'].map(id => G(sb,id).style.height));
   H.check('Stand-Zeile', G(sb,'updated').textContent.startsWith('Stand '));
 
   // 2) Nacht + Regen -> anderes Theme, Nowcast-Karte ohne Regen ausgeblendet

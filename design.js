@@ -99,7 +99,9 @@ function setTheme(name) {
     b.classList.add("theme-" + name);
 }
 
-function unskel(el) { el.classList.remove("skel"); }
+/* Skelett-Platzhalter aufheben: Klasse und die feste Inline-Höhe aus index.html entfernen,
+   sonst läuft der gerenderte Inhalt über die Karte hinaus. */
+function unskel(el) { el.classList.remove("skel"); el.style.height = ""; }
 
 /* ------------------------------------------------------------------ *
  * Rendering
@@ -164,7 +166,7 @@ function dHourly(fc, ens) {
                 '<div class="t">' + (i === 0 ? "Jetzt" : (newDay ? weekday(dd) : hhmm(t))) + '</div>' +
                 svgIcon(h.weather_code[gi], h.is_day ? h.is_day[gi] : 1, "ic") +
                 '<div class="gap"></div>' +
-                '<div class="p">' + (prob >= 10 ? Math.round(prob) + '%' : '') + '</div>' +
+                '<div class="p">' + Math.round(prob) + '%</div>' +
                 '<div class="mm">' + (mm >= 0.1 ? fmtMm(mm) + ' mm' : '') + '</div>' +
             '</div>';
     }
@@ -211,7 +213,7 @@ function renderDays(fc) {
             '<div class="drow">' +
                 '<div class="n">' + (i === 0 ? "Heute" : weekday(d.time[i])) + '</div>' +
                 svgIcon(d.weather_code[i], 1, "ic") +
-                '<div class="pp">' + (isNum(prob) && prob >= 10 ? prob + '%' : '') + '</div>' +
+                '<div class="pp">' + (isNum(prob) ? Math.round(prob) + '%' : '') + '</div>' +
                 '<div class="lo">' + Math.round(lo) + '°</div>' +
                 '<div class="bar"><i style="left:' + left.toFixed(1) + '%;width:' + width.toFixed(1) + '%"></i>' +
                     (i === 0 && isNum(cur) ? '<b style="left:' + Math.max(0, Math.min(100, (cur - tLo) / span * 100)).toFixed(1) + '%"></b>' : '') +
@@ -360,7 +362,7 @@ function renderAllDesign(payload) {
     renderDays(payload.fc);
     renderDetails(payload.fc, payload.air);
     renderModels(payload.md, payload.fc, payload.ens);
-    D("models").classList.remove("skel");
+    unskel(D("models"));
 }
 
 /* ------------------------------------------------------------------ *
