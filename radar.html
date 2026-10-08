@@ -45,7 +45,14 @@
         font-size: 13px; font-weight: 700;
         box-shadow: 0 6px 18px rgba(30,27,46,0.2);
     }
-    .map-badge .pill { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--rain, #BFD6F6); color: var(--rain-ink, #3A4A6B); }
+    .map-badge .pill { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--rain, #BFD6F6); color: var(--rain-ink, #3A4A6B); transition: background-color 0.3s, color 0.3s; }
+    /* Zeitraffer: Radarbilder blenden weich ineinander, das Badge tickt bei jedem Frame kurz */
+    .leaflet-tile-pane .leaflet-layer { transition: opacity 0.35s ease; }
+    .map-badge.tick { animation: tick 0.25s ease-out; }
+    @keyframes tick { from { transform: translateY(-3px); opacity: 0.6; } to { transform: none; opacity: 1; } }
+    .play.pop { animation: playPop 0.3s cubic-bezier(.2,.8,.2,1); }
+    @keyframes playPop { 0% { transform: scale(0.86); } 60% { transform: scale(1.06); } 100% { transform: none; } }
+    .play:active { transform: scale(0.92); }
     .map-badge .pill.fc { background: var(--sun, #F6D35B); color: var(--ink, #1E1B2E); }
 
     .map-msg {
@@ -337,6 +344,13 @@ function showFrame(i) {
     frames.forEach(function (f, idx) { f.layer.setOpacity(idx === current ? RADAR_OPACITY : 0); });
     const f = frames[current];
     $("frameTime").textContent = (f.time === null ? "aktuell" : fmtTime(f.time) + " Uhr");
+    /* Badge kurz anticken (Klasse neu setzen, Reflow dazwischen) */
+    const badge = $("frameTime").parentNode;
+    if (badge && badge.classList && typeof badge.offsetWidth === "number") {
+        badge.classList.remove("tick");
+        void badge.offsetWidth;
+        badge.classList.add("tick");
+    }
     const pill = $("framePill");
     if (f.isForecast) { pill.textContent = "Prognose"; pill.className = "pill fc"; }
     else { pill.textContent = current === lastPastIndex() ? "jetzt" : "Radar"; pill.className = "pill"; }
@@ -390,6 +404,12 @@ async function loadFrames(keepPosition) {
 function setPlaying(on) {
     playing = on;
     $("play").textContent = on ? "❚❚" : "▶";
+    const pb = $("play");
+    if (pb.classList && typeof pb.offsetWidth === "number") {
+        pb.classList.remove("pop");
+        void pb.offsetWidth;
+        pb.classList.add("pop");
+    }
     if (playTimer) { clearInterval(playTimer); playTimer = null; }
     if (on && frames.length > 1) {
         playTimer = setInterval(function () {
