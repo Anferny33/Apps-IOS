@@ -13,8 +13,7 @@ GitHub Pages ausgeliefert: <https://anferny33.github.io/Apps-IOS/>
 | `design.css` | Klassisches Design: Glas-Karten auf Himmelsverlauf mit Lichtflecken und Regen-/Schneepartikeln |
 | `proxy/` | Cloudflare Worker für die NINA-Meldungen (kein CORS bei warnung.bund.de): ermittelt den Kreis zum Punkt über den BKG-Dienst, liefert bereinigte Meldungen mit CORS-Freigabe. Läuft unter `https://wetter-nina-proxy.anferny-wetter.workers.dev`, Adresse steht in `wetter-core.js` (`NINA_PROXY`) |
 | `icons/`, `manifest.webmanifest` | App-Icon im Bento-Design (`icon.svg` ist die Quelle, die PNGs sind daraus gerendert) und Web-Manifest für den Homescreen |
-| `klassisch.html` + `wetter.css` | Klassische Ansicht mit allen Karten (Nowcast, Ensemble, Trend, Luftqualität, Modellvergleich) |
-| `wetter-core.js` | Gemeinsame Datenschicht: Open-Meteo (Forecast, Ensemble, Modelle, Luftqualität, Geocoding), Cache, Standortlogik |
+| `wetter-core.js` | Datenschicht der Startseite: Open-Meteo (Forecast, Ensemble, Modelle, Luftqualität, Geocoding), DWD- und NINA-Warnungen, Cache, Standort- und Suchortspeicher |
 | `radar.html` + `radar.js` | Regenradar: MapLibre GL JS mit eigener Vektorkarte (OpenFreeMap, OpenMapTiles-Schema, ohne Schlüssel) und DWD RADOLAN RV über WMS. Zeitachse und Grenze Beobachtung/Prognose aus den Produktmetadaten; je Zeitpunkt ein Bild des Ausschnitts mit Rand, begrenzter Cache, zwei Bildebenen mit Überblendung, Pause im Hintergrund und beim Verschieben der Zeitachse |
 | `box-breathing.html` | Atemübung (eigenständig) |
 | `design.html`, `lignano-*.html` | Nur Weiterleitungen für alte Homescreen-Icons |
@@ -57,8 +56,9 @@ Browser-Konsolenfenster `window.PREVIEW_LOC = {lat, lon, name}` setzen.
 npm test
 ```
 
-Vier Suiten laufen ohne Abhängigkeiten in Node (Rendering gegen nachgebaute
-API-Antworten, Standort- und Suchfluss, Offline-Verhalten, Radar-Zeitachse).
+Zwei Suiten laufen ohne Abhängigkeiten in Node: die Startseite (Rendering gegen
+nachgebaute API-Antworten, Standort- und Suchfluss, Offline-Verhalten, Aktualität)
+und das Radar (Zeitachse, Legende, Bildabruf).
 
 ```bash
 npm run preview      # baut tests/iphone-preview.html: die App im iPhone-Rahmen

@@ -1,6 +1,6 @@
 // Baut die Vorschau im iPhone-Rahmen: die echte App (lokaler Arbeitsstand) mit
 // eingebettetem CSS/JS in einem iframe, fester Standort statt GPS.
-// Aufruf: node build-phone-preview.js [index|klassisch] [lat] [lon] [Ortsname]
+// Aufruf: node build-phone-preview.js [index] [lat] [lon] [Ortsname]
 const fs = require('fs');
 const path = require('path');
 
@@ -26,12 +26,10 @@ app = app.replace('<script>', '<script>window.PREVIEW_LOC = ' + JSON.stringify({
 
 // iOS-Safe-Areas nachbilden: im Rahmen liefert env(safe-area-inset-*) 0,
 // auf dem iPhone sitzt der Inhalt unter Dynamic Island und über dem Home-Balken
-app = app.replace('</head>', '<style>.top{padding-top:62px !important} .tabs{padding-bottom:28px !important} ' +
-  'body.classic-preview{padding-top:70px}</style></head>');
-if (page !== 'index') app = app.replace('<body', '<body class="classic-preview"');
+app = app.replace('</head>', '<style>.top{padding-top:62px !important} .tabs{padding-bottom:28px !important}</style></head>');
 
 // Navigation innerhalb der Vorschau auf die Live-Seite umbiegen (lokale Dateien gibt es im Rahmen nicht)
-app = app.replace(/href="(klassisch|radar|index|box-breathing)\.html"/g, 'href="https://anferny33.github.io/Apps-IOS/$1.html" target="_blank"');
+app = app.replace(/href="(radar|index|box-breathing)\.html"/g, 'href="https://anferny33.github.io/Apps-IOS/$1.html" target="_blank"');
 
 const stamp = new Date().toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 const frame = `<!DOCTYPE html>

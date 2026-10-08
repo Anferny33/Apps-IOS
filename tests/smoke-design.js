@@ -57,16 +57,16 @@ function boot(opts) {
   // Rausgehen: Bewertung gegen die Mock-Daten (Jetzt = 25.09. 14:15)
   const actOf = id => sb.activityById(id);
   const walk = sb.activityWindows(sb.lastRendered(), actOf('walk'));
-  H.check('Rausgehen: Spaziergang, fünf Fenster in Zeitfolge, die ersten drei', walk.windows.length === 5 && walk.windows.slice(0, 3).map(w => w.when + ' · ' + w.facts).join(' | ') === 'Heute 15 bis 21 Uhr · 10°, kaum Regen, wenig Wind | Morgen 7 bis 11 Uhr · 17°, kaum Regen, wenig Wind | Morgen 12 bis 18 Uhr · 15°, kaum Regen, wenig Wind' && walk.windows[0].start === 15, walk.windows.map(w => w.when + ' · ' + w.facts).join(' | '));
+  H.check('Rausgehen: Spaziergang, fünf Fenster in Zeitfolge, die ersten drei', walk.windows.length === 5 && walk.windows.slice(0, 3).map(w => w.when + ' · ' + w.facts).join(' | ') === 'Heute 15 bis 21 Uhr · gefühlt 10°, kaum Regen, leichter Wind | Morgen 7 bis 11 Uhr · gefühlt 17°, kaum Regen, leichter Wind | Morgen 12 bis 18 Uhr · gefühlt 15°, kaum Regen, leichter Wind' && walk.windows[0].start === 15, walk.windows.map(w => w.when + ' · ' + w.facts).join(' | '));
   const sit = sb.activityWindows(sb.lastRendered(), actOf('sit'));
-  H.check('Rausgehen: Draußen sitzen, Wochentag und Regen-/Windstufen', sit.windows.map(w => w.when + ' · ' + w.facts).join(' | ') === 'Morgen 9 bis 11 Uhr · 18°, kaum Regen, wenig Wind | Sonntag 10 bis 13 Uhr · 19°, Regen bis 20 %, windstill', sit.windows.map(w => w.when + ' · ' + w.facts).join(' | '));
+  H.check('Rausgehen: Draußen sitzen, Wochentag und Regen-/Windstufen', sit.windows.map(w => w.when + ' · ' + w.facts).join(' | ') === 'Morgen 9 bis 11 Uhr · gefühlt 18°, kaum Regen, leichter Wind | Sonntag 10 bis 13 Uhr · gefühlt 19°, Regen bis 20 %, wenig Wind', sit.windows.map(w => w.when + ' · ' + w.facts).join(' | '));
   const run = sb.activityWindows(sb.lastRendered(), actOf('run'));
-  H.check('Rausgehen: Fenster über Mitternacht', run.windows[1] && run.windows[1].when === 'Heute 22 bis Morgen 4 Uhr' && run.windows[1].facts.startsWith('4°'), run.windows[1] && run.windows[1].when);
+  H.check('Rausgehen: Fenster über Mitternacht', run.windows[1] && run.windows[1].when === 'Heute 22 bis Morgen 4 Uhr' && run.windows[1].facts.startsWith('gefühlt 4°'), run.windows[1] && run.windows[1].when);
   const none = sb.activityWindows(sb.lastRendered(), { id: 'x', name: 'x', minH: 1, feel: [40, 50], prob: 30, light: 'any' });
   H.check('Rausgehen: kein Fenster mit häufigstem Grund', none.windows.length === 0 && none.reason === 'kalt' && sb.activityNote('kalt').includes('meist zu kalt'), JSON.stringify(none));
   H.check('Rausgehen: Spur mit 48 Zellen in der Leiste, 47 mit data-i', (G(sb,'hourly').innerHTML.match(/<div class="act-track">/g) || []).length === 1 && (G(sb,'hourly').innerHTML.match(/<i data-i="\d+"><\/i>/g) || []).length === 47 && G(sb,'hourly').innerHTML.includes('<div class="act-track"><i></i><i data-i="15"></i>'), G(sb,'hourly').innerHTML.slice(G(sb,'hourly').innerHTML.indexOf('act-track'), G(sb,'hourly').innerHTML.indexOf('act-track') + 80));
   const act = G(sb,'activity').innerHTML;
-  H.check('Rausgehen: vier Chips, Spaziergang aktiv, drei Fenster mit Startindex', (act.match(/class="act-chip( on)?" data-act=/g) || []).length === 4 && act.includes('class="act-chip on" data-act="walk"') && act.includes('<button type="button" class="act-win" data-i="15"') && act.includes('<b>Heute 15 bis 21 Uhr</b><span>10°, kaum Regen, wenig Wind</span>') && (act.match(/class="act-win"/g) || []).length === 3 && !G(sb,'activityField').classList.contains('hidden'), act.slice(0, 300));
+  H.check('Rausgehen: vier Chips, Spaziergang aktiv, drei Fenster mit Startindex', (act.match(/class="act-chip( on)?" data-act=/g) || []).length === 4 && act.includes('class="act-chip on" data-act="walk"') && act.includes('<button type="button" class="act-win" data-i="15"') && act.includes('<b>Heute 15 bis 21 Uhr</b><span>gefühlt 10°, kaum Regen, leichter Wind</span>') && (act.match(/class="act-win"/g) || []).length === 3 && !G(sb,'activityField').classList.contains('hidden'), act.slice(0, 300));
   sb.setActivity('sit');
   const act2 = G(sb,'activity').innerHTML;
   H.check('Rausgehen: Wechsel auf Draußen sitzen, Wahl gespeichert', act2.includes('class="act-chip on" data-act="sit"') && act2.includes('<b>Morgen 9 bis 11 Uhr</b>') && sb._store['wetter:activity'] === 'sit', act2.slice(0, 200));
@@ -339,12 +339,156 @@ function boot(opts) {
   await wait(300);
   H.check('Offline: Cache gerendert + Hinweis', G(sb5,'hero').innerHTML.includes('17°') && G(sb5,'banner').innerHTML.includes('zuletzt gespeicherten'), G(sb5,'banner').innerHTML);
 
+  // 5) Ortssuche: zuletzt gewählte Orte, Zustände, verspätete Antworten, Schließen
+  const hamburgDE = { name: 'Hamburg, Hamburg · Deutschland', lat: 53.55, lon: 9.99 };
+  const hamburgNJ = { name: 'Hamburg, New Jersey · USA', lat: 41.15, lon: -74.57 };
+  const berlin = { name: 'Berlin, Land Berlin · Deutschland', lat: 52.52, lon: 13.41 };
+  const geoOf = (list) => ({ results: list.map(p => { const m = p.name.match(/^([^,]+), ([^·]+) · (.+)$/); return { name: m[1], admin1: m[2].trim(), country: m[3], latitude: p.lat, longitude: p.lon }; }) });
+  // Geocoder nach Suchbegriff: "Hamb" langsam, "Berl" sofort, "Nix" leer, "Fehl" Netzwerkfehler
+  const geoByQuery = async (url) => {
+    if (url.includes('geocoding-api')) {
+      const name = decodeURIComponent((url.match(/name=([^&]+)/) || [])[1] || '');
+      if (name.startsWith('Fehl')) throw new Error('Failed to fetch');
+      if (name.startsWith('Nix')) return { ok: true, json: async () => ({ results: [] }) };
+      if (name.startsWith('Hamb')) { await wait(600); return { ok: true, json: async () => geoOf([hamburgDE, hamburgNJ]) }; }
+      return { ok: true, json: async () => geoOf([berlin]) };
+    }
+    return H.okFetch(data)(url);
+  };
+  const places = s => (G(s,'res').innerHTML.match(/<button type="button" class="place[^"]*" data-i="\d+">[^<]*/g) || []).map(x => x.replace(/^.*>/, ''));
+
+  // 5a) Ohne gespeicherte Orte: Sheet leer; Suche, Auswahl -> Ort gespeichert, Auswahl erneut -> keine Doppelung, zuletzt gewählt zuerst
+  const sbS = boot({ fetchImpl: geoByQuery, geolocation: granted });
+  await wait(300);
+  G(sbS,'locBtn').trigger('click'); await wait(350);
+  H.check('Suche: ohne gespeicherte Orte keine Liste', G(sbS,'res').innerHTML === '' && sbS.document.body.classList.contains('sheet-open'), G(sbS,'res').innerHTML);
+  G(sbS,'q').value = 'Berl'; G(sbS,'q').trigger('input'); await wait(500);
+  H.check('Suche: Treffer für Berlin', places(sbS).join('|') === berlin.name, G(sbS,'res').innerHTML);
+  G(sbS,'res')._buttons[0].trigger('click'); await wait(300);
+  let recent = JSON.parse(sbS._store['wetter:recent'] || '[]');
+  H.check('Suchorte: Auswahl speichert den Ort (Name, lat, lon)', recent.length === 1 && recent[0].name === berlin.name && recent[0].lat === 52.52 && recent[0].lon === 13.41, sbS._store['wetter:recent']);
+  H.check('Suchorte: aktiver Ort und GPS-Ort bleiben getrennt gespeichert', JSON.parse(sbS._store['wetter:active']).source === 'search' && JSON.parse(sbS._store['wetter:pos']).lat === 48.137, sbS._store['wetter:active'] + ' ' + sbS._store['wetter:pos']);
+  H.check('Suche: Fokus nach der Auswahl zurück auf dem Ortsknopf', G(sbS,'locBtn').focused === true && !sbS.document.body.classList.contains('sheet-open'));
+  G(sbS,'locBtn').trigger('click'); await wait(350);
+  H.check('Suchorte: beim Öffnen steht Berlin unter „Zuletzt gewählt“', G(sbS,'res').innerHTML.includes('Zuletzt gewählt') && places(sbS).join('|') === berlin.name, G(sbS,'res').innerHTML);
+  G(sbS,'q').value = 'Hamb'; G(sbS,'q').trigger('input'); await wait(500);
+  H.check('Suche: Zustand „Suche läuft“ während der Antwort', G(sbS,'res').innerHTML.includes('Suche läuft') && !G(sbS,'res').innerHTML.includes('Zuletzt gewählt'), G(sbS,'res').innerHTML);
+  await wait(500);
+  H.check('Suche: zwei Hamburgs mit gleichem Namen, verschiedene Orte', places(sbS).length === 2 && places(sbS)[0] === hamburgDE.name && places(sbS)[1] === hamburgNJ.name, places(sbS).join('|'));
+  G(sbS,'res')._buttons[1].trigger('click'); await wait(300);
+  G(sbS,'locBtn').trigger('click'); await wait(350);
+  G(sbS,'q').value = 'Hamb'; G(sbS,'q').trigger('input'); await wait(1100);
+  G(sbS,'res')._buttons[0].trigger('click'); await wait(300);
+  recent = JSON.parse(sbS._store['wetter:recent'] || '[]');
+  H.check('Suchorte: Reihenfolge zuletzt gewählt zuerst, gleiche Namen bleiben getrennte Einträge', recent.map(r => r.lat).join(',') === '53.55,41.15,52.52', sbS._store['wetter:recent']);
+  G(sbS,'locBtn').trigger('click'); await wait(350);
+  G(sbS,'res')._buttons[2].trigger('click'); await wait(300);
+  recent = JSON.parse(sbS._store['wetter:recent'] || '[]');
+  const fcBerlin = sbS._fetchLog.filter(u => u.includes('api.open-meteo.com/v1/forecast') && u.includes('latitude=52.52') && !u.includes('models='));
+  H.check('Suchorte: erneute Auswahl rückt nach vorn, keine Doppelung, Vorhersage geladen, aktiver Ort gesetzt', recent.map(r => r.lat).join(',') === '52.52,53.55,41.15' && fcBerlin.length === 2 && JSON.parse(sbS._store['wetter:active']).lat === 52.52 && G(sbS,'locName').textContent === '🔍 ' + berlin.name, sbS._store['wetter:recent'] + ' ' + fcBerlin.length);
+  // vierter Ort verdrängt den ältesten
+  G(sbS,'locBtn').trigger('click'); await wait(350);
+  G(sbS,'q').value = 'Berl'; G(sbS,'q').trigger('input'); await wait(500);
+  sbS._store['wetter:recent'] = JSON.stringify([{ name: 'A', lat: 1, lon: 1 }, { name: 'B', lat: 2, lon: 2 }, { name: 'C', lat: 3, lon: 3 }]);
+  G(sbS,'res')._buttons[0].trigger('click'); await wait(300);
+  recent = JSON.parse(sbS._store['wetter:recent'] || '[]');
+  H.check('Suchorte: höchstens drei Einträge, der älteste fällt weg', recent.map(r => r.name).join(',') === berlin.name + ',A,B', sbS._store['wetter:recent']);
+  H.check('Suchorte: ungültige Einträge werden beim Lesen verworfen', (() => { sbS._store['wetter:recent'] = JSON.stringify([{ name: 'X', lat: 'a', lon: 1 }, { name: '', lat: 1, lon: 1 }, { name: 'Ok', lat: 50, lon: 8 }, 7]); return sbS.loadRecentPlaces().map(p => p.name).join(',') === 'Ok'; })(), JSON.stringify(sbS.loadRecentPlaces()));
+  sbS._store['wetter:recent'] = 'kaputt';
+  H.check('Suchorte: kaputter Speicher ergibt leere Liste', sbS.loadRecentPlaces().length === 0);
+
+  // 5b) Zustände: keine Treffer, Netzwerkfehler, wieder leere Eingabe -> Zuletzt-Liste
+  const sbT = boot({ fetchImpl: geoByQuery, geolocation: granted, storage: { 'wetter:recent': JSON.stringify([berlin]) } });
+  await wait(300);
+  G(sbT,'locBtn').trigger('click'); await wait(350);
+  G(sbT,'q').value = 'Nix'; G(sbT,'q').trigger('input'); await wait(500);
+  H.check('Suche: leeres Ergebnis -> „Keine Orte gefunden“ als Statusmeldung', G(sbT,'res').innerHTML.includes('Keine Orte gefunden') && G(sbT,'res').innerHTML.includes('role="status"') && !G(sbT,'res').innerHTML.includes('nicht möglich'), G(sbT,'res').innerHTML);
+  G(sbT,'q').value = 'Fehl'; G(sbT,'q').trigger('input'); await wait(500);
+  H.check('Suche: Netzwerkfehler -> „Suche derzeit nicht möglich“, nicht „Keine Orte“', G(sbT,'res').innerHTML.includes('Suche derzeit nicht möglich') && !G(sbT,'res').innerHTML.includes('Keine Orte gefunden'), G(sbT,'res').innerHTML);
+  const geoCalls = () => sbT._fetchLog.filter(u => u.includes('geocoding-api')).length;
+  const before = geoCalls();
+  G(sbT,'q').value = 'Fehl '; G(sbT,'q').trigger('input'); await wait(500);
+  H.check('Suche: nach einem Fehler löst dieselbe Eingabe erneut eine Anfrage aus', geoCalls() === before + 1, geoCalls() - before);
+  G(sbT,'q').value = 'Berl'; G(sbT,'q').trigger('input'); await wait(500);
+  const b2 = geoCalls();
+  G(sbT,'q').value = 'Berl '; G(sbT,'q').trigger('input'); await wait(500);
+  H.check('Suche: gleiche Eingabe mit Leerzeichen löst keine neue Anfrage aus, Treffer bleiben', geoCalls() === b2 && places(sbT).join('|') === berlin.name, (geoCalls() - b2) + ' ' + places(sbT));
+  G(sbT,'q').value = 'B'; G(sbT,'q').trigger('input'); await wait(500);
+  H.check('Suche: unter zwei Zeichen keine Anfrage, Zuletzt-Liste wieder da', geoCalls() === b2 && G(sbT,'res').innerHTML.includes('Zuletzt gewählt') && places(sbT).join('|') === berlin.name, G(sbT,'res').innerHTML);
+
+  // 5c) Verspätete Antworten: langsames „Hamb“, dann schnelles „Berl“ -> Berlin bleibt; langsames „Hamb“, dann leer -> Liste bleibt
+  G(sbT,'q').value = 'Hamb'; G(sbT,'q').trigger('input'); await wait(400);
+  G(sbT,'q').value = 'Berl'; G(sbT,'q').trigger('input'); await wait(500);
+  H.check('Suche: schnelle Antwort der neuen Eingabe sichtbar', places(sbT).join('|') === berlin.name, places(sbT));
+  await wait(700);
+  H.check('Suche: verspätete Antwort der alten Eingabe überschreibt nichts', places(sbT).join('|') === berlin.name, places(sbT));
+  G(sbT,'q').value = 'Hamb'; G(sbT,'q').trigger('input'); await wait(400);
+  G(sbT,'q').value = ''; G(sbT,'q').trigger('input'); await wait(900);
+  H.check('Suche: verspätete Antwort nach Leeren der Eingabe überschreibt die Zuletzt-Liste nicht', G(sbT,'res').innerHTML.includes('Zuletzt gewählt') && places(sbT).join('|') === berlin.name, G(sbT,'res').innerHTML);
+  G(sbT,'q').value = 'Hamb'; G(sbT,'q').trigger('input'); await wait(400);
+  G(sbT,'sheetClose').trigger('click'); await wait(900);
+  H.check('Suche: Schließen-Knopf schließt, Fokus auf Ortsknopf, verspätete Antwort bleibt ohne Wirkung', !sbT.document.body.classList.contains('sheet-open') && G(sbT,'locBtn').focused === true && G(sbT,'res').innerHTML === '' && G(sbT,'q').value === '', G(sbT,'res').innerHTML);
+  G(sbT,'locBtn').trigger('click'); await wait(350);
+  G(sbT,'locBtn').focused = false;
+  G(sbT,'sheet').trigger('keydown', { key: 'Escape' }); await wait(50);
+  H.check('Suche: Escape im Dialog schließt und gibt den Fokus zurück', !sbT.document.body.classList.contains('sheet-open') && G(sbT,'locBtn').focused === true);
+  H.check('Shell: Suchdialog mit Schließen-Knopf, Dialog-Attributen und Live-Region', (() => { const h = fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8'); return h.includes('id="sheetClose"') && h.includes('id="sheet"') && h.includes('aria-modal="true"') && h.includes('id="res"') && /id="locBtn"[^>]*aria-haspopup="dialog"/.test(h) && h.includes('id="fresh"'); })());
+
+  // 6) Aktualität: Zeitpunkt des erfolgreichen Ladens, Cache behält seinen Stand, Fehler überschreibt nichts
+  const nowMs = Date.parse('2026-10-08T18:00:00Z');
+  const ft = (iso, cached, tz) => sbT.freshnessText(iso, cached, nowMs, tz || 'Europe/Berlin');
+  H.check('Aktualität: gerade eben', ft('2026-10-08T17:59:40Z') === 'Gerade eben aktualisiert', ft('2026-10-08T17:59:40Z'));
+  H.check('Aktualität: Minuten (Singular/Plural)', ft('2026-10-08T17:59:00Z') === 'Vor 1 Minute aktualisiert' && ft('2026-10-08T17:56:00Z') === 'Vor 4 Minuten aktualisiert', ft('2026-10-08T17:56:00Z'));
+  H.check('Aktualität: Stunden', ft('2026-10-08T16:58:00Z') === 'Vor 1 Stunde aktualisiert' && ft('2026-10-08T15:30:00Z') === 'Vor 2 Stunden aktualisiert', ft('2026-10-08T15:30:00Z'));
+  H.check('Aktualität: älter als sechs Stunden -> Uhrzeit in Ortszeit (heute)', ft('2026-10-08T08:10:00Z') === 'Stand heute, 10:10 Uhr', ft('2026-10-08T08:10:00Z'));
+  H.check('Aktualität: gestern', ft('2026-10-07T20:10:00Z') === 'Stand gestern, 22:10 Uhr', ft('2026-10-07T20:10:00Z'));
+  H.check('Aktualität: älter -> Datum', ft('2026-10-05T20:10:00Z') === 'Stand 05.10., 22:10 Uhr', ft('2026-10-05T20:10:00Z'));
+  H.check('Aktualität: gespeicherte Daten immer mit Stand, auch wenn frisch', ft('2026-10-08T17:56:00Z', true) === 'Stand heute, 19:56 Uhr · gespeicherte Daten', ft('2026-10-08T17:56:00Z', true));
+  H.check('Aktualität: Zeitzone des Ortes (New York: 10:10 Uhr am Vortag aus Sicht Berlin ist dort „heute“)', ft('2026-10-08T08:10:00Z', false, 'America/New_York') === 'Stand heute, 04:10 Uhr Ortszeit', ft('2026-10-08T08:10:00Z', false, 'America/New_York'));
+  H.check('Aktualität: ungültige Zeitzone fällt auf die Gerätezeit zurück', ft('2026-10-08T08:10:00Z', false, 'Nirgendwo/Stadt').startsWith('Stand heute, '), ft('2026-10-08T08:10:00Z', false, 'Nirgendwo/Stadt'));
+  H.check('Aktualität: ohne Zeitpunkt leer', ft(null) === '' && ft('kaputt') === '');
+  // Im Ablauf: nach dem Laden „Gerade eben“, Cache-Start zeigt den gespeicherten Stand, fehlgeschlagene Aktualisierung behält Daten + Stand
+  H.check('Aktualität: nach erfolgreichem Laden „Gerade eben aktualisiert“', G(sb,'fresh').textContent === 'Gerade eben aktualisiert', G(sb,'fresh').textContent);
+  H.check('Aktualität: Offline-Start aus dem Cache zeigt den gespeicherten Stand, nicht die Startzeit', G(sb5,'fresh').textContent.startsWith('Stand ') && G(sb5,'fresh').textContent.endsWith('· gespeicherte Daten') && G(sb5,'updated').textContent.includes('08.10.'), G(sb5,'fresh').textContent + ' | ' + G(sb5,'updated').textContent);
+  let online = true;
+  const flaky = async (url) => { if (!online) throw new Error('Failed to fetch'); return H.okFetch(data)(url); };
+  const sbF = boot({ fetchImpl: flaky, geolocation: granted });
+  await wait(300);
+  const updatedBefore = G(sbF,'updated').textContent;
+  const cachedIso = new Date(Date.now() - 10 * 60000).toISOString();
+  const cachedText = () => sbT.freshnessText(cachedIso, true, Date.now(), 'Europe/Berlin');
+  sbF._store[LOC_KEY] = JSON.stringify({ savedAt: cachedIso, payload: { fc, ens: data.ens, md: data.md, air: data.air } });
+  online = false;
+  G(sbF,'refresh').trigger('click'); await wait(300);
+  H.check('Aktualität: fehlgeschlagene Aktualisierung behält Daten und markiert den gespeicherten Stand', G(sbF,'hero').innerHTML.includes('17°') && G(sbF,'fresh').textContent === cachedText() && cachedText().endsWith('· gespeicherte Daten') && G(sbF,'banner').innerHTML.includes('zuletzt gespeicherten'), G(sbF,'fresh').textContent + ' | ' + G(sbF,'hero').innerHTML.slice(0, 60));
+  delete sbF._store[LOC_KEY];
+  G(sbF,'refresh').trigger('click'); await wait(300);
+  H.check('Aktualität: Fehler ohne Cache lässt die zuletzt gültigen Daten und ihren Stand stehen, Fehlerbanner mit Wiederholen', G(sbF,'hero').innerHTML.includes('17°') && G(sbF,'fresh').textContent === cachedText() && G(sbF,'banner').className.includes('err') && G(sbF,'banner').innerHTML.includes('bannerBtn'), G(sbF,'fresh').textContent + ' | ' + G(sbF,'banner').innerHTML);
+  online = true;
+  G(sbF,'refresh').trigger('click'); await wait(300);
+  H.check('Aktualität: erfolgreiche Aktualisierung setzt wieder „Gerade eben“', G(sbF,'fresh').textContent === 'Gerade eben aktualisiert' && G(sbF,'banner').classList.contains('hidden'), G(sbF,'fresh').textContent);
+  // Ortswechsel auf einen Ort ohne Daten und ohne Cache: nichts Altes bleibt stehen
+  online = false;
+  G(sbF,'locBtn').trigger('click'); await wait(350);
+  sbF._store['wetter:recent'] = JSON.stringify([hamburgDE]);
+  G(sbF,'q').value = ''; G(sbF,'q').trigger('input'); await wait(50);
+  G(sbF,'res')._buttons[0].trigger('click'); await wait(300);
+  H.check('Aktualität: Ortswechsel ohne Daten leert die Anzeige samt Stand', G(sbF,'fresh').textContent === '' && G(sbF,'hero').innerHTML.includes('Keine Daten') && G(sbF,'locName').textContent.includes('Hamburg'), G(sbF,'fresh').textContent + ' | ' + G(sbF,'locName').textContent);
+  H.check('Aktualität: Zeile wird nur bei Änderung neu gesetzt (kein Flackern)', (() => { const n = G(sbF,'fresh'); let sets = 0; const orig = Object.getOwnPropertyDescriptor(n, 'textContent'); let v = n.textContent; Object.defineProperty(n, 'textContent', { get: () => v, set: (x) => { sets++; v = x; }, configurable: true }); sbF.updateFreshness(); sbF.updateFreshness(); if (orig) Object.defineProperty(n, 'textContent', orig); else { delete n.textContent; n.textContent = v; } return sets === 0; })());
+
+  // Texte: Schwelle der blauen Felder, gefühlte Temperatur und Windworte in den Fenstern
+  const dsrc = fs.readFileSync(require('path').join(__dirname, '..', 'design.js'), 'utf8');
+  const thr = (dsrc.match(/const wet = i !== 0 && prob >= (\d+);/) || [])[1];
+  H.check('Texte: Beschriftung der blauen Felder nennt dieselbe Schwelle wie die Berechnung', thr === '25' && fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8').includes('Blaue Felder: Regenrisiko ab ' + thr + ' %'), thr);
+  H.check('Texte: kein „windstill“ und kein „Regen wahrscheinlich“ mehr', !dsrc.includes('windstill') && !fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8').includes('Regen wahrscheinlich'));
+
   // Shell-Markup: gleitende Tab-Pille und Design-Schleier liegen in beiden Seiten
   const idx = fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
   const rad = fs.readFileSync(require('path').join(__dirname, '..', 'radar.html'), 'utf8');
   H.check('Shell: Tab-Pille und Design-Schleier in index.html und radar.html', [idx, rad].every(h => h.includes('<span class="tab-ink"') && h.includes('id="designVeil"')));
   H.check('Shell: Rausgehen-Feld in index.html', idx.includes('id="activityField"') && idx.includes('id="activity"'));
-  H.check('Shell: Versions-Query 20261008y an allen Asset-Links', (idx.match(/\?v=20261008y"/g) || []).length === 4 && (rad.match(/\?v=20261008y"/g) || []).length === 3 && fs.readFileSync(require('path').join(__dirname, '..', 'klassisch.html'), 'utf8').includes('wetter-core.js?v=20261008y"'), (idx.match(/\?v=\w+"/g) || []).join(','));
+  H.check('Shell: keine klassische Ansicht mehr verlinkt oder vorhanden', !idx.includes('klassisch.html') && !fs.existsSync(require('path').join(__dirname, '..', 'klassisch.html')) && !fs.existsSync(require('path').join(__dirname, '..', 'wetter.css')));
+  H.check('Shell: Versions-Query 20261008z an allen Asset-Links', (idx.match(/\?v=20261008z"/g) || []).length === 4 && (rad.match(/\?v=20261008z"/g) || []).length === 3, (idx.match(/\?v=\w+"/g) || []).join(','));
 
   if (process.env.DUMP) {
     fs.writeFileSync(__dirname + '/render-design.json', JSON.stringify({

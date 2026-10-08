@@ -39,9 +39,7 @@ function el() {
   return e;
 }
 
-const IDS = ['subline','reload','error','stale','now','nowcast','tempchart','sun','windchart',
-             'hourly','hourlyNote','daily','trend','models','air','updated',
-             'placeSearch','placeResults','gpsBtn'];
+const IDS = ['hourly', 'models', 'updated'];
 
 // --- Mock-Wetterdaten ----------------------------------------------
 function mockForecast() {

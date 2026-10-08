@@ -479,6 +479,19 @@ body.sheet-open .sheet { transform: none; }
     color: #fff; font-size: 15px; font-family: inherit; cursor: pointer;
 }
 
+/* Suchdialog: Kopfzeile mit Abbrechen, Zuletzt-Liste, Zustände, Tastaturfokus */
+.sheet-head { display: flex; align-items: center; gap: 6px; }
+.sheet-head input { flex: 1; min-width: 0; }
+.sheet-close { order: 2; flex: none; min-height: 44px; padding: 0 8px; background: none; border: none; border-radius: 12px; font: inherit; font-size: 15px; color: #fff; cursor: pointer; }
+.sheet .res-head { padding: 12px 10px 4px; font-size: 12px; color: rgba(255,255,255,0.55); }
+.sheet .place.recent { padding-left: 36px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a9b7cf' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='8'/%3E%3Cpath d='M12 8v4l3 2'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: 10px center; background-size: 17px; }
+.sheet .place-none.err { color: #fff; }
+.sheet button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+.sheet input:focus-visible { outline: 2px solid rgba(255,255,255,0.6); outline-offset: 1px; }
+
+/* Aktualität unter dem Hero: feste Zeilenhöhe, damit nichts springt */
+.fresh { min-height: 18px; margin: -8px 8px -4px; font-size: 12px; line-height: 18px; color: var(--ink-2); text-align: right; }
+
 /* ---------- Zustände ---------- */
 .banner { border-radius: 16px; padding: 12px 14px; font-size: 13.5px; line-height: 1.5; margin: 0 0 12px; background: rgba(0,0,0,0.25); border: 1px solid var(--line); }
 .banner.err { background: rgba(220,80,80,0.28); }

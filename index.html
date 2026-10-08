@@ -16,8 +16,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
 <!-- Zwei Designs auf demselben Markup: modern.css (Bento, Standard) und design.css (klassisches Glas-Design).
      Der Umschalter im Kopf wechselt zwischen beiden, die Wahl bleibt im Gerät gespeichert. -->
-<link rel="stylesheet" href="modern.css?v=20261008y" id="cssModern">
-<link rel="stylesheet" href="design.css?v=20261008y" id="cssClassic" disabled>
+<link rel="stylesheet" href="modern.css?v=20261008z" id="cssModern">
+<link rel="stylesheet" href="design.css?v=20261008z" id="cssClassic" disabled>
 <script>
 (function () {
     /* Gespeichertes Design schon vor dem ersten Zeichnen aktivieren, damit nichts umspringt. */
@@ -47,7 +47,7 @@
 <div class="page">
 
     <header class="top">
-        <button type="button" class="loc a-left" id="locBtn" aria-label="Ort wählen">
+        <button type="button" class="loc a-left" id="locBtn" aria-label="Ort wählen" aria-haspopup="dialog" aria-expanded="false">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
             <span id="locName">Standort …</span>
         </button>
@@ -71,6 +71,8 @@
 
     <section class="sec" id="sec-today">
         <div class="field hero-field skel a-pop" id="hero" style="height:250px;animation-delay:.15s">&nbsp;</div>
+        <!-- Aktualität: wann die gezeigten Daten geladen wurden (nicht der Modelllauf) -->
+        <div class="fresh" id="fresh"></div>
 
         <!-- Amtliche Wetterwarnungen des DWD für den Standort: nur sichtbar, wenn es welche gibt -->
         <div class="warnings a-up hidden" id="warnings" style="animation-delay:.6s"></div>
@@ -80,7 +82,7 @@
         <div class="field white a-up" style="animation-delay:.8s">
             <h2>Nächste Stunden <span class="r" id="hourlyHint">48 h →</span></h2>
             <div id="hourly" class="skel" style="height:112px">&nbsp;</div>
-            <div class="note">Blaue Felder: Regen wahrscheinlich (ab 25 %)</div>
+            <div class="note">Blaue Felder: Regenrisiko ab 25 %</div>
         </div>
 
         <!-- Rausgehen: Zeitfenster für eine Aktivität, als Vorschlag aus festen Schwellen -->
@@ -118,7 +120,7 @@
 
     <footer class="a-up" style="animation-delay:2.2s">
         <span id="updated"></span> · <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a> · Warnungen: <a href="https://www.dwd.de/" rel="noopener">DWD</a> · CC BY 4.0 · Ortsname: BigDataCloud<br>
-        <a href="klassisch.html">Klassische Ansicht</a> · <a href="radar.html">Regenradar</a> · <button type="button" class="linkbtn" id="designLink">Design wechseln</button>
+        <a href="radar.html">Regenradar</a> · <button type="button" class="linkbtn" id="designLink">Design wechseln</button>
     </footer>
 </div>
 
@@ -137,15 +139,19 @@
 </div>
 
 <div class="sheet-bg" id="sheetBg"></div>
-<div class="sheet" role="dialog" aria-label="Ort suchen">
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Ort suchen">
     <div class="grip"></div>
-    <input type="search" id="q" placeholder="Ort suchen …" autocomplete="off" autocorrect="off" spellcheck="false">
+    <!-- Abbrechen steht im Markup vor dem Feld (Tab vom Feld führt zu den Treffern), sichtbar rechts daneben -->
+    <div class="sheet-head">
+        <button type="button" class="sheet-close" id="sheetClose">Abbrechen</button>
+        <input type="search" id="q" placeholder="Ort suchen …" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Ort suchen">
+    </div>
     <div class="res" id="res"></div>
     <button type="button" class="gps hidden" id="gps">Zurück zu meinem Standort</button>
 </div>
 
-<script src="wetter-core.js?v=20261008y"></script>
-<script src="design.js?v=20261008y"></script>
+<script src="wetter-core.js?v=20261008z"></script>
+<script src="design.js?v=20261008z"></script>
 <script>initDesignApp();</script>
 </body>
 </html>

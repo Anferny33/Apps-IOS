@@ -548,10 +548,11 @@ function describeWindow(data, s, e) {
     const endH = (parseInt(te.slice(11, 13), 10) + 1) % 24;
     const crosses = dayOf(ts) !== dayOf(te) && endH !== 0;
     const when = dayWordFor(data.fc, ts) + " " + parseInt(ts.slice(11, 13), 10) + " bis " + (crosses ? dayWordFor(data.fc, te) + " " : "") + endH + " Uhr";
+    /* Temperatur ist die gefühlte; Windstufen wie in den Schwellen (bis 12 / bis 20 km/h) */
     const facts = [
-        Math.round(feel / n) + "°",
+        "gefühlt " + Math.round(feel / n) + "°",
         prob <= 10 ? "kaum Regen" : "Regen bis " + Math.round(prob) + " %",
-        wind <= 12 ? "windstill" : (wind <= 20 ? "wenig Wind" : "Wind bis " + Math.round(wind) + " km/h")
+        wind <= 12 ? "wenig Wind" : (wind <= 20 ? "leichter Wind" : "Wind bis " + Math.round(wind) + " km/h")
     ];
     if (uv >= 6) facts.push("UV hoch");
     return { start: s, end: e, when: when, facts: facts.join(", ") };
@@ -1768,6 +1769,81 @@ function renderAllDesign(payload) {
  * App-Steuerung: Standort, Suche, Tabs
  * ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ *
+ * Aktualität: Zeitpunkt, zu dem die gezeigten Daten tatsächlich geladen wurden
+ * (nicht der Modelllauf, kein Radarbild, kein erneutes Rendern). Aus dem Cache
+ * wiederhergestellte Daten behalten ihren gespeicherten Zeitpunkt.
+ * ------------------------------------------------------------------ */
+let loadedAt = null, loadedCached = false, loadedLocId = null, loadedTz = null, freshTimer = null;
+
+function validZone(tz) {
+    if (typeof tz !== "string" || !tz) return null;
+    try { new Intl.DateTimeFormat("de-DE", { timeZone: tz }); return tz; } catch (e) { return null; }
+}
+
+function deviceZone() {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { return null; }
+}
+
+/* „heute, 10:10 Uhr“, „gestern, 22:10 Uhr“, „05.10., 22:10 Uhr“ in der Zeitzone des Ortes */
+function stampAt(t, now, tz) {
+    const zone = validZone(tz);
+    const fmt = function (opts, ms) {
+        return new Intl.DateTimeFormat("de-DE", Object.assign(zone ? { timeZone: zone } : {}, opts)).format(new Date(ms));
+    };
+    const dayOf = function (ms) { return fmt({ year: "numeric", month: "2-digit", day: "2-digit" }, ms); };
+    const d = dayOf(t), today = dayOf(now), yesterday = dayOf(now - 86400000);
+    const day = d === today ? "heute" : (d === yesterday ? "gestern" : d.slice(0, 6));
+    const local = zone && deviceZone() && deviceZone() !== zone ? " Ortszeit" : "";
+    return day + ", " + fmt({ hour: "2-digit", minute: "2-digit" }, t) + " Uhr" + local;
+}
+
+function freshnessText(iso, cached, now, tz) {
+    if (!iso) return "";
+    const t = new Date(iso).getTime();
+    if (isNaN(t)) return "";
+    const age = Math.max(0, now - t);
+    if (!cached && age < 6 * 3600000) {
+        const min = Math.floor(age / 60000);
+        if (min < 1) return "Gerade eben aktualisiert";
+        if (min < 60) return "Vor " + min + (min === 1 ? " Minute" : " Minuten") + " aktualisiert";
+        const h = Math.floor(min / 60);
+        return "Vor " + h + (h === 1 ? " Stunde" : " Stunden") + " aktualisiert";
+    }
+    return "Stand " + stampAt(t, now, tz) + (cached ? " · gespeicherte Daten" : "");
+}
+
+function updateFreshness() {
+    const el = D("fresh");
+    if (!el) return;
+    const txt = freshnessText(loadedAt, loadedCached, Date.now(), loadedTz);
+    if (el.textContent !== txt) el.textContent = txt;
+}
+
+/* Relative Angabe einmal pro Minute nachführen, ohne Netz, nur bei sichtbarer Seite */
+function scheduleFreshness() {
+    if (freshTimer) { clearTimeout(freshTimer); freshTimer = null; }
+    if (!loadedAt) return;
+    freshTimer = setTimeout(function () {
+        freshTimer = null;
+        if (!document.hidden) updateFreshness();
+        scheduleFreshness();
+    }, 60000);
+}
+
+function setLoaded(iso, cached, locIdValue, tz) {
+    loadedAt = iso || null;
+    loadedCached = !!cached;
+    loadedLocId = iso ? (locIdValue || null) : null;
+    loadedTz = tz || null;
+    updateFreshness();
+    scheduleFreshness();
+}
+
+function initFreshness() {
+    if (document.addEventListener) document.addEventListener("visibilitychange", function () { if (!document.hidden) updateFreshness(); });
+}
+
 function initDesignApp() {
     let currentLoc = null;
     let loading = false;
@@ -1792,6 +1868,8 @@ function initDesignApp() {
         D("refresh").classList.add("spin");
         D("banner").classList.add("hidden");
         setLocLabel(loc);
+        /* Anderer Ort: die Aktualität der alten Daten gilt nicht mehr */
+        if (loc.id !== loadedLocId) setLoaded(null, false, null, null);
 
         const results = await Promise.allSettled([
             fetchForecast(loc), fetchEnsemble(loc), fetchModels(loc), fetchAir(loc), fetchWarnings(loc), fetchNina(loc)
@@ -1801,21 +1879,29 @@ function initDesignApp() {
         const val = function (i) { return results[i].status === "fulfilled" ? results[i].value : null; };
         const fc = val(0);
 
+        const reason = results[0].reason && results[0].reason.message ? results[0].reason.message : "Netzwerkfehler";
         if (fc) {
             const payload = { fc: fc, ens: val(1), md: val(2), air: val(3), warn: val(4), nina: val(5) };
+            const at = new Date().toISOString();
             renderAllDesign(payload);
             saveCache(currentLoc, payload);
-            setUpdatedLabel(new Date().toISOString());
+            setUpdatedLabel(at);
+            setLoaded(at, false, loc.id, fc.timezone);
         } else {
             const cached = loadCache(currentLoc);
             if (cached) {
                 renderAllDesign(cached.payload);
                 setUpdatedLabel(cached.savedAt);
+                setLoaded(cached.savedAt, true, loc.id, cached.payload && cached.payload.fc ? cached.payload.fc.timezone : null);
                 showBanner("Keine Verbindung – du siehst die zuletzt gespeicherten Daten.", false);
+            } else if (loadedAt && loadedLocId === loc.id) {
+                /* Kein Cache, aber die zuletzt gültigen Daten dieses Orts stehen noch da: stehen lassen und als gespeichert kennzeichnen */
+                setLoaded(loadedAt, true, loc.id, loadedTz);
+                showBanner("Die Wetterdaten konnten nicht aktualisiert werden (" + reason + ").", true, "Erneut versuchen", load);
             } else {
                 clearRendered();
-                showBanner("Die Wetterdaten konnten nicht geladen werden (" +
-                    (results[0].reason && results[0].reason.message ? results[0].reason.message : "Netzwerkfehler") + ").", true, "Erneut versuchen", load);
+                setLoaded(null, false, null, null);
+                showBanner("Die Wetterdaten konnten nicht geladen werden (" + reason + ").", true, "Erneut versuchen", load);
             }
         }
         D("refresh").classList.remove("spin");
@@ -1872,43 +1958,86 @@ function initDesignApp() {
 
     function openSheet() {
         document.body.classList.add("sheet-open");
+        D("locBtn").setAttribute("aria-expanded", "true");
+        showRecent();
         setTimeout(function () { D("q").focus(); }, 300);
     }
+    /* Schließen: Eingabe und Liste leeren, laufende Suchen verfallen, Fokus zurück auf den Ortsknopf */
     function closeSheet() {
         document.body.classList.remove("sheet-open");
+        D("locBtn").setAttribute("aria-expanded", "false");
         D("q").value = "";
         D("res").innerHTML = "";
+        D("res").setAttribute("aria-busy", "false");
+        searchSeq++;
+        searchLast = null;
+        D("locBtn").focus();
+    }
+
+    let searchSeq = 0, searchLast = null;
+
+    function placeButtons(list, cls) {
+        return list.map(function (r, i) {
+            return '<button type="button" class="place' + (cls ? " " + cls : "") + '" data-i="' + i + '">' + r.name + '</button>';
+        }).join("");
+    }
+    function bindPlaces(list) {
+        D("res").querySelectorAll(".place").forEach(function (b) {
+            b.addEventListener("click", function () { choosePlace(list[+b.getAttribute("data-i")]); });
+        });
+    }
+    function resState(cls, text) {
+        D("res").innerHTML = '<div class="place-none' + (cls ? " " + cls : "") + '" role="status">' + text + '</div>';
+    }
+    /* Ohne Eingabe: die zuletzt gewählten Suchorte, neuester zuerst */
+    function showRecent() {
+        const recent = loadRecentPlaces();
+        const res = D("res");
+        if (!recent.length) { res.innerHTML = ""; return; }
+        res.innerHTML = '<div class="res-head">Zuletzt gewählt</div>' + placeButtons(recent, "recent");
+        bindPlaces(recent);
+    }
+    /* Ein Suchtreffer oder ein bisheriger Ort wird aktiver Ort (auch fürs Radar) und zuletzt gewählter Suchort */
+    function choosePlace(r) {
+        if (!r) return;
+        currentLoc = { id: locId(r.lat, r.lon), name: r.name, lat: r.lat, lon: r.lon, source: "search" };
+        saveActiveLoc(currentLoc);
+        saveRecentPlace(currentLoc);
+        closeSheet();
+        load();
+        window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
     function initSearch() {
-        let timer = null, seq = 0;
+        let timer = null;
         D("locBtn").addEventListener("click", openSheet);
         D("sheetBg").addEventListener("click", closeSheet);
-        D("q").addEventListener("keydown", function (ev) { if (ev.key === "Escape") closeSheet(); });
+        D("sheetClose").addEventListener("click", closeSheet);
+        D("sheet").addEventListener("keydown", function (ev) { if (ev.key === "Escape") closeSheet(); });
         D("q").addEventListener("input", function () {
             const q = D("q").value.trim();
             clearTimeout(timer);
-            if (q.length < 2) { D("res").innerHTML = ""; return; }
+            searchSeq++;                       /* alles, was noch unterwegs ist, gehört zu einer älteren Eingabe */
+            if (q.length < 2) { searchLast = null; showRecent(); return; }
+            if (q === searchLast) return;      /* nur Leerzeichen geändert: Treffer stehen schon da */
             timer = setTimeout(async function () {
-                const my = ++seq;
-                let results = [];
-                try { results = await searchPlaces(q); } catch (e) { results = []; }
-                if (my !== seq) return;
+                const my = searchSeq;
                 const res = D("res");
-                if (!results.length) { res.innerHTML = '<div class="place-none">Kein Ort gefunden.</div>'; return; }
-                res.innerHTML = results.map(function (r, i) {
-                    return '<button type="button" class="place" data-i="' + i + '">' + r.name + '</button>';
-                }).join("");
-                res.querySelectorAll(".place").forEach(function (b) {
-                    b.addEventListener("click", function () {
-                        const r = results[+b.getAttribute("data-i")];
-                        currentLoc = { id: locId(r.lat, r.lon), name: r.name, lat: r.lat, lon: r.lon, source: "search" };
-                        saveActiveLoc(currentLoc);
-                        closeSheet();
-                        load();
-                        window.scrollTo({ top: 0, behavior: "smooth" });
-                    });
-                });
+                if (res.innerHTML.indexOf('class="place"') < 0) resState("busy", "Suche läuft …");
+                res.setAttribute("aria-busy", "true");
+                let results = null;
+                try { results = await searchPlaces(q); } catch (e) { results = null; }
+                if (my !== searchSeq) return;  /* verspätete Antwort einer früheren Eingabe */
+                res.setAttribute("aria-busy", "false");
+                if (!results) {                /* Netzwerkfehler ist kein leeres Ergebnis */
+                    searchLast = null;
+                    resState("err", "Suche derzeit nicht möglich. Bitte Verbindung prüfen und erneut tippen.");
+                    return;
+                }
+                searchLast = q;
+                if (!results.length) { resState("", "Keine Orte gefunden."); return; }
+                res.innerHTML = placeButtons(results, "");
+                bindPlaces(results);
             }, 350);
         });
         D("gps").addEventListener("click", function () {
@@ -2123,6 +2252,7 @@ function initDesignApp() {
     initDesignToggle();
     initReplay();
     initPreviewBar();
+    initFreshness();
     loadActivity();
     initActivity();
     loadPause();
