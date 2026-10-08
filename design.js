@@ -380,7 +380,7 @@ function flip(el) {
 /* Hero in place auf neue Fakten bringen: Meta und Chips tauschen, Temperatur gleitet,
    Icon nur bei Wechsel der Wetterart ersetzen (Schleifen laufen sonst weiter).
    Ohne echtes DOM (Harness: kein firstElementChild) wird das Hero komplett neu gebaut. */
-function updateHero(f) {
+function updateHero(f, quiet) {
     const hero = D("hero");
     if (!hero) return;
     setTheme(themeFor(f.code, f.isDay));
@@ -389,9 +389,9 @@ function updateHero(f) {
     if (!meta || !hero.firstElementChild) { hero.innerHTML = heroHtml(f, false); return; }
 
     meta.innerHTML = heroMetaHtml(f);
-    flip(meta);
+    if (!quiet) flip(meta);
     const chips = hero.querySelector(".chips");
-    if (chips) { chips.innerHTML = heroChipsHtml(f, false); chips.classList.toggle("preview", !f.now); flip(chips); }
+    if (chips) { chips.innerHTML = heroChipsHtml(f, false); chips.classList.toggle("preview", !f.now); if (!quiet) flip(chips); }
 
     const temp = hero.querySelector(".temp");
     if (temp) { if (lastTemp !== null) glideTo(temp, lastTemp, "°"); else temp.textContent = "–°"; }
@@ -417,19 +417,100 @@ function markHour(gi) {
     if (col && col.classList) col.classList.add("sel");
 }
 
-function selectHour(gi) {
+function selectHour(gi, quiet) {
     const f = hourFacts(lastData, gi);
     if (!f || gi === previewIdx) return;
     previewIdx = gi;
     markHour(gi);
-    updateHero(f);
+    updateHero(f, quiet);
 }
 
-function clearHour() {
+function clearHour(quiet) {
     if (previewIdx === null || !lastData) return;
     previewIdx = null;
     markHour(null);
-    updateHero(nowFacts(lastData.fc));
+    updateHero(nowFacts(lastData.fc), quiet);
+}
+
+/* ---- Zeitreise Stufe 2: Ziehen vom Griff (markierte Spalte) ---- */
+
+const scrub = { pending: false, active: false, x0: 0, y0: 0, lastX: 0, lastY: 0, raf: null, endedAt: 0 };
+const SCRUB_EDGE = 36, SCRUB_STEP = 6;
+
+function scrubActive() { return scrub.active; }
+
+function stripEl() {
+    const box = D("hourly");
+    return box && box.querySelector ? box.querySelector(".strip") : null;
+}
+
+/* Spalte unter einem Punkt; ohne elementFromPoint (Harness) null */
+function columnAt(x, y) {
+    if (!document.elementFromPoint) return null;
+    const el = document.elementFromPoint(x, y);
+    return el && el.closest ? el.closest(".hcol") : null;
+}
+
+function applyScrubColumn(col) {
+    if (!col || !col.getAttribute) return;
+    const i = col.getAttribute("data-i");
+    if (i === null) clearHour(true); else selectHour(parseInt(i, 10), true);
+}
+
+/* Beginn nur auf der markierten Spalte; die Richtung entscheidet das erste Bewegungsereignis */
+function scrubStart(x, y, col) {
+    if (!col || !col.classList || !col.classList.contains("sel")) return false;
+    scrub.pending = true; scrub.active = false;
+    scrub.x0 = x; scrub.y0 = y; scrub.lastX = x; scrub.lastY = y;
+    return true;
+}
+
+/* "release": senkrecht, Geste frei · "scrub": aktiv, Ereignis abfangen · "idle": kein Ziehen */
+function scrubMove(x, y) {
+    if (scrub.pending) {
+        const dx = Math.abs(x - scrub.x0), dy = Math.abs(y - scrub.y0);
+        scrub.pending = false;
+        if (dy > dx && dy >= 3) return "release";
+        scrub.active = true;
+        const strip = stripEl();
+        if (strip && strip.classList) strip.classList.add("scrubbing");
+        edgeScroll();
+    }
+    if (!scrub.active) return "idle";
+    scrub.lastX = x; scrub.lastY = y;
+    applyScrubColumn(columnAt(x, y));
+    return "scrub";
+}
+
+/* Nahe am Leistenrand rollt die Leiste weiter, die Spalte unter dem Finger wird neu bestimmt */
+function edgeScroll() {
+    if (!scrub.active || typeof requestAnimationFrame !== "function") return;
+    const strip = stripEl();
+    if (strip && strip.getBoundingClientRect) {
+        const r = strip.getBoundingClientRect();
+        let dx = 0;
+        if (isNum(r.right) && scrub.lastX > r.right - SCRUB_EDGE) dx = SCRUB_STEP;
+        else if (isNum(r.left) && scrub.lastX < r.left + SCRUB_EDGE) dx = -SCRUB_STEP;
+        if (dx) { strip.scrollLeft += dx; applyScrubColumn(columnAt(scrub.lastX, scrub.lastY)); }
+    }
+    scrub.raf = requestAnimationFrame(edgeScroll);
+}
+
+function settleHero() {
+    const hero = D("hero");
+    if (!hero || !hero.querySelector || !hero.firstElementChild) return;
+    flip(hero.querySelector(".meta"));
+    flip(hero.querySelector(".chips"));
+}
+
+function scrubEnd() {
+    const was = scrub.active;
+    scrub.pending = false; scrub.active = false;
+    if (scrub.raf && typeof cancelAnimationFrame === "function") cancelAnimationFrame(scrub.raf);
+    scrub.raf = null;
+    const strip = stripEl();
+    if (strip && strip.classList) strip.classList.remove("scrubbing");
+    if (was) { scrub.endedAt = Date.now(); settleHero(); }
 }
 
 function renderHero(fc) {
