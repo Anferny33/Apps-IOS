@@ -2,6 +2,7 @@
 const fs = require('fs');
 const vm = require('vm');
 
+const SUN = fs.readFileSync(require('path').join(__dirname, '..', 'sonne.js'), 'utf8');
 const CORE = fs.readFileSync(require('path').join(__dirname, '..', 'wetter-core.js'), 'utf8');
 
 function el() {
@@ -57,7 +58,7 @@ function mockForecast() {
     const d = new Date(Date.UTC(2026, 8, 25 + i));
     return d.toISOString().slice(0, 10);
   });
-  return {
+  const fc = {
     latitude: 48.137, longitude: 11.575, utc_offset_seconds: 7200, timezone: 'Europe/Berlin',
     current: { time: day + 'T14:15', temperature_2m: 17.4, apparent_temperature: 16.1,
                relative_humidity_2m: 71, precipitation: 0.0, weather_code: 2,
@@ -102,6 +103,10 @@ function mockForecast() {
       sunshine_duration: days.map(() => 21600)
     }
   };
+  // Sicht: tagsüber frei, am 26.9. um 05:00 und 06:00 Nebel; Taupunkt 3° unter der Temperatur
+  fc.hourly.visibility = hTimes.map((_, i) => (i === 29 || i === 30 ? 400 : 24140));
+  fc.hourly.dew_point_2m = fc.hourly.temperature_2m.map(t => t - 3);
+  return fc;
 }
 
 function mockEnsemble(forecast) {
@@ -227,6 +232,7 @@ function makeSandbox(opts) {
   sb.window = sb;
   sb._nodes = nodes; sb._dyn = dyn; sb._store = store; sb._fetchLog = fetchLog;
   vm.createContext(sb);
+  vm.runInContext(SUN, sb);
   vm.runInContext(CORE, sb);
   return sb;
 }

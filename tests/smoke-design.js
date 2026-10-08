@@ -17,6 +17,7 @@ function boot(opts) {
   const sb = H.makeSandbox(opts);
   sb.Math = Math;
   vm.runInContext(DESIGN, sb);
+  sb.TEST_NOW = Date.parse('2026-09-25T12:15:00Z');   // 14:15 Ortszeit wie in den Mock-Daten: Nachtzustand bleibt deterministisch
   sb.initDesignApp();
   return sb;
 }
@@ -482,13 +483,54 @@ function boot(opts) {
   H.check('Texte: Beschriftung der blauen Felder nennt dieselbe Schwelle wie die Berechnung', thr === '25' && fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8').includes('Blaue Felder: Regenrisiko ab ' + thr + ' %'), thr);
   H.check('Texte: kein „windstill“ und kein „Regen wahrscheinlich“ mehr', !dsrc.includes('windstill') && !fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8').includes('Regen wahrscheinlich'));
 
+  // 7) Nachtpalette und Tageszeit-Kacheln
+  const nightAt = iso => sb.nightNowAt(fc, iso);
+  H.check('Nacht: Fenster aus den Lichtzeiten (14:15 hell, 19:30 hell, 20:00 dunkel, 06:00 dunkel, 06:45 hell)', nightAt('2026-09-25T14:15') === false && nightAt('2026-09-25T19:30') === false && nightAt('2026-09-25T20:00') === true && nightAt('2026-09-25T06:00') === true && nightAt('2026-09-25T06:45') === false, ['14:15','19:30','20:00','06:00','06:45'].map(t => nightAt('2026-09-25T' + t)).join(','));
+  H.check('Nacht: Datum außerhalb der Tagesliste fällt auf die Sonnenrechnung zurück', nightAt('2027-01-01T02:00') === true && nightAt('2027-01-01T13:00') === false);
+  H.check('Nacht: Sonnenrechnung, Polartag hell, Polarnacht dunkel', sb.nightByClock(48.137, 11.575, '2026-09-25', 7200, 20 * 60) === true && sb.nightByClock(48.137, 11.575, '2026-09-25', 7200, 14 * 60) === false && sb.nightByClock(78, 15, '2026-06-21', 7200, 60) === false && sb.nightByClock(78, 15, '2026-12-21', 3600, 12 * 60) === true, [sb.nightByClock(48.137, 11.575, '2026-09-25', 7200, 20 * 60), sb.nightByClock(78, 15, '2026-06-21', 7200, 60), sb.nightByClock(78, 15, '2026-12-21', 3600, 12 * 60)].join(','));
+  const full = sb.moonPhase(new Date('2026-09-26T16:49:00Z')), neu = sb.moonPhase(new Date('2026-10-10T15:50:00Z')), q = sb.moonPhase(new Date('2026-10-18T12:00:00Z'));
+  H.check('Mond: Vollmond 26.9.2026, Neumond 10.10.2026, erstes Viertel 18.10.2026', full.illum > 0.98 && full.name === 'Vollmond' && neu.illum < 0.02 && neu.name === 'Neumond' && q.name === 'Erstes Viertel' && Math.abs(q.illum - 0.5) < 0.1, [full, neu, q].map(m => m.name + ' ' + m.illum.toFixed(2)).join(' | '));
+  H.check('Mond: Symbol mit Phase und Beleuchtung als Beschriftung', sb.moonIcon(full).includes('class="moon-ico"') && sb.moonIcon(full).includes('Vollmond, 100 % beleuchtet') && /Neumond, [01] % beleuchtet/.test(sb.moonIcon(neu)), sb.moonIcon(full));
+  sb.clearHour(); sb.toggleTile('wind');
+  const detDay = G(sb,'details').innerHTML;
+  H.check('Nacht: tagsüber keine Nachtklasse, UV-Kachel wie gehabt', !sb.document.body.classList.contains('night') && detDay.includes('UV-Index') && !detDay.includes('UV morgen') && sb._store['wetter:night'] === '0', sb._store['wetter:night']);
+  sb.updateNight('2026-09-25T21:00');
+  const detN = G(sb,'details').innerHTML;
+  H.check('Nacht: Wechsel setzt Klasse night und merkt den Zustand', sb.document.body.classList.contains('night') && sb._store['wetter:night'] === '1', sb._store['wetter:night']);
+  H.check('Nacht: UV-Kachel wird zu „UV morgen“ mit Höchstwert 4,6 gegen 12 Uhr und Mondsymbol', detN.includes('>UV morgen<') && detN.includes('data-count="4.6"') && detN.includes('Höchstwert gegen 12 Uhr') && detN.includes('class="moon-ico"') && detN.includes('beleuchtet') && !detN.includes('UV-Index'), detN.slice(0, 400));
+  H.check('Nacht: getauschte Kachel blendet ein, übrige stehen still', detN.includes('class="tile uv swap"') && (detN.match(/animation:none/g) || []).length >= 7 && (detN.match(/class="tile [^"]*swap"/g) || []).length === 1, (detN.match(/class="tile [^"]*"/g) || []).join(','));
+  const seeded = sb.countState();
+  H.check('Nacht: Zähler ohne Neustart (gesät, Modus same), offenes Feld bleibt offen', Object.keys(seeded).some(k => k.endsWith(':0') && seeded[k] === 4.6) && sb.countMode(Object.keys(seeded).find(k => k.endsWith(':0')), 4.6) === 'same' && sb.openTileKey() === 'wind', JSON.stringify(seeded) + ' ' + sb.openTileKey());
+  sb.updateNight('2026-09-26T10:00');
+  H.check('Nacht: Rückwechsel am Morgen, UV-Kachel blendet wieder ein', !sb.document.body.classList.contains('night') && G(sb,'details').innerHTML.includes('UV-Index') && G(sb,'details').innerHTML.includes('class="tile uv swap"') && sb._store['wetter:night'] === '0', G(sb,'details').innerHTML.slice(0, 120));
+  sb.toggleTile('wind');
+  // Sicht statt Pollen
+  const airNoPollen = JSON.parse(JSON.stringify(data.air));
+  ['birch_pollen','grass_pollen','alder_pollen','mugwort_pollen','ragweed_pollen','olive_pollen'].forEach(k => { airNoPollen.current[k] = 0; airNoPollen.hourly[k] = airNoPollen.hourly[k].map(() => 0); });
+  const sbV = boot({ fetchImpl: H.okFetch(Object.assign({}, data, { air: airNoPollen })), geolocation: granted });
+  await wait(300);
+  const detV = G(sbV,'details').innerHTML;
+  H.check('Sicht: ohne nennenswerte Pollen zeigt der Platz die Sichtweite (24 km klar, Nebel morgen gegen 5 Uhr)', (detV.match(/class="tile /g) || []).length === 8 && !detV.includes('>Pollen<') && detV.includes('>Sicht<') && detV.includes('data-count="24"') && detV.includes('<span class="word">klar</span>') && detV.includes('Nebel möglich morgen gegen 5 Uhr') && detV.includes('class="fog-ico"'), detV.match(/Sicht[\s\S]{0,300}/));
+  H.check('Sicht: mit Pollen bleibt die Pollen-Kachel', G(sb,'details').innerHTML.includes('>Pollen<') && !G(sb,'details').innerHTML.includes('>Sicht<'));
+  H.check('Sicht: ohne Luftdaten trotzdem da (7 Kacheln)', (() => { const d = JSON.parse(JSON.stringify(data)); d.air = null; const s2 = boot({ fetchImpl: H.okFetch(d), geolocation: granted }); return wait(300).then(() => { const h = G(s2,'details').innerHTML; return (h.match(/class="tile /g) || []).length === 7 && h.includes('>Sicht<'); }); })());
+  const fcFog = JSON.parse(JSON.stringify(fc)); fcFog.hourly.visibility = fcFog.hourly.visibility.map(() => 24140); fcFog.hourly.visibility[14] = 400;
+  const vi = sb.visibilityInfo(fcFog);
+  H.check('Sicht: Nebel jetzt (400 m), danach frei, Untertitel nennt den Taupunkt', vi.vis === 400 && vi.word === 'Nebel' && vi.fogAt === null && vi.sub.startsWith('Taupunkt') && !vi.sub.includes('Nebel'), JSON.stringify(vi));
+  const fcHaze = JSON.parse(JSON.stringify(fcFog)); fcHaze.hourly.visibility[14] = 2500; fcHaze.hourly.dew_point_2m = fcHaze.hourly.temperature_2m.map(t => t - 1);
+  const vh = sb.visibilityInfo(fcHaze);
+  H.check('Sicht: diesig mit Nebelneigung bei geringem Taupunktabstand', vh.word === 'diesig' && vh.sub.includes('Nebelneigung') && vh.big.includes('2,5') && vh.big.includes('km'), JSON.stringify(vh));
+  H.check('Sicht: ohne Sichtfeld keine Kachelangaben', sb.visibilityInfo(JSON.parse(JSON.stringify(H.mockForecast())).hourly ? (() => { const f = JSON.parse(JSON.stringify(fc)); delete f.hourly.visibility; return f; })() : fc) === null);
+
   // Shell-Markup: gleitende Tab-Pille und Design-Schleier liegen in beiden Seiten
   const idx = fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
   const rad = fs.readFileSync(require('path').join(__dirname, '..', 'radar.html'), 'utf8');
   H.check('Shell: Tab-Pille und Design-Schleier in index.html und radar.html', [idx, rad].every(h => h.includes('<span class="tab-ink"') && h.includes('id="designVeil"')));
   H.check('Shell: Rausgehen-Feld in index.html', idx.includes('id="activityField"') && idx.includes('id="activity"'));
   H.check('Shell: keine klassische Ansicht mehr verlinkt oder vorhanden', !idx.includes('klassisch.html') && !fs.existsSync(require('path').join(__dirname, '..', 'klassisch.html')) && !fs.existsSync(require('path').join(__dirname, '..', 'wetter.css')));
-  H.check('Shell: Versions-Query 20261008z an allen Asset-Links', (idx.match(/\?v=20261008z"/g) || []).length === 4 && (rad.match(/\?v=20261008z"/g) || []).length === 3, (idx.match(/\?v=\w+"/g) || []).join(','));
+  H.check('Shell: Versions-Query 20261009a an allen Asset-Links', (idx.match(/\?v=20261009a"/g) || []).length === 5 && (rad.match(/\?v=20261009a"/g) || []).length === 4, (idx.match(/\?v=\w+"/g) || []).join(','));
+  const css = fs.readFileSync(require('path').join(__dirname, '..', 'modern.css'), 'utf8');
+  H.check('Shell: Sonnenrechnung vor den App-Skripten, Nachtklasse vor dem ersten Zeichnen', [idx, rad].every(h => h.includes('<script src="sonne.js?v=') && /wetter:night[\s\S]{0,120}classList\.add\("night"\)/.test(h) && h.indexOf('wetter:night') < h.indexOf('<link rel="stylesheet" href="modern.css')));
+  H.check('Shell: Nachtpalette im Stylesheet mit Token, Hero-Farben, Fade und Kachel-Einblendung', css.includes('html.night {') && css.includes('--card:') && css.includes('--soft:') && css.includes('--wet:') && css.includes('html.night .theme-rain') && css.includes('html.fade') && css.includes('.tile.swap') && css.includes('.field.white { background: var(--card); }') && /\.tile \{[^}]*background: var\(--card\)/.test(css) && /\.hcol\.wet \{ background: var\(--wet\)/.test(css), css.match(/\.field\.white[^\n]*/));
 
   if (process.env.DUMP) {
     fs.writeFileSync(__dirname + '/render-design.json', JSON.stringify({

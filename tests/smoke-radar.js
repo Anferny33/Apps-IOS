@@ -5,6 +5,7 @@
 const fs = require('fs');
 const vm = require('vm');
 const code = fs.readFileSync(require('path').join(__dirname, '..', 'radar.js'), 'utf8');
+const SUN = fs.readFileSync(require('path').join(__dirname, '..', 'sonne.js'), 'utf8');
 
 const NOW = Date.parse('2026-10-08T11:07:00Z');
 const capsA = '<WMS_Capabilities><Layer><Name>dwd:Niederschlagsradar</Name>' +
@@ -112,6 +113,7 @@ function run(opts) {
   };
   sb.window = sb;
   vm.createContext(sb);
+  vm.runInContext(SUN, sb);
   vm.runInContext(code, sb);
   return {
     sb, nodes, log, docHandlers,
@@ -132,6 +134,8 @@ const check = (n, c, x) => { console.log((c ? '  ok   ' : '  FAIL ') + n + (c ? 
   const N = A.nodes, L = A.log;
   const frames = A.st().frames;
 
+  check('Nacht: Radar rechnet den Zustand aus Ort und Uhrzeit (22:30 Ortszeit dunkel, 13:07 hell)', A.sb.radarNight(Date.parse('2026-10-08T20:30:00Z')) === true && A.sb.radarNight(Date.parse('2026-10-08T11:07:00Z')) === false, A.sb.radarNight(Date.parse('2026-10-08T20:30:00Z')) + ' ' + A.sb.radarNight(Date.parse('2026-10-08T11:07:00Z')));
+  check('Nacht: ohne Ort keine Entscheidung', run({ caps: capsA }).sb.radarNight(Date.parse('2026-10-08T20:30:00Z')) === null);
   check('Karte: MapLibre mit Position München, Zoom 7, Marker, eigener Stil ohne Schlüssel', map.opts.center[0] === 11.575 && map.opts.zoom === 7 && L.marker && L.marker.ll[1] === 48.137 && map.style.sources.omt.url === 'https://tiles.openfreemap.org/planet' && !/key=|token=/.test(JSON.stringify(map.style)), JSON.stringify(map.opts.center));
   check('Stil: Wasser blassblau, Land zurückhaltend, nur Hauptstraßen ab Zoom 7, Nebenstraßen ab 10, Dörfer ab 10', map.style.layers.find(l => l.id === 'water').paint['fill-color'] === '#D4E4F7' && map.style.layers.find(l => l.id === 'bg').paint['background-color'] === '#EEF1EA' && map.style.layers.find(l => l.id === 'road-major').minzoom === 7 && map.style.layers.find(l => l.id === 'road-minor').minzoom === 10 && map.style.layers.find(l => l.id === 'place-village').minzoom === 10);
   check('Radar: genau zwei Bildebenen, eingefügt vor den Ortsnamen, zunächst unsichtbar', map.layers.length === 2 && map.layers.every(l => l.type === 'raster' && l.before === 'place-city' && l.paint['raster-opacity'] === 0) && Object.keys(map.sources).length === 2, JSON.stringify(map.layers.map(l => [l.id, l.before])));

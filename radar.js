@@ -736,8 +736,7 @@ function applyDesign(name) {
         if (m) m.disabled = !modern;
         if (c) c.disabled = modern;
         if (document.documentElement && document.documentElement.setAttribute) document.documentElement.setAttribute("data-design", design);
-        const metaEl = document.querySelector ? document.querySelector('meta[name="theme-color"]') : null;
-        if (metaEl) metaEl.setAttribute("content", modern ? "#ECEAF4" : "#2a558c");
+        updateThemeColor();
         try { localStorage.setItem("wetter:design", design); } catch (e) { /* kein Speicher */ }
         moveTabInk();
         if (map && map.setStyle) map.setStyle(buildStyle(design));
@@ -768,12 +767,35 @@ function radarState() {
     return { map: map, frames: frames, current: current, playing: playing, design: design, shownLayer: shownLayer, stagingLayer: stagingLayer, cacheSize: cache.size, queued: queue.length, active: active, loadedView: loadedView };
 }
 
+/* Nachtpalette wie auf der Startseite: Sonnenstand am aktiven Ort (−8°), beim Start und jede Minute.
+   Liefert true/false, ohne Ort null. nowMs nur für Tests. */
+function radarNight(nowMs) {
+    const pos = lastKnownPos();
+    if (!pos || typeof nightByClock !== "function") return null;
+    const now = new Date(isNum(nowMs) ? nowMs : Date.now());
+    const dateStr = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0");
+    const on = nightByClock(pos.lat, pos.lon, dateStr, -now.getTimezoneOffset() * 60, now.getHours() * 60 + now.getMinutes());
+    const root = document.documentElement && document.documentElement.classList ? document.documentElement : null;
+    if (root) root.classList.toggle("night", on);
+    try { localStorage.setItem("wetter:night", on ? "1" : "0"); } catch (e) {}
+    updateThemeColor();
+    return on;
+}
+
+function updateThemeColor() {
+    const metaEl = document.querySelector ? document.querySelector('meta[name="theme-color"]') : null;
+    if (!metaEl) return;
+    const root = document.documentElement && document.documentElement.classList ? document.documentElement : null;
+    metaEl.setAttribute("content", design === "classic" ? "#2a558c" : (root && root.classList.contains("night") ? "#14121F" : "#ECEAF4"));
+}
+
 function initRadar() {
     if (typeof maplibregl === "undefined") {
         setMsg("Die Kartenbibliothek konnte nicht geladen werden. Bitte Verbindung prüfen und Seite neu laden.");
         return;
     }
     design = currentDesign();
+    radarNight();
     const pos = lastKnownPos();
     map = new maplibregl.Map({
         container: "map",
@@ -817,8 +839,10 @@ function initRadar() {
 
     /* Alle 5 Minuten frische Metadaten; im Hintergrund pausieren, bei Rückkehr aktualisieren */
     setInterval(function () { if (!document.hidden) refresh(true); }, REFRESH_MS);
+    setInterval(function () { if (!document.hidden) radarNight(); }, 60000);
     document.addEventListener("visibilitychange", function () {
         if (document.hidden) { wasPlaying = playing; setPlaying(false); return; }
+        radarNight();
         refresh(true, { minAge: REFRESH_MIN_AGE }).then(function () { if (wasPlaying) setPlaying(true); });
     });
 }

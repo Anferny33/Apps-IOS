@@ -16,8 +16,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
 <!-- Zwei Designs auf demselben Markup: modern.css (Bento, Standard) und design.css (klassisches Glas-Design).
      Der Umschalter im Kopf wechselt zwischen beiden, die Wahl bleibt im Gerät gespeichert. -->
-<link rel="stylesheet" href="modern.css?v=20261008z" id="cssModern">
-<link rel="stylesheet" href="design.css?v=20261008z" id="cssClassic" disabled>
+<!-- Nachtpalette vor dem ersten Zeichnen, damit die Seite nachts nicht hell aufblitzt -->
+<script>try { if (localStorage.getItem("wetter:night") === "1") document.documentElement.classList.add("night"); } catch (e) {}</script>
+<link rel="stylesheet" href="modern.css?v=20261009a" id="cssModern">
+<link rel="stylesheet" href="design.css?v=20261009a" id="cssClassic" disabled>
 <script>
 (function () {
     /* Gespeichertes Design schon vor dem ersten Zeichnen aktivieren, damit nichts umspringt. */
@@ -150,8 +152,9 @@
     <button type="button" class="gps hidden" id="gps">Zurück zu meinem Standort</button>
 </div>
 
-<script src="wetter-core.js?v=20261008z"></script>
-<script src="design.js?v=20261008z"></script>
+<script src="sonne.js?v=20261009a"></script>
+<script src="wetter-core.js?v=20261009a"></script>
+<script src="design.js?v=20261009a"></script>
 <script>initDesignApp();</script>
 </body>
 </html>

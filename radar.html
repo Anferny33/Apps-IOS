@@ -15,8 +15,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css">
 <!-- Dieselben zwei Designs wie die Startseite; die dort gespeicherte Wahl gilt auch hier. -->
-<link rel="stylesheet" href="modern.css?v=20261008z" id="cssModern">
-<link rel="stylesheet" href="design.css?v=20261008z" id="cssClassic" disabled>
+<script>try { if (localStorage.getItem("wetter:night") === "1") document.documentElement.classList.add("night"); } catch (e) {}</script>
+<link rel="stylesheet" href="modern.css?v=20261009a" id="cssModern">
+<link rel="stylesheet" href="design.css?v=20261009a" id="cssClassic" disabled>
 <script>
 (function () {
     var d = null;
@@ -76,7 +77,7 @@
     .mapbtns { position: absolute; top: 10px; right: 10px; z-index: 5; display: flex; flex-direction: column; gap: 6px; }
     .mapbtn {
         width: 40px; height: 40px; border-radius: 14px; border: none; cursor: pointer;
-        background: var(--white, #141c30); color: var(--ink, #fff);
+        background: var(--card, #141c30); color: var(--ink, #fff);
         display: flex; align-items: center; justify-content: center;
         box-shadow: 0 6px 18px rgba(30,27,46,0.18); font: inherit; font-size: 20px; font-weight: 700;
     }
@@ -121,7 +122,7 @@
     @keyframes playPop { 0% { transform: scale(0.86); } 60% { transform: scale(1.06); } 100% { transform: none; } }
     .play:active { transform: scale(0.92); }
     .timeline { flex: 1; min-width: 0; }
-    input[type="range"] { width: 100%; -webkit-appearance: none; appearance: none; height: 8px; border-radius: 4px; background: var(--white, rgba(255,255,255,0.14)); outline: none; display: block; }
+    input[type="range"] { width: 100%; -webkit-appearance: none; appearance: none; height: 8px; border-radius: 4px; background: var(--card, rgba(255,255,255,0.14)); outline: none; display: block; }
     html[data-design="classic"] input[type="range"] { background: rgba(255,255,255,0.18); }
     input[type="range"]::-webkit-slider-thumb {
         -webkit-appearance: none; appearance: none; width: 26px; height: 26px; border-radius: 50%;
@@ -130,6 +131,7 @@
     html[data-design="classic"] input[type="range"]::-webkit-slider-thumb { background: var(--accent, #ffd27a); border-color: #0b1a33; }
     /* Zeitachse unter dem Regler: Beobachtung links dunkler, Prognose rechts heller; Marker an der Grenze */
     :root { --tl-obs: rgba(30,27,46,0.34); --tl-fc: #ffffff; }
+    html.night { --tl-obs: rgba(241,239,248,0.45); --tl-fc: #3A3553; }
     html[data-design="classic"] { --tl-obs: rgba(255,255,255,0.6); --tl-fc: rgba(255,255,255,0.16); }
     .tl-axis { position: relative; height: 36px; margin-top: 4px; }
     .tl-axis.hidden { display: none; }
@@ -137,7 +139,7 @@
     .tl-lbl.obs { left: 0; } .tl-lbl.fc { right: 0; } .tl-lbl.hidden { display: none; }
     .tl-mark { position: absolute; top: -18px; transform: translateX(-50%); width: 48px; height: 52px; padding: 0; border: 0; background: transparent; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 2px; color: var(--ink, #fff); font: inherit; }
     .tl-mark i { width: 2px; height: 16px; border-radius: 1px; background: var(--ink, #fff); }
-    .tl-mark span { font-size: 11px; font-weight: 700; white-space: nowrap; padding: 2px 7px; border-radius: 8px; background: var(--white, rgba(11,26,51,0.85)); font-variant-numeric: tabular-nums; }
+    .tl-mark span { font-size: 11px; font-weight: 700; white-space: nowrap; padding: 2px 7px; border-radius: 8px; background: var(--card, rgba(11,26,51,0.85)); font-variant-numeric: tabular-nums; }
     html[data-design="classic"] .tl-mark span { background: rgba(11,26,51,0.85); color: #fff; }
     .tl-mark:focus-visible { outline: 3px solid var(--ink, #fff); outline-offset: 2px; border-radius: 10px; }
 
@@ -269,6 +271,7 @@
 </div>
 
 <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
-<script src="radar.js?v=20261008z"></script>
+<script src="sonne.js?v=20261009a"></script>
+<script src="radar.js?v=20261009a"></script>
 </body>
 </html>

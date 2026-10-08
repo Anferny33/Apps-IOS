@@ -1027,12 +1027,17 @@ const CHEVRON = '<span class="chev" aria-hidden="true"><svg viewBox="0 0 24 24" 
 
 /* Aufklappbare Kacheln: Chevron im Titel und eine unsichtbare Disclosure-Schaltfläche über der
    ganzen Kachel (große Trefferfläche, Tastatur, aria-expanded, aria-controls auf das Detailfeld). */
+let tileCounts = null;   /* Zählerziele der zuletzt gebauten Kacheln, in Reihenfolge (für seedTileCounts) */
+
 function tile(cls, title, big, sub, opts) {
     opts = opts || {};
     const count = isNum(opts.count) ? ' data-count="' + Number(opts.count.toFixed(opts.decimals || 0)) + '" data-decimals="' + (opts.decimals || 0) + '"' : '';
     const key = opts.key ? ' data-tile="' + opts.key + '"' : '';
     const toggle = opts.key ? '<button type="button" class="t-toggle" aria-expanded="false" aria-controls="tpanel-' + opts.key + '" aria-label="' + title + ': Details anzeigen"></button>' : '';
-    return '<div class="tile ' + cls + '"' + key + ' style="animation-delay:' + dl(opts.delay || 0) + 's">' +
+    if (isNum(opts.count) && tileCounts) tileCounts.push({ label: title, target: Number(opts.count.toFixed(opts.decimals || 0)) });
+    /* still: beim leisen Neubau stehen unveränderte Kacheln; swap: die getauschte blendet ein */
+    const style = opts.still ? 'animation:none' : 'animation-delay:' + dl(opts.delay || 0) + 's';
+    return '<div class="tile ' + cls + (opts.swap ? ' swap' : '') + '"' + key + ' style="' + style + '">' +
         '<h3>' + title + (opts.icon ? '<span class="t-ico">' + opts.icon + '</span>' : '') + (opts.key ? CHEVRON : '') + '</h3>' +
         '<div class="big"' + count + '>' + big + '</div>' +
         (opts.extra || '') +
@@ -1175,22 +1180,7 @@ function rainPanelHtml(fc) {
 
 /* ---- Abendmodus: Lichtzeiten aus dem Sonnenstand, Bewölkung zum Untergang ---- */
 
-/* Auf- und Untergangszeit für eine Sonnenhöhe (Grad) nach der klassischen Gleichung; Minuten
-   seit Mitternacht in Ortszeit, null wenn die Sonne die Höhe an diesem Tag nicht erreicht */
-function solarTimes(lat, lon, dateStr, offsetSec, elevDeg) {
-    const p = dateStr.split("-").map(Number);
-    if (p.length < 3 || p.some(isNaN)) return null;
-    const dayN = Math.round((Date.UTC(p[0], p[1] - 1, p[2]) - Date.UTC(p[0], 0, 1)) / 86400000) + 1;
-    const B = 2 * Math.PI / 365 * (dayN - 81);
-    const eot = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B);
-    const decl = 23.44 * Math.PI / 180 * Math.sin(B);
-    const phi = lat * Math.PI / 180, h0 = elevDeg * Math.PI / 180;
-    const cosW = (Math.sin(h0) - Math.sin(phi) * Math.sin(decl)) / (Math.cos(phi) * Math.cos(decl));
-    if (cosW < -1 || cosW > 1) return null;
-    const w = Math.acos(cosW) * 180 / Math.PI;
-    const noon = 720 - 4 * lon - eot + offsetSec / 60;
-    return { rise: noon - w * 4, set: noon + w * 4 };
-}
+/* solarTimes, nightByClock und moonPhase liegen in sonne.js (gemeinsam mit dem Radar) */
 
 function fmtMin(min) {
     if (!isNum(min)) return "–";
@@ -1348,7 +1338,67 @@ function toggleTile(key) {
     setTileState(key, true);
 }
 
-function renderDetails(fc, air) {
+/* UV-Balken der Kachel (Skala bis 11) */
+function uvMeter(uv, lv) {
+    return '<div class="meter"><i class="st-' + (lv ? lv.st : 'none') + '" style="width:' + (isNum(uv) ? Math.max(3, Math.min(100, uv / 11 * 100)).toFixed(0) : 0) + '%"></i></div>';
+}
+
+/* Höchstwert von morgen und die Stunde, in der er erreicht wird */
+function uvTomorrow(fc) {
+    const d = fc.daily, h = fc.hourly;
+    const max = d && d.uv_index_max ? d.uv_index_max[1] : null;
+    let hour = null, best = -1;
+    if (h && h.uv_index && h.time && d && d.time && d.time[1]) {
+        h.time.forEach(function (t, i) {
+            if (t.slice(0, 10) === d.time[1] && isNum(h.uv_index[i]) && h.uv_index[i] > best) { best = h.uv_index[i]; hour = parseInt(t.slice(11, 13), 10); }
+        });
+    }
+    return { max: isNum(max) ? max : null, hour: hour };
+}
+
+/* Mondsymbol: Scheibe plus beleuchtete Fläche aus Halbkreis und Terminator-Ellipse */
+function moonIcon(mp) {
+    const r = 9, cx = 12, cy = 12, k = Math.cos(2 * Math.PI * mp.phase);   /* 1 Neumond … −1 Vollmond */
+    const waxing = mp.phase < 0.5, side = waxing ? 1 : 0, bulge = k < 0 ? side : 1 - side;
+    const lit = 'M' + cx + ' ' + (cy - r) + ' A' + r + ' ' + r + ' 0 0 ' + side + ' ' + cx + ' ' + (cy + r) +
+        ' A' + (Math.abs(k) * r).toFixed(2) + ' ' + r + ' 0 0 ' + bulge + ' ' + cx + ' ' + (cy - r) + 'Z';
+    return '<svg class="moon-ico" viewBox="0 0 24 24" width="22" height="22" role="img" aria-label="' + mp.name + ', ' + Math.round(mp.illum * 100) + ' % beleuchtet">' +
+        '<circle class="moon-dark" cx="' + cx + '" cy="' + cy + '" r="' + r + '"/><path class="moon-lit" d="' + lit + '"/></svg>';
+}
+
+const FOG_ICON = '<svg class="fog-ico" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 9h13"/><path class="f2" d="M3 14h18"/><path d="M6 19h12"/></svg>';
+
+/* Sichtweite der aktuellen Stunde, nächster Nebel in 24 h, Taupunkt und Nebelneigung */
+function visibilityInfo(fc) {
+    const h = fc.hourly;
+    if (!h || !h.visibility || !h.time) return null;
+    const i = hourlyWindow(fc, 24).start, vis = h.visibility[i];
+    if (!isNum(vis)) return null;
+    const word = vis < 1000 ? "Nebel" : (vis < 4000 ? "diesig" : (vis < 10000 ? "mäßig" : "klar"));
+    let fogAt = null;
+    for (let gi = i + 1; gi <= i + 24 && gi < h.time.length; gi++) {
+        if (isNum(h.visibility[gi]) && h.visibility[gi] < 1000) { fogAt = h.time[gi]; break; }
+    }
+    const td = h.dew_point_2m ? h.dew_point_2m[i] : null, t = h.temperature_2m ? h.temperature_2m[i] : null;
+    let sub = "";
+    if (fogAt) {
+        const dw = dayWordFor(fc, fogAt);
+        sub = "Nebel möglich " + (dw === "Heute" || dw === "Morgen" ? dw.toLowerCase() : dw) + " gegen " + parseInt(fogAt.slice(11, 13), 10) + " Uhr";
+    } else if (isNum(td)) {
+        sub = "Taupunkt " + Math.round(td) + "°" + (vis >= 1000 ? (isNum(t) && t - td <= 2.5 ? " · Nebelneigung" : " · kein Nebel in Sicht") : "");
+    }
+    const km = vis >= 1000, val = km ? vis / 1000 : Math.round(vis), dec = km && vis < 10000 ? 1 : 0;
+    return { vis: vis, word: word, fogAt: fogAt, sub: sub, count: val, decimals: dec, big: (km ? fmtNum(val, dec) : String(val)) + '<small>' + (km ? 'km' : 'm') + '</small>' };
+}
+
+/* Zählerziele der frisch gebauten Kacheln als „schon gesehen“ eintragen: kein Neustart, kein Gleiten */
+function seedTileCounts(root, counts) {
+    (counts || []).forEach(function (c, idx) { lastCounts[(root && root.id ? root.id : "") + ":" + c.label + ":" + idx] = c.target; });
+}
+
+/* opts.swap: leiser Neubau beim Tag-Nacht-Wechsel (Kacheln stehen, die getauschte blendet ein, Zähler werden gesät) */
+function renderDetails(fc, air, opts) {
+    opts = opts || {};
     const box = D("details");
     unskel(box);
     const c = fc.current, d = fc.daily, h = fc.hourly;
@@ -1356,18 +1406,29 @@ function renderDetails(fc, air) {
     const uvNow = h.uv_index ? h.uv_index[w.start] : null;
     const uvMax = d.uv_index_max ? d.uv_index_max[0] : null;
     const lv = uvLevel(uvNow);
+    const still = !!opts.swap;
     let html = "", k = 0;
     const next = function () { return 1.0 + (k++) * 0.07; };
+    tileCounts = [];
 
-    html += tile("uv", "UV-Index",
-        (isNum(uvNow) ? fmtNum(uvNow, 1) : '–') + (lv ? '<span class="word">' + lv.word + '</span>' : ''),
-        isNum(uvMax) ? 'Maximum heute ' + fmtNum(uvMax, 1) : null,
-        { delay: next(), count: isNum(uvNow) ? uvNow : null, decimals: 1, extra: '<div class="meter"><i class="st-' + (lv ? lv.st : 'none') + '" style="width:' + (isNum(uvNow) ? Math.max(3, Math.min(100, uvNow / 11 * 100)).toFixed(0) : 0) + '%"></i></div>' });
+    if (nightOn) {
+        /* Nachts zählt der nächste Tag: Höchstwert von morgen, Mondphase als Symbol */
+        const ut = uvTomorrow(fc), lvt = uvLevel(ut.max), mp = moonPhase(new Date(nowMs()));
+        html += tile("uv", "UV morgen",
+            (isNum(ut.max) ? fmtNum(ut.max, 1) : '–') + (lvt ? '<span class="word">' + lvt.word + '</span>' : ''),
+            isNum(ut.hour) ? 'Höchstwert gegen ' + ut.hour + ' Uhr' : (mp ? mp.name : null),
+            { delay: next(), count: ut.max, decimals: 1, icon: mp ? moonIcon(mp) : '', swap: still, extra: uvMeter(ut.max, lvt) });
+    } else {
+        html += tile("uv", "UV-Index",
+            (isNum(uvNow) ? fmtNum(uvNow, 1) : '–') + (lv ? '<span class="word">' + lv.word + '</span>' : ''),
+            isNum(uvMax) ? 'Maximum heute ' + fmtNum(uvMax, 1) : null,
+            { delay: next(), count: isNum(uvNow) ? uvNow : null, decimals: 1, swap: still, extra: uvMeter(uvNow, lv) });
+    }
 
     html += tile("wind", "Wind",
         (isNum(c.wind_speed_10m) ? Math.round(c.wind_speed_10m) : '–') + '<small>km/h</small>',
         'Aus ' + compass(c.wind_direction_10m) + ' · Böen ' + Math.round(c.wind_gusts_10m),
-        { delay: next(), count: isNum(c.wind_speed_10m) ? Math.round(c.wind_speed_10m) : null, icon: windMini(c.wind_direction_10m), key: "wind" });
+        { delay: next(), count: isNum(c.wind_speed_10m) ? Math.round(c.wind_speed_10m) : null, icon: windMini(c.wind_direction_10m), key: "wind", still: still });
     /* Instrument-Feld der Reihe UV/Wind: klappt unter der Reihe auf, das Raster bleibt stehen */
     html += tilePanelHtml("wind", windPanelHtml(fc));
 
@@ -1376,46 +1437,61 @@ function renderDetails(fc, air) {
         (isNum(d.precipitation_probability_max[0]) ? 'Risiko ' + d.precipitation_probability_max[0] + '&nbsp;%' : '') +
         (isNum(d.precipitation_hours && d.precipitation_hours[0]) && d.precipitation_hours[0] > 0 ? ' · ' + Math.round(d.precipitation_hours[0]) + '&nbsp;h' : '') +
         '<br>Morgen ' + fmtMm(d.precipitation_sum[1]) + '&nbsp;mm · ' + (isNum(d.precipitation_probability_max[1]) ? d.precipitation_probability_max[1] + '&nbsp;%' : '–'),
-        { delay: next(), count: isNum(d.precipitation_sum[0]) ? d.precipitation_sum[0] : null, decimals: isNum(d.precipitation_sum[0]) && d.precipitation_sum[0] >= 0.05 && d.precipitation_sum[0] < 10 ? 1 : 0, icon: MINI.rain, key: "rain" });
+        { delay: next(), count: isNum(d.precipitation_sum[0]) ? d.precipitation_sum[0] : null, decimals: isNum(d.precipitation_sum[0]) && d.precipitation_sum[0] >= 0.05 && d.precipitation_sum[0] < 10 ? 1 : 0, icon: MINI.rain, key: "rain", still: still });
 
     const golden = nextGoldenText(fc);
     html += tile("sun", "Sonne",
         hhmm(d.sunset && d.sunset[0]),
         'Aufgang ' + hhmm(d.sunrise && d.sunrise[0]) + (golden ? '<br>' + golden : ' · <span style="white-space:nowrap">' + fmtDuration(d.daylight_duration && d.daylight_duration[0]) + '</span>'),
-        { delay: next(), extra: sunArc(c, d), key: "sun" });
+        { delay: next(), extra: sunArc(c, d), key: "sun", still: still });
     html += tilePanelHtml("rain", rainPanelHtml(fc)) + tilePanelHtml("sun", sunPanelHtml(fc), lightPhaseClass(fc));
 
     html += tile("plain", "Luftfeuchte",
         Math.round(c.relative_humidity_2m) + '<small>%</small>',
         'Bewölkung ' + fmtNum(c.cloud_cover, 0) + '&nbsp;%',
-        { delay: next(), count: isNum(c.relative_humidity_2m) ? Math.round(c.relative_humidity_2m) : null, icon: dropIcon(c.relative_humidity_2m) });
+        { delay: next(), count: isNum(c.relative_humidity_2m) ? Math.round(c.relative_humidity_2m) : null, icon: dropIcon(c.relative_humidity_2m), still: still });
 
     html += tile("plain", "Luftdruck",
         fmtNum(c.pressure_msl, 0),
         'hPa · ' + (isNum(c.pressure_msl) ? (c.pressure_msl >= 1020 ? 'Hochdruck' : (c.pressure_msl <= 1005 ? 'Tiefdruck' : 'normal')) : '–'),
-        { delay: next(), count: isNum(c.pressure_msl) ? Math.round(c.pressure_msl) : null, icon: gaugeIcon(c.pressure_msl) });
+        { delay: next(), count: isNum(c.pressure_msl) ? Math.round(c.pressure_msl) : null, icon: gaugeIcon(c.pressure_msl), still: still });
+
+    /* Sichtweite: nimmt den Platz der Pollen ein, wenn es keine nennenswerten gibt oder keine Luftdaten */
+    const vi = visibilityInfo(fc);
+    const sichtTile = function () {
+        return tile("plain", "Sicht", vi.big + '<span class="word">' + vi.word + '</span>', vi.sub || null,
+            { delay: next(), count: vi.count, decimals: vi.decimals, icon: FOG_ICON, still: still });
+    };
 
     if (air && air.current) {
         const a = air.current, al = aqiLevel(a.european_aqi);
         const xpos = isNum(a.european_aqi) ? Math.max(2, Math.min(100, a.european_aqi)) : 0;
         html += tile("plain", "Luftqualität",
             (isNum(a.european_aqi) ? Math.round(a.european_aqi) : '–') +
-            (al ? '<span class="word" style="color:' + STATUS[al.st] + '">' + al.word + '</span>' : '') +
+            (al ? '<span class="word wc-' + al.st + '">' + al.word + '</span>' : '') +
             '<div class="meter"><i class="st-' + (al ? al.st : 'none') + '" style="width:' + xpos + '%"></i></div>',
             'PM2,5 ' + fmtNum(a.pm2_5, 0) + ' · PM10 ' + fmtNum(a.pm10, 0) + ' · O₃ ' + fmtNum(a.ozone, 0) + ' µg/m³',
-            { delay: next(), count: isNum(a.european_aqi) ? Math.round(a.european_aqi) : null });
+            { delay: next(), count: isNum(a.european_aqi) ? Math.round(a.european_aqi) : null, still: still });
 
         const chips = POLLEN.map(function (p) {
             const lvp = pollenLevel(a[p.key], p.thr);
             return lvp && lvp.st !== "none" ? '<span class="pchip"><i class="st-' + lvp.st + '"></i>' + p.name + ' · ' + lvp.word + '</span>' : '';
         }).join('');
         const anyPollen = POLLEN.some(function (p) { return isNum(a[p.key]); });
-        html += tile("plain", "Pollen",
-            '<div class="pollen-chips">' + (chips || '<span class="pchip"><i class="st-none"></i>' + (anyPollen ? 'Zurzeit kein nennenswerter Pollenflug' : 'Pollendaten nur in Europa') + '</span>') + '</div>', null,
-            { delay: next() });
+        if (chips || !vi) {
+            html += tile("plain", "Pollen",
+                '<div class="pollen-chips">' + (chips || '<span class="pchip"><i class="st-none"></i>' + (anyPollen ? 'Zurzeit kein nennenswerter Pollenflug' : 'Pollendaten nur in Europa') + '</span>') + '</div>', null,
+                { delay: next(), still: still });
+        } else {
+            html += sichtTile();
+        }
+    } else if (vi) {
+        html += sichtTile();
     }
 
     box.innerHTML = html;
+    if (opts.swap) seedTileCounts(box, tileCounts);
+    tileCounts = null;
 }
 
 /* ---- Modellvergleich als Chips ---- */
@@ -1742,6 +1818,8 @@ function renderAllDesign(payload) {
     /* Am selben Ort überleben die gewählte Stunde (per Zeitstempel) und das offene Detailfeld */
     const keepTime = sameLoc ? previewTime : null, keepTile = sameLoc ? openTile : null;
     lastData = prepareData(payload.fc, payload.ens);
+    lastAir = payload.air || null;
+    applyNight(nightNowAt(payload.fc, localNowIso(payload.fc)));
     previewIdx = null;
     previewTime = null;
     openTile = null;
@@ -1826,7 +1904,7 @@ function scheduleFreshness() {
     if (!loadedAt) return;
     freshTimer = setTimeout(function () {
         freshTimer = null;
-        if (!document.hidden) updateFreshness();
+        if (!document.hidden) { updateFreshness(); updateNight(); }
         scheduleFreshness();
     }, 60000);
 }
@@ -1841,8 +1919,69 @@ function setLoaded(iso, cached, locIdValue, tz) {
 }
 
 function initFreshness() {
-    if (document.addEventListener) document.addEventListener("visibilitychange", function () { if (!document.hidden) updateFreshness(); });
+    if (document.addEventListener) document.addEventListener("visibilitychange", function () { if (!document.hidden) { updateFreshness(); updateNight(); } });
 }
+
+/* ------------------------------------------------------------------ *
+ * Nachtpalette: Klasse night auf <html>, sobald die Sonne am Ort tiefer
+ * als −8° steht (Ende der blauen Stunde). Folgt der echten Uhrzeit am
+ * Ort, nie der Zeitreise. Nachts zeigen die Kacheln UV von morgen.
+ * ------------------------------------------------------------------ */
+let nightOn = false, lastAir = null, nightFadeTimer = null;
+
+/* Echte Zeit; window.TEST_NOW ist der Haltepunkt der Tests */
+function nowMs() { return typeof window !== "undefined" && isNum(window.TEST_NOW) ? window.TEST_NOW : Date.now(); }
+
+function localNowIso(fc) {
+    const off = isNum(fc.utc_offset_seconds) ? fc.utc_offset_seconds : 0;
+    return new Date(nowMs() + off * 1000).toISOString().slice(0, 16);
+}
+
+/* Nacht am Ort zur Ortszeit nowIso: aus den Lichtzeiten (an Open-Meteo verankert), sonst reine Sonnenrechnung */
+function nightNowAt(fc, nowIso) {
+    const date = String(nowIso).slice(0, 10), nowMin = minutesOf(nowIso);
+    const di = fc.daily && fc.daily.time ? fc.daily.time.indexOf(date) : -1;
+    const lt = di >= 0 ? lightTimes(fc, di) : null;
+    if (lt && isNum(lt.morning.blueStart) && isNum(lt.evening.blueEnd)) return nowMin < lt.morning.blueStart || nowMin >= lt.evening.blueEnd;
+    return nightByClock(fc.latitude, fc.longitude, date, isNum(fc.utc_offset_seconds) ? fc.utc_offset_seconds : 0, nowMin);
+}
+
+function nightRoot() { return document.documentElement && document.documentElement.classList ? document.documentElement : document.body; }
+
+function updateThemeColor() {
+    const meta = document.querySelector ? document.querySelector('meta[name="theme-color"]') : null;
+    if (!meta) return;
+    const classic = document.documentElement && document.documentElement.getAttribute && document.documentElement.getAttribute("data-design") === "classic";
+    meta.setAttribute("content", classic ? "#2a558c" : (nightOn ? "#14121F" : "#ECEAF4"));
+}
+
+/* Setzt die Palette; bei Wechsel blendet die Seite eine Sekunde weich über. Liefert true bei Wechsel. */
+function applyNight(on) {
+    const root = nightRoot();
+    const was = root && root.classList ? root.classList.contains("night") : nightOn;
+    nightOn = on;
+    if (root && root.classList) root.classList.toggle("night", on);
+    try { localStorage.setItem("wetter:night", on ? "1" : "0"); } catch (e) {}
+    updateThemeColor();
+    if (was === on) return false;
+    if (root && root.classList) {
+        root.classList.add("fade");
+        clearTimeout(nightFadeTimer);
+        nightFadeTimer = setTimeout(function () { root.classList.remove("fade"); }, 1000);
+    }
+    return true;
+}
+
+/* Minütlich, beim Sichtbarwerden und in Tests mit fester Zeit: bei Wechsel die Tageszeit-Kacheln leise neu bauen */
+function updateNight(nowIso) {
+    if (!lastData || !lastData.fc) return;
+    const fc = lastData.fc;
+    if (!applyNight(nightNowAt(fc, nowIso || localNowIso(fc)))) return;
+    renderDetails(fc, lastAir, { swap: true });
+    if (openTile) setTileState(openTile, true);
+}
+
+function countState() { return Object.assign({}, lastCounts); }
 
 function initDesignApp() {
     let currentLoc = null;
@@ -2089,8 +2228,7 @@ function initDesignApp() {
             if (document.documentElement && document.documentElement.setAttribute) {
                 document.documentElement.setAttribute("data-design", modern ? "modern" : "classic");
             }
-            const meta = document.querySelector ? document.querySelector('meta[name="theme-color"]') : null;
-            if (meta) meta.setAttribute("content", modern ? "#ECEAF4" : "#2a558c");
+            updateThemeColor();
             try { localStorage.setItem("wetter:design", modern ? "modern" : "classic"); } catch (e) {}
             moveTabInk();
         };
