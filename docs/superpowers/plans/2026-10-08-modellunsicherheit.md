@@ -165,14 +165,14 @@ function fmtPt(x, y) { return x.toFixed(1) + "," + y.toFixed(1); }
 
 /* Kurvenbild: zwei Tafeln heute/morgen, gemeinsame y-Skala, Band nur am ICON-D2 */
 function modelChartSvg(models, bands, nowHour, hl) {
-    const panels = [{ key: "today", x0: 10, label: "Heute" }, { key: "tomorrow", x0: 170, label: "Morgen" }];
-    const W = 140, Y0 = 80, Y1 = 14;
+    const panels = [{ key: "today", x0: 10, label: "Heute" }, { key: "tomorrow", x0: 180, label: "Morgen" }];
+    const W = 125, Y0 = 80, Y1 = 14;
     let maxV = 1;
     models.forEach(function (m) { maxV = Math.max(maxV, m.today, m.tomorrow); });
     panels.forEach(function (p) { if (bands[p.key]) maxV = Math.max(maxV, bands[p.key].hi[24]); });
     const sx = function (p, h) { return p.x0 + h / 24 * W; };
     const sy = function (v) { return Y0 - v / maxV * (Y0 - Y1); };
-    let out = '<svg class="mchart" viewBox="0 0 320 96" aria-hidden="true">';
+    let out = '<svg class="mchart" viewBox="0 0 340 96" aria-hidden="true">';
     panels.forEach(function (p) {
         out += '<line class="base" x1="' + p.x0 + '" y1="' + Y0 + '" x2="' + (p.x0 + W) + '" y2="' + Y0 + '"/>';
         out += '<text class="lbl" x="' + p.x0 + '" y="9">' + p.label + '</text>';

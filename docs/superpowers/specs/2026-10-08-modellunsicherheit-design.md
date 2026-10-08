@@ -32,8 +32,8 @@ laufende Tagessumme; das Band ist je Stunde das 10- bis 90-Prozent-Quantil diese
 
 Reihenfolge: Satz zur Übereinstimmung, Kurvenbild, Chips, Ensemble-Zeile.
 
-**Kurvenbild** (inline SVG, `viewBox 0 0 320 96`, gleichmäßig skaliert): zwei Tafeln „Heute"
-(x 10 bis 150) und „Morgen" (x 170 bis 310), Grundlinie y 80, Oberkante y 14, gemeinsame
+**Kurvenbild** (inline SVG, `viewBox 0 0 340 96`, gleichmäßig skaliert): zwei Tafeln „Heute"
+(x 10 bis 135) und „Morgen" (x 180 bis 305), rechts je 35 Einheiten für den Endwert, Grundlinie y 80, Oberkante y 14, gemeinsame
 y-Skala für beide Tafeln (Maximum aller Tagessummen und des Bandes, mindestens 1 mm).
 Je Modell und Tafel ein Pfad `class="ml m-<id>"` mit 25 Punkten (0 Uhr bis 24 Uhr),
 `pathLength="1"`. Das hervorgehobene Modell trägt `hl`, Standard ICON-D2. Das Band liegt als
