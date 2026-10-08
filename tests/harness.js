@@ -60,6 +60,7 @@ function mockForecast() {
     return d.toISOString().slice(0, 10);
   });
   return {
+    latitude: 48.137, longitude: 11.575, utc_offset_seconds: 7200, timezone: 'Europe/Berlin',
     current: { time: day + 'T14:15', temperature_2m: 17.4, apparent_temperature: 16.1,
                relative_humidity_2m: 71, precipitation: 0.0, weather_code: 2,
                wind_speed_10m: 12, wind_gusts_10m: 25, wind_direction_10m: 225,
@@ -79,7 +80,11 @@ function mockForecast() {
       wind_speed_10m: hTimes.map((_, i) => 8 + 10 * Math.abs(Math.sin(i / 9))),
       wind_gusts_10m: hTimes.map((_, i) => 18 + 18 * Math.abs(Math.sin(i / 9))),
       wind_direction_10m: hTimes.map((_, i) => (200 + i * 3) % 360),
-      uv_index: hTimes.map((_, i) => Math.max(0, 5 * Math.sin((i % 24 - 6) / 12 * Math.PI)))
+      uv_index: hTimes.map((_, i) => Math.max(0, 5 * Math.sin((i % 24 - 6) / 12 * Math.PI))),
+      // Bewölkung: zum Sonnenuntergang (19:05) 50 → 60 %, tief 20 %, hoch 40 % → „hohe Wolken, gute Chance auf Farbe“
+      cloud_cover: hTimes.map((_, i) => (i % 24 === 19 ? 50 : (i % 24 === 20 ? 60 : 45))),
+      cloud_cover_low: hTimes.map(() => 20),
+      cloud_cover_high: hTimes.map(() => 40)
     },
     daily: {
       time: days,

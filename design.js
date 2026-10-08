@@ -986,8 +986,8 @@ function tpItem(i, inner) {
     return '<div class="tp-item" data-stagger="' + d + '" style="animation-delay:' + d + '">' + inner + '</div>';
 }
 
-function tilePanelHtml(key, inner) {
-    return '<div class="tpanel tp-' + key + '" data-for="' + key + '"><div class="tpanel-in"><div class="tpanel-body">' + inner + '</div></div></div>';
+function tilePanelHtml(key, inner, bodyClass) {
+    return '<div class="tpanel tp-' + key + '" data-for="' + key + '"><div class="tpanel-in"><div class="tpanel-body' + (bodyClass ? ' ' + bodyClass : '') + '">' + inner + '</div></div></div>';
 }
 
 /* Wind: Kompass (Nadel zeigt, wohin der Wind weht) plus Böenverlauf der nächsten 12 Stunden */
@@ -1049,6 +1049,99 @@ function rainPanelHtml(fc) {
         tpItem(1, '<div class="tp-note">' + sentence + '</div>');
 }
 
+/* ---- Abendmodus: Lichtzeiten aus dem Sonnenstand, Bewölkung zum Untergang ---- */
+
+/* Auf- und Untergangszeit für eine Sonnenhöhe (Grad) nach der klassischen Gleichung; Minuten
+   seit Mitternacht in Ortszeit, null wenn die Sonne die Höhe an diesem Tag nicht erreicht */
+function solarTimes(lat, lon, dateStr, offsetSec, elevDeg) {
+    const p = dateStr.split("-").map(Number);
+    if (p.length < 3 || p.some(isNaN)) return null;
+    const dayN = Math.round((Date.UTC(p[0], p[1] - 1, p[2]) - Date.UTC(p[0], 0, 1)) / 86400000) + 1;
+    const B = 2 * Math.PI / 365 * (dayN - 81);
+    const eot = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B);
+    const decl = 23.44 * Math.PI / 180 * Math.sin(B);
+    const phi = lat * Math.PI / 180, h0 = elevDeg * Math.PI / 180;
+    const cosW = (Math.sin(h0) - Math.sin(phi) * Math.sin(decl)) / (Math.cos(phi) * Math.cos(decl));
+    if (cosW < -1 || cosW > 1) return null;
+    const w = Math.acos(cosW) * 180 / Math.PI;
+    const noon = 720 - 4 * lon - eot + offsetSec / 60;
+    return { rise: noon - w * 4, set: noon + w * 4 };
+}
+
+function fmtMin(min) {
+    if (!isNum(min)) return "–";
+    const m = ((Math.round(min) % 1440) + 1440) % 1440;
+    return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+}
+
+/* Goldene und blaue Stunde für einen Tag der Vorhersage, verankert an den Open-Meteo-Zeiten */
+function lightTimes(fc, dayIndex) {
+    const d = fc.daily;
+    if (!d || !d.time || !d.time[dayIndex] || !isNum(fc.latitude) || !isNum(fc.longitude)) return null;
+    const date = d.time[dayIndex], off = isNum(fc.utc_offset_seconds) ? fc.utc_offset_seconds : 0;
+    const rise = minutesOf(d.sunrise && d.sunrise[dayIndex]), set = minutesOf(d.sunset && d.sunset[dayIndex]);
+    const base = solarTimes(fc.latitude, fc.longitude, date, off, -0.833);
+    if (rise === null || set === null || !base) return null;
+    const shiftM = rise - base.rise, shiftE = set - base.set;
+    const g = solarTimes(fc.latitude, fc.longitude, date, off, 6), b4 = solarTimes(fc.latitude, fc.longitude, date, off, -4), b8 = solarTimes(fc.latitude, fc.longitude, date, off, -8);
+    return {
+        morning: { blueStart: b8 ? b8.rise + shiftM : null, goldenStart: b4 ? b4.rise + shiftM : null, sunrise: rise, goldenEnd: g ? g.rise + shiftM : null },
+        evening: { goldenStart: g ? g.set + shiftE : null, sunset: set, goldenEnd: b4 ? b4.set + shiftE : null, blueEnd: b8 ? b8.set + shiftE : null }
+    };
+}
+
+/* Aktuelle Lichtphase mit Text; nextDay = Lichtzeiten von morgen für den Hinweis in der Nacht */
+function lightPhase(t, nowMin, nextDay) {
+    if (!t) return { phase: "day", text: "" };
+    const m = t.morning, e = t.evening;
+    const left = function (until) { return "noch " + Math.max(1, Math.round(until - nowMin)) + " min"; };
+    if (isNum(m.blueStart) && isNum(m.goldenStart) && nowMin >= m.blueStart && nowMin < m.goldenStart) return { phase: "blue", until: m.goldenStart, text: "Jetzt blaue Stunde · " + left(m.goldenStart) };
+    if (isNum(m.goldenStart) && isNum(m.goldenEnd) && nowMin >= m.goldenStart && nowMin < m.goldenEnd) return { phase: "golden", until: m.goldenEnd, text: "Jetzt goldene Stunde · " + left(m.goldenEnd) };
+    if (isNum(e.goldenStart) && isNum(e.goldenEnd) && nowMin >= e.goldenStart && nowMin < e.goldenEnd) return { phase: "golden", until: e.goldenEnd, text: "Jetzt goldene Stunde · " + left(e.goldenEnd) };
+    if (isNum(e.goldenEnd) && isNum(e.blueEnd) && nowMin >= e.goldenEnd && nowMin < e.blueEnd) return { phase: "blue", until: e.blueEnd, text: "Jetzt blaue Stunde · " + left(e.blueEnd) };
+    if (isNum(e.goldenStart) && nowMin < e.goldenStart && nowMin >= (isNum(m.goldenEnd) ? m.goldenEnd : 0)) return { phase: "day", until: e.goldenStart, text: "Goldene Stunde ab " + fmtMin(e.goldenStart) };
+    const next = nextDay && nextDay.morning && isNum(nextDay.morning.goldenStart) ? nextDay.morning.goldenStart : (isNum(m.goldenStart) ? m.goldenStart : null);
+    return { phase: "night", until: next, text: "Nacht" + (next !== null ? " · goldene Stunde morgen ab " + fmtMin(next) : "") };
+}
+
+/* Bewölkung zum Sonnenuntergang, zwischen den umliegenden Stunden interpoliert */
+function sunsetClouds(fc, sunsetIso) {
+    const h = fc.hourly;
+    if (!h || !h.time || !h.cloud_cover || !sunsetIso) return null;
+    const hourIso = sunsetIso.slice(0, 13) + ":00";
+    const i = h.time.indexOf(hourIso);
+    if (i < 0) return null;
+    const frac = minutesOf(sunsetIso) % 60 / 60;
+    const at = function (arr) {
+        if (!arr || !isNum(arr[i])) return null;
+        return isNum(arr[i + 1]) ? arr[i] + (arr[i + 1] - arr[i]) * frac : arr[i];
+    };
+    const total = at(h.cloud_cover), low = at(h.cloud_cover_low), high = at(h.cloud_cover_high);
+    if (!isNum(total)) return null;
+    let verdict;
+    if (isNum(low) && low >= 60) verdict = "tiefe Wolken, Untergang wahrscheinlich verdeckt";
+    else if (total <= 20) verdict = "klar, wenig Farbe";
+    else if (isNum(high) && high >= 30 && (!isNum(low) || low < 40)) verdict = "hohe Wolken, gute Chance auf Farbe";
+    else verdict = "wechselnd bewölkt";
+    return { total: Math.round(total), low: isNum(low) ? Math.round(low) : null, high: isNum(high) ? Math.round(high) : null,
+             text: "Zum Untergang " + Math.round(total) + " % Wolken" + (isNum(low) ? ", tief " + Math.round(low) + " %" : "") + ": " + verdict + "." };
+}
+
+/* Lichtleiste des Abends: Tag, goldene Stunde, blaue Stunde, Nacht mit Zeiten und Jetzt-Punkt */
+function lightBarHtml(e, nowMin) {
+    if (!e || !isNum(e.goldenStart) || !isNum(e.goldenEnd) || !isNum(e.blueEnd)) return "";
+    const from = e.goldenStart - 60, to = e.blueEnd + 20, span = to - from;
+    const w = function (a, b) { return ((b - a) / span * 100).toFixed(1) + "%"; };
+    const segs = '<i class="seg day" style="width:' + w(from, e.goldenStart) + '"></i>' +
+        '<i class="seg gold" style="width:' + w(e.goldenStart, e.goldenEnd) + '"></i>' +
+        '<i class="seg blue" style="width:' + w(e.goldenEnd, e.blueEnd) + '"></i>' +
+        '<i class="seg night" style="width:' + w(e.blueEnd, to) + '"></i>';
+    const dot = isNum(nowMin) && nowMin >= from && nowMin <= to ? '<b class="now" style="left:' + ((nowMin - from) / span * 100).toFixed(1) + '%"></b>' : "";
+    const mark = function (min, label) { return '<span style="left:' + ((min - from) / span * 100).toFixed(1) + '%">' + label + '</span>'; };
+    return '<div class="light-bar">' + segs + dot + '</div>' +
+        '<div class="light-axis">' + mark(e.goldenStart, fmtMin(e.goldenStart)) + mark(e.sunset, fmtMin(e.sunset)) + mark(e.blueEnd, fmtMin(e.blueEnd)) + '</div>';
+}
+
 /* Sonne: großer Halbkreisbogen mit Sonnenstand, Lichtzeiten und Vergleich zu morgen */
 function sunPanelHtml(fc) {
     const c = fc.current, d = fc.daily;
@@ -1073,8 +1166,39 @@ function sunPanelHtml(fc) {
         cmp = Math.abs(diff) < 30 ? 'Morgen gleich lang' : 'Morgen ' + Math.round(Math.abs(diff) / 60) + ' min ' + (diff > 0 ? 'länger' : 'kürzer');
     }
     const fact = function (k, v) { return '<div class="fact"><span>' + k + '</span>' + v + '</div>'; };
+    /* Abendmodus: Lichtphase, Lichtleiste des Abends, Morgenzeile, Bewölkung zum Untergang */
+    const lt = lightTimes(fc, 0), ltNext = lightTimes(fc, 1);
+    const ph = lightPhase(lt, now, ltNext);
+    let light = "";
+    if (lt) {
+        const m = lt.morning;
+        light = '<div class="light">' +
+            (ph.text ? '<div class="light-now ' + ph.phase + '">' + ph.text + '</div>' : '') +
+            lightBarHtml(lt.evening, now) +
+            (isNum(m.blueStart) && isNum(m.goldenEnd) ? '<div class="light-line">Morgens blaue Stunde ab ' + fmtMin(m.blueStart) + ', goldene Stunde ' + fmtMin(m.goldenStart) + ' bis ' + fmtMin(m.goldenEnd) + '.</div>' : '') +
+            (function () { const cl = sunsetClouds(fc, set); return cl ? '<div class="light-line">' + cl.text + '</div>' : ''; })() +
+            '</div>';
+    }
     return tpItem(0, svg) +
-        tpItem(1, '<div class="facts">' + fact('Tageslänge', fmtDuration(dl0)) + fact('Sonnenschein', fmtDuration(sun0)) + fact('Vergleich', cmp) + '</div>');
+        tpItem(1, '<div class="facts">' + fact('Tageslänge', fmtDuration(dl0)) + fact('Sonnenschein', fmtDuration(sun0)) + fact('Vergleich', cmp) + '</div>') +
+        (light ? tpItem(2, light) : '');
+}
+
+/* Klasse für das Sonnenfeld, solange eine Lichtphase läuft (Abendmodus) */
+function lightPhaseClass(fc) {
+    const ph = lightPhase(lightTimes(fc, 0), minutesOf(fc.current.time), lightTimes(fc, 1));
+    return ph.phase === "golden" || ph.phase === "blue" ? ph.phase : "";
+}
+
+/* Nächste goldene Stunde als kurze Angabe für die Kachel Sonne */
+function nextGoldenText(fc) {
+    const lt = lightTimes(fc, 0);
+    if (!lt) return "";
+    const now = minutesOf(fc.current.time), e = lt.evening, m = lt.morning;
+    if (isNum(m.goldenStart) && isNum(m.goldenEnd) && now < m.goldenEnd) return "goldene Stunde " + (now >= m.goldenStart ? "bis " + fmtMin(m.goldenEnd) : "ab " + fmtMin(m.goldenStart));
+    if (isNum(e.goldenStart) && isNum(e.goldenEnd) && now < e.goldenEnd) return "goldene Stunde " + (now >= e.goldenStart ? "bis " + fmtMin(e.goldenEnd) : "ab " + fmtMin(e.goldenStart));
+    const next = lightTimes(fc, 1);
+    return next && isNum(next.morning.goldenStart) ? "goldene Stunde morgen ab " + fmtMin(next.morning.goldenStart) : "";
 }
 
 function setTileState(key, open) {
@@ -1123,11 +1247,12 @@ function renderDetails(fc, air) {
         '<br>Morgen ' + fmtMm(d.precipitation_sum[1]) + '&nbsp;mm · ' + (isNum(d.precipitation_probability_max[1]) ? d.precipitation_probability_max[1] + '&nbsp;%' : '–'),
         { delay: next(), count: isNum(d.precipitation_sum[0]) ? d.precipitation_sum[0] : null, decimals: isNum(d.precipitation_sum[0]) && d.precipitation_sum[0] >= 0.05 && d.precipitation_sum[0] < 10 ? 1 : 0, icon: MINI.rain, key: "rain" });
 
+    const golden = nextGoldenText(fc);
     html += tile("sun", "Sonne",
         hhmm(d.sunset && d.sunset[0]),
-        'Aufgang ' + hhmm(d.sunrise && d.sunrise[0]) + ' · <span style="white-space:nowrap">' + fmtDuration(d.daylight_duration && d.daylight_duration[0]) + '</span>',
+        'Aufgang ' + hhmm(d.sunrise && d.sunrise[0]) + ' · <span style="white-space:nowrap">' + (golden || fmtDuration(d.daylight_duration && d.daylight_duration[0])) + '</span>',
         { delay: next(), extra: sunArc(c, d), key: "sun" });
-    html += tilePanelHtml("rain", rainPanelHtml(fc)) + tilePanelHtml("sun", sunPanelHtml(fc));
+    html += tilePanelHtml("rain", rainPanelHtml(fc)) + tilePanelHtml("sun", sunPanelHtml(fc), lightPhaseClass(fc));
 
     html += tile("plain", "Luftfeuchte",
         Math.round(c.relative_humidity_2m) + '<small>%</small>',

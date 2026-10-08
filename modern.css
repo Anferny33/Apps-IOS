@@ -277,6 +277,23 @@ body {
 .facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .facts .fact { font-size: 14px; font-weight: 700; line-height: 1.3; }
 .facts .fact span { display: block; font-size: 11px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--ink-2); margin-bottom: 2px; }
+/* Abendmodus: Lichtphase, Lichtleiste, Färbung des Sonnenfelds */
+.tp-sun .tpanel-body { transition: background 0.8s ease; }
+.tp-sun .tpanel-body.golden { background: linear-gradient(180deg, #F9D9A6 0%, var(--lilac) 70%); }
+.tp-sun .tpanel-body.blue { background: linear-gradient(180deg, #B9C7F2 0%, var(--lilac) 70%); }
+.light { display: flex; flex-direction: column; gap: 8px; }
+.light-now { font-size: 14px; font-weight: 700; }
+.light-now.golden { color: #8A5A0E; } .light-now.blue { color: #2D3F8C; }
+.light-bar { position: relative; display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: rgba(30,27,46,0.08); }
+.light-bar .seg { display: block; height: 100%; }
+.light-bar .seg.day { background: #FBF3D6; }
+.light-bar .seg.gold { background: linear-gradient(90deg, #F6D35B, #F2A33A, #E8794A); }
+.light-bar .seg.blue { background: linear-gradient(90deg, #8FA3E0, #4E63B8, #2B3570); }
+.light-bar .seg.night { background: #1E1B2E; }
+.light-bar .now { position: absolute; top: -2px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%; background: var(--white); border: 3px solid var(--ink); box-sizing: border-box; }
+.light-axis { position: relative; height: 16px; font-size: 11px; font-weight: 700; color: var(--ink-2); }
+.light-axis span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.light-line { font-size: 13px; font-weight: 600; color: var(--ink-2); line-height: 1.4; }
 .tile h3 { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; }
 .tile h3 .t-ico { flex: none; display: flex; color: var(--ink); }
 .tile h3 .t-ico svg { display: block; overflow: visible; }

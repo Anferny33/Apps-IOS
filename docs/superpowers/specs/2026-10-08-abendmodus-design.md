@@ -64,8 +64,8 @@ Werte, entfällt der Satz.
 
 ## Tests (`tests/smoke-design.js`, Mock München 25.09.2026, 14:15, Aufgang 07:12, Untergang 19:05)
 
-- `lightTimes` abends: goldene Stunde 18:24 bis 19:24, blaue Stunde bis 19:44; morgens: blaue
-  Stunde ab 06:33, goldene Stunde 06:53 bis 07:53 (verankerte Werte).
+- `lightTimes` abends: goldene Stunde 18:24 bis 19:24, blaue Stunde bis 19:48; morgens: blaue
+  Stunde ab 06:29, goldene Stunde 06:53 bis 07:53 (verankerte Werte).
 - `lightPhase` um 14:15 → „Goldene Stunde ab 18:24"; um 18:40 → „Jetzt goldene Stunde · noch
   44 min"; um 19:30 → „Jetzt blaue Stunde · noch 14 min"; um 21:00 → nachts mit „morgen ab 06:53".
 - Bewölkungssatz aus den Mock-Werten; Einordnung für konstruierte Werte (tief 70 → verdeckt,
