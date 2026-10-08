@@ -138,6 +138,26 @@ function mockAir() {
   };
 }
 
+// DWD-WFS-Antwort: eine markante Warnung (aktiv), eine Wetterwarnung (bevorstehend),
+// eine abgelaufene und eine aufgehobene Meldung (beide müssen wegfallen)
+function mockWarnings() {
+  const h = 3600 * 1000, now = Date.now();
+  const iso = t => new Date(t).toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const feat = (p) => ({ type: 'Feature', geometry: null, properties: p });
+  return { type: 'FeatureCollection', features: [
+    feat({ IDENTIFIER: 'w-wind', SEVERITY: 'Minor', MSGTYPE: 'Alert', EVENT: 'WINDBÖEN', HEADLINE: 'Amtliche WARNUNG vor WINDBÖEN',
+           DESCRIPTION: 'Es treten Windböen mit Geschwindigkeiten um 55 km/h (15 m/s, 7 Bft) auf.', INSTRUCTION: '',
+           ONSET: iso(now + 2 * h), EXPIRES: iso(now + 8 * h), NAME: 'Stadt München' }),
+    feat({ IDENTIFIER: 'w-storm', SEVERITY: 'Moderate', MSGTYPE: 'Alert', EVENT: 'GEWITTER', HEADLINE: 'Amtliche WARNUNG vor GEWITTER',
+           DESCRIPTION: 'Von Westen ziehen Gewitter auf.', INSTRUCTION: 'Lose Gegenstände sichern.',
+           ONSET: iso(now - h), EXPIRES: iso(now + 3 * h), NAME: 'Stadt München' }),
+    feat({ IDENTIFIER: 'w-old', SEVERITY: 'Severe', MSGTYPE: 'Alert', EVENT: 'STARKREGEN', HEADLINE: 'Amtliche UNWETTERWARNUNG vor STARKREGEN',
+           ONSET: iso(now - 9 * h), EXPIRES: iso(now - 2 * h), NAME: 'Stadt München' }),
+    feat({ IDENTIFIER: 'w-cancel', SEVERITY: 'Minor', MSGTYPE: 'Cancel', EVENT: 'FROST', HEADLINE: 'Aufhebung',
+           ONSET: iso(now - h), EXPIRES: iso(now + h), NAME: 'Stadt München' })
+  ] };
+}
+
 function mockGeocode() {
   return { results: [
     { name: 'Hamburg', admin1: 'Hamburg', country: 'Deutschland', latitude: 53.55, longitude: 9.99 },
@@ -192,6 +212,7 @@ function okFetch(data) {
     else if (url.includes('air-quality')) body = data.air;
     else if (url.includes('ensemble')) body = data.ens;
     else if (url.includes('models=')) body = data.md;
+    else if (url.includes('maps.dwd.de')) body = data.warn;
     else body = data.fc;
     if (body === undefined || body === null) throw new Error('not available');
     return { ok: true, json: async () => body };
@@ -208,4 +229,4 @@ function finish() {
   process.exit(failCount ? 1 : 0);
 }
 
-module.exports = { makeSandbox, okFetch, mockForecast, mockEnsemble, mockModels, mockAir, mockGeocode, check, finish, el };
+module.exports = { makeSandbox, okFetch, mockForecast, mockEnsemble, mockModels, mockAir, mockGeocode, mockWarnings, check, finish, el };

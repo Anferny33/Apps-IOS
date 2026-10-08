@@ -18,7 +18,7 @@ GitHub Pages ausgeliefert: <https://anferny33.github.io/Apps-IOS/>
 | `box-breathing.html` | Atemübung (eigenständig) |
 | `design.html`, `lignano-*.html` | Nur Weiterleitungen für alte Homescreen-Icons |
 
-Datenquellen: [Open-Meteo](https://open-meteo.com/) (CC BY 4.0), [DWD Geodienste](https://www.dwd.de/DE/leistungen/geodienste/geodienste.html) (CC BY 4.0), BigDataCloud (Ortsname), CARTO/OpenStreetMap (Karte).
+Datenquellen: [Open-Meteo](https://open-meteo.com/) (CC BY 4.0), [DWD Geodienste](https://www.dwd.de/DE/leistungen/geodienste/geodienste.html) (CC BY 4.0: Radar und amtliche Wetterwarnungen per WFS `dwd:Warnungen_Gemeinden`, nur für Deutschland), BigDataCloud (Ortsname), CARTO/OpenStreetMap (Karte).
 
 ## Lokal arbeiten (Mac)
 

@@ -64,6 +64,9 @@
     <section class="sec" id="sec-today">
         <div class="field hero-field skel a-pop" id="hero" style="height:250px;animation-delay:.15s">&nbsp;</div>
 
+        <!-- Amtliche Wetterwarnungen des DWD für den Standort: nur sichtbar, wenn es welche gibt -->
+        <div class="warnings a-up hidden" id="warnings" style="animation-delay:.6s"></div>
+
         <div class="field dark insight a-up hidden" id="insight" style="animation-delay:.7s"></div>
 
         <div class="field white a-up" style="animation-delay:.8s">
@@ -100,7 +103,7 @@
     </section>
 
     <footer class="a-up" style="animation-delay:2.2s">
-        <span id="updated"></span> · <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a> · CC BY 4.0 · Ortsname: BigDataCloud<br>
+        <span id="updated"></span> · <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a> · Warnungen: <a href="https://www.dwd.de/" rel="noopener">DWD</a> · CC BY 4.0 · Ortsname: BigDataCloud<br>
         <a href="klassisch.html">Klassische Ansicht</a> · <a href="radar.html">Regenradar</a> · <button type="button" class="linkbtn" id="designLink">Design wechseln</button>
     </footer>
 </div>

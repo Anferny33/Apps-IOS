@@ -150,7 +150,9 @@ const UI = {
     drop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z"/></svg>',
     gauge: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 16a8 8 0 1 1 16 0"/><path d="M12 16l4-5"/></svg>',
     leaf: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 19c0-8 5-13 14-14-1 9-6 14-14 14z"/><path d="M5 19l7-7"/></svg>',
-    layers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>'
+    layers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>',
+    alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5L2.5 20h19L12 3.5z"/><path d="M12 10v4.5"/><circle cx="12" cy="17.3" r="0.6" fill="currentColor"/></svg>',
+    chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>'
 };
 
 /* Statusfarben für helle Flächen (Wort neben dem Wert) */
@@ -490,8 +492,50 @@ function dModels(md, fc, ens) {
     box.innerHTML = '<div class="mchips">' + chips + '</div>' + (note ? '<div class="note">' + note + '</div>' : '');
 }
 
+/* ---- Amtliche Warnungen (DWD) ---- */
+
+const WARN_WORDS = { 1: "Wetterwarnung", 2: "Markante Wetterwarnung", 3: "Unwetterwarnung", 4: "Extreme Unwetterwarnung" };
+
+function escHtml(s) {
+    return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; });
+}
+
+function fmtWarnTime(iso) {
+    if (!iso) return "–";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "–";
+    const hm = d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + " Uhr";
+    const now = new Date();
+    const sameDay = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+    return sameDay ? hm : d.toLocaleDateString("de-DE", { weekday: "short" }) + " " + hm;
+}
+
+function renderWarnings(list) {
+    const box = D("warnings");
+    if (!box) return;
+    if (!list || !list.length) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+    box.classList.remove("hidden");
+    box.innerHTML = list.map(function (w) {
+        const when = (w.upcoming ? "ab " + fmtWarnTime(w.onset) + " " : "") + "bis " + fmtWarnTime(w.expires);
+        const text = String(w.description || "").trim();
+        return '<details class="field warn lvl-' + w.level + '">' +
+            '<summary>' +
+                '<span class="ico">' + UI.alert + '</span>' +
+                '<span class="txt"><b>' + escHtml(w.headline) + '</b><span>' + WARN_WORDS[w.level] + ' · ' + when + '</span></span>' +
+                '<span class="chev">' + UI.chevron + '</span>' +
+            '</summary>' +
+            '<div class="body">' +
+                (text ? '<p>' + escHtml(text) + '</p>' : '') +
+                (w.instruction ? '<p class="instr">' + escHtml(w.instruction) + '</p>' : '') +
+                '<p class="src">Quelle: Deutscher Wetterdienst' + (w.area ? ' · ' + escHtml(w.area) : '') + '</p>' +
+            '</div>' +
+        '</details>';
+    }).join('');
+}
+
 function renderAllDesign(payload) {
     renderHero(payload.fc);
+    renderWarnings(payload.warn);
     dHourly(payload.fc, payload.ens);
     dNowcast(payload.fc);
     renderDays(payload.fc);
@@ -520,18 +564,19 @@ function initDesignApp() {
     async function load() {
         if (loading || !currentLoc) return;
         loading = true;
+        const loc = currentLoc;
         D("refresh").classList.add("spin");
         D("banner").classList.add("hidden");
-        setLocLabel(currentLoc);
+        setLocLabel(loc);
 
         const results = await Promise.allSettled([
-            fetchForecast(currentLoc), fetchEnsemble(currentLoc), fetchModels(currentLoc), fetchAir(currentLoc)
+            fetchForecast(loc), fetchEnsemble(loc), fetchModels(loc), fetchAir(loc), fetchWarnings(loc)
         ]);
         const val = function (i) { return results[i].status === "fulfilled" ? results[i].value : null; };
         const fc = val(0);
 
         if (fc) {
-            const payload = { fc: fc, ens: val(1), md: val(2), air: val(3) };
+            const payload = { fc: fc, ens: val(1), md: val(2), air: val(3), warn: val(4) };
             renderAllDesign(payload);
             saveCache(currentLoc, payload);
             setUpdatedLabel(new Date().toISOString());

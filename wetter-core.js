@@ -125,6 +125,50 @@ function fetchAir(loc) {
     }));
 }
 
+/* Amtliche Wetterwarnungen des DWD für einen Punkt (GeoServer WFS, CC BY 4.0).
+   Liefert die aktiven Warnungen der Gemeinde, höchste Stufe zuerst. */
+const WARN_LEVELS = { Minor: 1, Moderate: 2, Severe: 3, Extreme: 4 };
+
+function fetchWarnings(loc) {
+    const url = buildUrl("https://maps.dwd.de/geoserver/dwd/ows", {
+        service: "WFS", version: "2.0.0", request: "GetFeature",
+        typeName: "dwd:Warnungen_Gemeinden", outputFormat: "application/json",
+        /* WFS 2.0 mit EPSG:4326: Achsenreihenfolge im Filter ist Breite, Länge */
+        CQL_FILTER: "INTERSECTS(THE_GEOM,POINT(" + loc.lat + " " + loc.lon + "))"
+    });
+    return getJson(url).then(function (data) { return normalizeWarnings(data); });
+}
+
+function normalizeWarnings(data, now) {
+    const feats = data && Array.isArray(data.features) ? data.features : [];
+    const t = now ? new Date(now).getTime() : Date.now();
+    const seen = {};
+    const out = [];
+    feats.forEach(function (f) {
+        const p = f.properties || {};
+        if (p.MSGTYPE === "Cancel" || p.STATUS === "Test") return;
+        if (p.EXPIRES && new Date(p.EXPIRES).getTime() < t) return;
+        const key = p.IDENTIFIER || (p.EVENT + "|" + p.ONSET);
+        if (seen[key]) return;
+        seen[key] = true;
+        out.push({
+            id: p.IDENTIFIER || null,
+            level: WARN_LEVELS[p.SEVERITY] || 1,
+            severity: p.SEVERITY || "Minor",
+            event: p.EVENT || "",
+            headline: p.HEADLINE || p.EVENT || "Amtliche Warnung",
+            description: p.DESCRIPTION || "",
+            instruction: p.INSTRUCTION || "",
+            onset: p.ONSET || null,
+            expires: p.EXPIRES || null,
+            area: p.NAME || "",
+            upcoming: !!(p.ONSET && new Date(p.ONSET).getTime() > t)
+        });
+    });
+    out.sort(function (a, b) { return b.level - a.level || String(a.onset || "").localeCompare(String(b.onset || "")); });
+    return out;
+}
+
 /* Ortsname – für Browser-Clients gedacht, ohne Schlüssel */
 async function fetchPlace(lat, lon) {
     try {

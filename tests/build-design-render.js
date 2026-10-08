@@ -28,7 +28,7 @@ function inject(id, html) {
   const open = m[0].replace(/ class="skel"/, '').replace(' skel', '').replace(/ style="[^"]*"/, '');
   h = h.slice(0, openStart) + open + html + h.slice(closeStart);
 }
-['hero','insight','hourly','nowcast','days','details','models'].forEach(id => inject(id, r[id]));
+['hero','warnings','insight','hourly','nowcast','days','details','models'].forEach(id => inject(id, r[id]));
 h = h.replace('class="field white a-up hidden" id="nowcastCard"', 'class="field white a-up" id="nowcastCard"');
 h = h.replace('class="field dark insight a-up hidden" id="insight"', 'class="field dark insight a-up" id="insight"');
 h = h.replace('Standort …', 'München, Bayern');

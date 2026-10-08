@@ -5,7 +5,7 @@ const fs = require('fs');
 
 const DESIGN = fs.readFileSync(require('path').join(__dirname, '..', 'design.js'), 'utf8');
 const fc = H.mockForecast();
-const data = { fc, ens: H.mockEnsemble(fc), md: H.mockModels(), air: H.mockAir(), geo: H.mockGeocode(),
+const data = { fc, ens: H.mockEnsemble(fc), md: H.mockModels(), air: H.mockAir(), geo: H.mockGeocode(), warn: H.mockWarnings(),
                place: { city: 'München', principalSubdivision: 'Bayern' } };
 const granted = { getCurrentPosition: ok => ok({ coords: { latitude: 48.137, longitude: 11.575 } }) };
 const denied = { getCurrentPosition: (ok, err) => err({ code: 1, message: 'denied' }) };
@@ -39,6 +39,13 @@ function boot(opts) {
   H.check('Hinweis-Feld: Nowcast (Regen ab 15:00) + Schirm', !G(sb,'insight').classList.contains('hidden') && G(sb,'insight').innerHTML.includes('Regen ab ca. 15:00 Uhr') && G(sb,'insight').innerHTML.includes('Schirm'), G(sb,'insight').innerHTML);
   H.check('Hero: SVG-Icon statt Emoji', hero.includes('<svg class="big-icon'));
   H.check('Hinweis bei Regen: Schirm mit Dach- und Tropfen-Ebene', G(sb,'insight').innerHTML.includes('<svg class="umb"') && G(sb,'insight').innerHTML.includes('class="umb-canopy"') && G(sb,'insight').innerHTML.includes('class="umb-drops"'));
+
+  const wn = G(sb,'warnings').innerHTML;
+  const dwdUrl = sb._fetchLog.find(u => u.includes('maps.dwd.de')) || '';
+  H.check('Warnungen: DWD-WFS mit Punkt in Breite/Länge-Reihenfolge abgefragt', decodeURIComponent(dwdUrl).replace(/\+/g, ' ').includes('INTERSECTS(THE_GEOM,POINT(48.137 11.575))') && dwdUrl.includes('typeName=dwd%3AWarnungen_Gemeinden'), decodeURIComponent(dwdUrl));
+  H.check('Warnungen: Feld sichtbar, 2 aktive (abgelaufen + aufgehoben weggefallen)', !G(sb,'warnings').classList.contains('hidden') && (wn.match(/<details class="field warn/g) || []).length === 2, wn.slice(0, 200));
+  H.check('Warnungen: höchste Stufe zuerst (Gewitter, Stufe 2)', wn.indexOf('lvl-2') < wn.indexOf('lvl-1') && /lvl-2[\s\S]*GEWITTER/.test(wn) && wn.includes('Markante Wetterwarnung'));
+  H.check('Warnungen: bevorstehende mit "ab … bis …", Hinweis + Quelle', /Wetterwarnung · ab \S+ Uhr bis \S+ Uhr/.test(wn) && wn.includes('class="instr">Lose Gegenstände sichern.') && wn.includes('Quelle: Deutscher Wetterdienst · Stadt München'), wn.match(/Wetterwarnung · [^<]*/));
 
   const hh = G(sb,'hourly').innerHTML;
   H.check('Stunden: 48 Spalten', (hh.match(/class="hcol/g) || []).length === 48, (hh.match(/class="hcol/g) || []).length);
@@ -78,9 +85,13 @@ function boot(opts) {
   const fc2 = H.mockForecast();
   fc2.current.weather_code = 61; fc2.current.is_day = 0;
   fc2.minutely_15.precipitation = fc2.minutely_15.precipitation.map(() => 0);
-  const sb2 = boot({ fetchImpl: H.okFetch(Object.assign({}, data, { fc: fc2 })), geolocation: granted });
+  const sb2 = boot({ fetchImpl: H.okFetch(Object.assign({}, data, { fc: fc2, warn: { type: 'FeatureCollection', features: [] } })), geolocation: granted });
   await wait(300);
   H.check('Theme Regen', sb2.document.body.classList.contains('theme-rain'), [...sb2.document.body.classList.c]);
+  H.check('Ohne Warnungen: Feld versteckt und leer', G(sb2,'warnings').classList.contains('hidden') && G(sb2,'warnings').innerHTML === '');
+  const sb2b = boot({ fetchImpl: H.okFetch(Object.assign({}, data, { fc: fc2, warn: null })), geolocation: granted });
+  await wait(300);
+  H.check('DWD nicht erreichbar: Wetter trotzdem gerendert, Warnfeld versteckt', G(sb2b,'hero').innerHTML.includes('17°') && G(sb2b,'warnings').classList.contains('hidden'));
   H.check('Ohne Regen: Nowcast-Karte versteckt, Hinweis "Kein Regen"', G(sb2,'nowcastCard').classList.contains('hidden') && G(sb2,'insight').innerHTML.includes('Kein Regen in den nächsten 4 Stunden'), G(sb2,'insight').innerHTML);
   const fc3 = H.mockForecast(); fc3.current.weather_code = 0; fc3.current.is_day = 0;
   const sb3 = boot({ fetchImpl: H.okFetch(Object.assign({}, data, { fc: fc3 })), geolocation: granted });
@@ -117,7 +128,7 @@ function boot(opts) {
 
   if (process.env.DUMP) {
     fs.writeFileSync(__dirname + '/render-design.json', JSON.stringify({
-      theme: [...body.classList.c].join(' '), hero: G(sb,'hero').innerHTML, insight: G(sb,'insight').innerHTML, hourly: G(sb,'hourly').innerHTML, nowcast: G(sb,'nowcast').innerHTML,
+      theme: [...body.classList.c].join(' '), hero: G(sb,'hero').innerHTML, warnings: G(sb,'warnings').innerHTML, insight: G(sb,'insight').innerHTML, hourly: G(sb,'hourly').innerHTML, nowcast: G(sb,'nowcast').innerHTML,
       days: G(sb,'days').innerHTML, details: G(sb,'details').innerHTML, models: G(sb,'models').innerHTML
     }));
   }
