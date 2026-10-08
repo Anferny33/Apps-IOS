@@ -8,7 +8,7 @@ GitHub Pages ausgeliefert: <https://anferny33.github.io/Apps-IOS/>
 
 | Datei | Inhalt |
 |---|---|
-| `index.html` + `design.js` | Startseite: Hero, Stundenfelder, Kacheln, 14 Tage, Modellvergleich, Ortssuche. Zeitreise: ein Tipp auf eine Stunde zeigt deren Wetter im Hero („Morgen, 17 Uhr"), „Jetzt" stellt das aktuelle Wetter wieder her. Zwei Designs auf demselben Markup; Umschalter oben rechts (Palette) und in der Fußzeile, die Wahl bleibt im Gerät gespeichert |
+| `index.html` + `design.js` | Startseite: Hero, Stundenfelder, Kacheln, 14 Tage, Modellvergleich, Ortssuche. Zeitreise: ein Tipp auf eine Stunde zeigt deren Wetter im Hero („Morgen, 17 Uhr"), „Jetzt" stellt das aktuelle Wetter wieder her. Vom Ring aus lässt sich mit dem Finger durch die Stunden ziehen. Zwei Designs auf demselben Markup; Umschalter oben rechts (Palette) und in der Fußzeile, die Wahl bleibt im Gerät gespeichert |
 | `modern.css` | Bento-Design (Standard): flache Farbfelder, Hero-Feld in Wetterfarbe, Schrift Sora. Animationen: Sonne/Wolke fahren je nach Wetterlage ein, Bereiche blenden gestaffelt ein, Kacheln mit Mikroanimationen (Wind, Regen, Sonnenbogen, Tropfen, Druckzeiger) |
 | `design.css` | Klassisches Design: Glas-Karten auf Himmelsverlauf mit Lichtflecken und Regen-/Schneepartikeln |
 | `proxy/` | Cloudflare Worker für die NINA-Meldungen (kein CORS bei warnung.bund.de): ermittelt den Kreis zum Punkt über den BKG-Dienst, liefert bereinigte Meldungen mit CORS-Freigabe. Läuft unter `https://wetter-nina-proxy.anferny-wetter.workers.dev`, Adresse steht in `wetter-core.js` (`NINA_PROXY`) |

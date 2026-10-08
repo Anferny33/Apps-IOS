@@ -204,7 +204,7 @@ function boot(opts) {
   const idx = fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
   const rad = fs.readFileSync(require('path').join(__dirname, '..', 'radar.html'), 'utf8');
   H.check('Shell: Tab-Pille und Design-Schleier in index.html und radar.html', [idx, rad].every(h => h.includes('<span class="tab-ink"') && h.includes('id="designVeil"')));
-  H.check('Shell: Versions-Query 20261008m an allen Asset-Links', (idx.match(/\?v=20261008m"/g) || []).length === 4 && (rad.match(/\?v=20261008m"/g) || []).length === 2 && fs.readFileSync(require('path').join(__dirname, '..', 'klassisch.html'), 'utf8').includes('wetter-core.js?v=20261008m"'), (idx.match(/\?v=\w+"/g) || []).join(','));
+  H.check('Shell: Versions-Query 20261008n an allen Asset-Links', (idx.match(/\?v=20261008n"/g) || []).length === 4 && (rad.match(/\?v=20261008n"/g) || []).length === 2 && fs.readFileSync(require('path').join(__dirname, '..', 'klassisch.html'), 'utf8').includes('wetter-core.js?v=20261008n"'), (idx.match(/\?v=\w+"/g) || []).join(','));
 
   if (process.env.DUMP) {
     fs.writeFileSync(__dirname + '/render-design.json', JSON.stringify({
