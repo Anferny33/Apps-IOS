@@ -15,8 +15,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css">
 <!-- Dieselben zwei Designs wie die Startseite; die dort gespeicherte Wahl gilt auch hier. -->
-<link rel="stylesheet" href="modern.css?v=20261008x" id="cssModern">
-<link rel="stylesheet" href="design.css?v=20261008x" id="cssClassic" disabled>
+<link rel="stylesheet" href="modern.css?v=20261008y" id="cssModern">
+<link rel="stylesheet" href="design.css?v=20261008y" id="cssClassic" disabled>
 <script>
 (function () {
     var d = null;
@@ -128,15 +128,38 @@
         background: var(--dark, #7cc4ff); border: 3px solid var(--white, #0b1a33); box-shadow: 0 2px 8px rgba(30,27,46,0.25);
     }
     html[data-design="classic"] input[type="range"]::-webkit-slider-thumb { background: var(--accent, #ffd27a); border-color: #0b1a33; }
-    .ticks { display: flex; justify-content: space-between; font-size: 11px; font-weight: 600; color: var(--ink-2, #9fb3d1); margin-top: 6px; }
+    /* Zeitachse unter dem Regler: Beobachtung links dunkler, Prognose rechts heller; Marker an der Grenze */
+    :root { --tl-obs: rgba(30,27,46,0.34); --tl-fc: #ffffff; }
+    html[data-design="classic"] { --tl-obs: rgba(255,255,255,0.6); --tl-fc: rgba(255,255,255,0.16); }
+    .tl-axis { position: relative; height: 36px; margin-top: 4px; }
+    .tl-axis.hidden { display: none; }
+    .tl-lbl { position: absolute; top: 4px; font-size: 11px; font-weight: 600; color: var(--ink-2, #9fb3d1); }
+    .tl-lbl.obs { left: 0; } .tl-lbl.fc { right: 0; } .tl-lbl.hidden { display: none; }
+    .tl-mark { position: absolute; top: -18px; transform: translateX(-50%); width: 48px; height: 52px; padding: 0; border: 0; background: transparent; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 2px; color: var(--ink, #fff); font: inherit; }
+    .tl-mark i { width: 2px; height: 16px; border-radius: 1px; background: var(--ink, #fff); }
+    .tl-mark span { font-size: 11px; font-weight: 700; white-space: nowrap; padding: 2px 7px; border-radius: 8px; background: var(--white, rgba(11,26,51,0.85)); font-variant-numeric: tabular-nums; }
+    html[data-design="classic"] .tl-mark span { background: rgba(11,26,51,0.85); color: #fff; }
+    .tl-mark:focus-visible { outline: 3px solid var(--ink, #fff); outline-offset: 2px; border-radius: 10px; }
 
-    .legend { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 600; color: var(--ink-2, #9fb3d1); }
-    .legend .chip { display: flex; align-items: center; padding: 3px 8px; border-radius: 10px; background: #fff; flex: 1; min-width: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
-    .legend .chip::-webkit-scrollbar { display: none; }
-    .legend img { height: 16px; max-width: none; display: block; }
-    .legend .fallback { display: none; width: 160px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, #8fd8ff, #3f97e0, #2455c8, #8a3fc4, #d63a6e); }
-    .legend.noimg img { display: none; }
-    .legend.noimg .fallback { display: block; }
+    /* Legende: kompakte Farbleiste mit unteren Klassengrenzen, ausführliche Liste aufklappbar */
+    .legend { display: flex; flex-direction: column; gap: 4px; font-size: 11px; font-weight: 600; color: var(--ink-2, #9fb3d1); }
+    .lg-row { display: flex; align-items: center; gap: 8px; }
+    .lg-unit { flex: none; }
+    .lg-bar { flex: 1; display: flex; height: 12px; border-radius: 6px; overflow: hidden; }
+    .lg-bar i { flex: 1; display: block; }
+    .lg-nodata { flex: none; display: inline-flex; align-items: center; gap: 4px; font-weight: 500; }
+    .lg-nodata i { width: 12px; height: 12px; border-radius: 3px; background: #7d7d7d; opacity: 0.5; display: inline-block; }
+    .lg-ticks { display: flex; padding-left: 40px; font-size: 10px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .lg-ticks span { flex: 1; min-width: 0; white-space: nowrap; }
+    @media (max-width: 440px) { .lg-ticks span.alt { visibility: hidden; } }
+    .lg-more { font-weight: 500; }
+    .lg-more summary { cursor: pointer; font-weight: 600; color: var(--ink, #fff); }
+    .lg-more ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 4px 12px; }
+    .lg-more li { display: flex; align-items: center; gap: 6px; }
+    .lg-more li i { width: 14px; height: 14px; border-radius: 4px; flex: none; display: inline-block; }
+    .lg-more p { margin: 6px 0 0; font-weight: 500; }
+    .legend img { height: 16px; max-width: 100%; display: block; }
+    .lg-note { font-weight: 500; }
     .rnote { font-size: 11px; color: var(--ink-2, #9fb3d1); line-height: 1.4; }
 
     /* Querformat auf dem Telefon: alles in einer Zeile, Karte bekommt die Höhe */
@@ -147,8 +170,17 @@
         .rbar { flex-direction: row; align-items: center; gap: 12px; padding-top: 6px; padding-bottom: calc(var(--tab-h, 68px) + env(safe-area-inset-bottom) + 16px); }
         .rrow { flex: 1; min-width: 0; }
         .timeline { flex: 1; }
-        .ticks { margin-top: 2px; }
-        .legend { flex: 0 0 auto; width: 170px; }
+        .tl-axis { height: 30px; }
+        /* Legende als kleines Raster: Einheit | Balken, darunter Skala, darunter „keine Daten“ */
+        .legend { flex: 0 0 auto; width: 236px; display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 2px 8px; align-items: center; }
+        .lg-row { display: contents; }
+        .lg-unit { grid-column: 1; grid-row: 1; }
+        .lg-bar, .legend img { grid-column: 2; grid-row: 1; }
+        .lg-ticks { grid-column: 2; grid-row: 2; padding-left: 0; font-size: 9px; }
+        .lg-ticks span.alt { visibility: hidden; }
+        .lg-nodata { grid-column: 2; grid-row: 3; }
+        .lg-note { grid-column: 1 / -1; }
+        .lg-more { display: none; }
         .rnote { display: none; }
         .play { width: 40px; height: 40px; }
     }
@@ -208,16 +240,16 @@
             <button class="play" id="play" aria-label="Abspielen">▶</button>
             <div class="timeline">
                 <input type="range" id="slider" min="0" max="0" value="0" step="1" aria-label="Zeitpunkt">
-                <div class="ticks"><span id="tickStart">–50 min</span><span>jetzt</span><span id="tickEnd">+2 h</span></div>
+                <!-- Zeitachse: Marker an der echten Grenze Beobachtung/Prognose (Position = Slider-Index), Beschriftung zusätzlich zur Farbe -->
+                <div class="tl-axis hidden" id="tlAxis">
+                    <span class="tl-lbl obs" id="tlObs">Beobachtung</span>
+                    <button type="button" class="tl-mark" id="tlMark" aria-label="Zur jüngsten Beobachtung springen"><i aria-hidden="true"></i><span id="tlMarkTime">–:–</span></button>
+                    <span class="tl-lbl fc" id="tlFc">Prognose</span>
+                </div>
             </div>
         </div>
-        <div class="legend" id="legend">
-            <span>mm/h</span>
-            <span class="chip">
-                <img id="legendImg" alt="Farbskala Niederschlagsintensität des DWD" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==">
-                <span class="fallback"></span>
-            </span>
-        </div>
+        <!-- Legende aus der Stildefinition des DWD-Dienstes (Klassen in mm/h); ohne Stil das DWD-Legendenbild, sonst ein Hinweis -->
+        <div class="legend" id="legend"><span class="lg-note">Legende lädt …</span></div>
         <div class="rnote" id="note">DWD-Radar alle 5 Minuten, Prognose (RADOLAN RV) bis zwei Stunden voraus. Karte: OpenFreeMap, Daten © OpenStreetMap-Mitwirkende.</div>
     </div>
 </div>
@@ -237,6 +269,6 @@
 </div>
 
 <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
-<script src="radar.js?v=20261008x"></script>
+<script src="radar.js?v=20261008y"></script>
 </body>
 </html>

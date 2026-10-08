@@ -15,6 +15,8 @@ const WMS_URL = "https://maps.dwd.de/geoserver/dwd/wms";
 const WMS_LAYER = "dwd:Niederschlagsradar";
 const CAPS_URL = "https://maps.dwd.de/geoserver/dwd/Niederschlagsradar/ows?service=WMS&version=1.3.0&request=GetCapabilities";
 const LEGEND_URL = WMS_URL + "?service=WMS&version=1.3.0&request=GetLegendGraphic&format=image/png&transparent=true&layer=" + WMS_LAYER + "&legend_options=fontColor:0x1E1B2E;fontSize:9;layout:horizontal";
+/* Stildefinition des Layers: die tatsächlich dargestellten Klassen (Farbe, Intervall in mm/h) */
+const STYLE_URL = WMS_URL + "?service=WMS&version=1.1.1&request=GetStyles&layers=" + WMS_LAYER;
 /* OpenFreeMap: freie Vektorkacheln ohne Schlüssel (Daten © OpenStreetMap-Mitwirkende, ODbL) */
 const TILE_JSON = "https://tiles.openfreemap.org/planet";
 const GLYPHS = "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf";
@@ -412,12 +414,88 @@ function updateSlider() {
     s.value = current;
 }
 
+/* Zeitachse: Marker an der Grenze Beobachtung/Prognose. Position = Slider-Index der jüngsten
+   Beobachtung (Daumen 26 px breit), keine gleichmäßigen Zeitabstände unterstellt. */
+const THUMB_PX = 26;
+function markerPos(lp, count) {
+    const pct = count > 1 ? lp / (count - 1) : 0;
+    return "calc(" + (THUMB_PX / 2) + "px + " + pct.toFixed(4) + " * (100% - " + THUMB_PX + "px))";
+}
+
+function setSliderTrack(pos) {
+    const sl = $("slider");
+    if (!sl || !sl.style) return;
+    sl.style.background = pos ? "linear-gradient(90deg, var(--tl-obs) 0, var(--tl-obs) " + pos + ", var(--tl-fc) " + pos + ", var(--tl-fc) 100%)" : "";
+}
+
 function updateTicks() {
-    if (!frames.length || frames[0].time === null) { setText("tickStart", ""); setText("tickEnd", ""); return; }
-    const lp = lastPastIndex();
-    setText("tickStart", "–" + Math.round((frames[lp].time - frames[0].time) / 60000) + " min");
-    const ahead = Math.round((frames[frames.length - 1].time - frames[lp].time) / 60000);
-    setText("tickEnd", ahead > 0 ? "+" + (ahead >= 60 ? (ahead / 60).toFixed(ahead % 60 ? 1 : 0).replace(".", ",") + " h" : ahead + " min") : "jetzt");
+    const axis = $("tlAxis"), mark = $("tlMark");
+    if (!frames.length || frames[0].time === null) { if (axis && axis.classList) axis.classList.add("hidden"); setSliderTrack(null); return; }
+    if (axis && axis.classList) axis.classList.remove("hidden");
+    const lp = lastPastIndex(), pct = frames.length > 1 ? lp / (frames.length - 1) : 0;
+    const pos = markerPos(lp, frames.length);
+    const stamp = fmtTime(frames[lp].time);
+    if (mark) {
+        if (mark.style) mark.style.left = pos;
+        setText("tlMarkTime", stamp);
+        if (mark.setAttribute) mark.setAttribute("aria-label", "Zur jüngsten Beobachtung springen, " + stamp + " Uhr");
+    }
+    const obs = $("tlObs"), fc = $("tlFc");
+    if (obs && obs.classList) obs.classList.toggle("hidden", pct < 0.22);
+    if (fc && fc.classList) fc.classList.toggle("hidden", lp >= frames.length - 1 || pct > 0.78);
+    setSliderTrack(pos);
+}
+
+/* ---------- Legende aus der Stildefinition ---------- */
+
+function parseStyleClasses(xml) {
+    const out = { classes: [], nodata: null };
+    const re = /<(?:sld:)?ColorMapEntry\s+([^>]*)\/?>/g;
+    let m;
+    while ((m = re.exec(String(xml || ""))) !== null) {
+        const attr = function (name) { const r = new RegExp(name + '="([^"]*)"').exec(m[1]); return r ? r[1].replace(/&gt;/g, ">").replace(/&lt;/g, "<").replace(/&amp;/g, "&") : null; };
+        const color = attr("color"), label = attr("label") || "", opacity = attr("opacity"), quantity = parseFloat(attr("quantity"));
+        if (!color) continue;
+        if (/keine daten/i.test(label)) { out.nodata = { color: color, opacity: opacity !== null ? parseFloat(opacity) : 0.3 }; continue; }
+        if ((opacity !== null && parseFloat(opacity) === 0) || !isNum(quantity) || quantity <= 0) continue;
+        const num = /(\d+(?:\.\d+)?)/.exec(label);
+        out.classes.push({ color: color, label: label.trim(), low: num ? parseFloat(num[1]) : null, open: /^>=|^≥/.test(label.trim()) });
+    }
+    return out;
+}
+
+function fmtDe(v) { return isNum(v) ? String(v).replace(".", ",") : "–"; }
+
+function legendHtml(lc) {
+    const bar = lc.classes.map(function (c) { return '<i style="background:' + c.color + '" title="' + c.label + ' mm/h"></i>'; }).join("");
+    const ticks = lc.classes.map(function (c, i) { return '<span' + (i % 2 ? ' class="alt"' : '') + '>' + (c.open ? "≥" : "") + fmtDe(c.low) + '</span>'; }).join("");
+    const list = lc.classes.map(function (c) {
+        const txt = c.open ? "ab " + fmtDe(c.low) + " mm/h" : c.label.replace(/^\[\s*([\d.]+)\s*-\s*([\d.]+)\s*\)$/, function (_, a, b) { return fmtDe(parseFloat(a)) + " bis " + fmtDe(parseFloat(b)) + " mm/h"; });
+        return '<li><i style="background:' + c.color + '"></i>' + txt + '</li>';
+    }).join("");
+    return '<div class="lg-row"><span class="lg-unit">mm/h</span><div class="lg-bar">' + bar + '</div>' +
+        (lc.nodata ? '<span class="lg-nodata"><i style="background:' + lc.nodata.color + '"></i>keine Daten</span>' : '') + '</div>' +
+        '<div class="lg-ticks">' + ticks + '</div>' +
+        '<details class="lg-more"><summary>Alle Stufen</summary><ul>' + list +
+        (lc.nodata ? '<li><i style="background:' + lc.nodata.color + ';opacity:.5"></i>keine Radardaten (grau)</li>' : '') +
+        '</ul><p>Klassen aus der Stildefinition des DWD-Dienstes, Niederschlag in mm/h.</p></details>';
+}
+
+/* Legende laden: zuerst der Stil des Dienstes, sonst das DWD-Legendenbild, sonst ein Hinweis statt einer erfundenen Skala */
+async function loadLegend() {
+    const box = $("legend");
+    if (!box) return;
+    try {
+        const res = await fetch(STYLE_URL);
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const lc = parseStyleClasses(await res.text());
+        if (lc.classes.length >= 3) { box.innerHTML = legendHtml(lc); box.classList.add("lg-ready"); return; }
+        throw new Error("Stil ohne Klassen");
+    } catch (e) {
+        box.innerHTML = '<div class="lg-row"><span class="lg-unit">mm/h</span><img alt="Farbskala Niederschlagsintensität des DWD" src="' + LEGEND_URL + '"></div>';
+        const img = box.querySelector ? box.querySelector("img") : null;
+        if (img && img.addEventListener) img.addEventListener("error", function () { box.innerHTML = '<span class="lg-note">Legende derzeit nicht verfügbar.</span>'; });
+    }
 }
 
 function coverageOk(view) {
@@ -731,8 +809,8 @@ function initRadar() {
     bind("zoomIn", "click", function () { if (map.zoomIn) map.zoomIn({ duration: 300 }); });
     bind("zoomOut", "click", function () { if (map.zoomOut) map.zoomOut({ duration: 300 }); });
     bind("designBtn", "click", function () { applyDesign(design === "classic" ? "modern" : "classic"); });
-    const img = $("legendImg");
-    if (img && img.addEventListener) { img.src = LEGEND_URL; img.addEventListener("error", function () { const l = $("legend"); if (l) l.classList.add("noimg"); }); }
+    bind("tlMark", "click", function () { setPlaying(false); showFrame(lastPastIndex()); });
+    loadLegend();
 
     moveTabInk();
     if (typeof window !== "undefined" && window.addEventListener) window.addEventListener("resize", moveTabInk);

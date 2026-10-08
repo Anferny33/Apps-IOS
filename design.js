@@ -8,6 +8,7 @@
 "use strict";
 
 const D = function (id) { return document.getElementById(id); };
+function setText(id, text) { const el = D(id); if (el) el.textContent = text; }
 
 /* ------------------------------------------------------------------ *
  * Wetter → Theme & Icon
@@ -120,6 +121,8 @@ let lastTemp = null;
    Stundenvorschau (Zeitreise). previewIdx: gewählter Stundenindex oder null = Jetzt. */
 let lastData = null;
 let previewIdx = null;
+let previewTime = null;        /* Zeitstempel der gewählten Stunde (Ortszeit), überlebt ein Neurendern am selben Ort */
+let heroVisible = true;        /* Hero im Bild? Sonst zeigt die feste Vorschauleiste den Zeitbezug */
 
 function lastRendered() { return lastData; }
 
@@ -451,15 +454,38 @@ function selectHour(gi, quiet) {
     const f = hourFacts(lastData, gi);
     if (!f || gi === previewIdx) return;
     previewIdx = gi;
+    previewTime = lastData.fc.hourly.time[gi];
     markHour(gi);
     updateHero(f, quiet);
+    updatePreviewBar();
 }
 
 function clearHour(quiet) {
     if (previewIdx === null || !lastData) return;
     previewIdx = null;
+    previewTime = null;
     markHour(null);
     updateHero(nowFacts(lastData.fc), quiet);
+    updatePreviewBar();
+}
+
+/* Feste Vorschauleiste: sichtbar, solange eine Stunde gewählt ist und der Hero nicht im Bild ist */
+function updatePreviewBar() {
+    const bar = D("previewBar");
+    if (!bar || !bar.classList) return;
+    const active = previewIdx !== null && lastData;
+    if (active) {
+        const f = hourFacts(lastData, previewIdx);
+        setText("previewLabel", "Vorschau · " + (f ? f.label : ""));
+    }
+    bar.classList.toggle("hidden", !(active && !heroVisible));
+}
+
+/* Zurück zu Jetzt: Hero, Ring und Leiste wieder auf den aktuellen Zeitpunkt */
+function backToNow() {
+    clearHour();
+    const strip = D("hourly") && D("hourly").querySelector ? D("hourly").querySelector(".strip") : null;
+    if (strip && strip.scrollTo) strip.scrollTo({ left: 0, behavior: "smooth" });
 }
 
 /* ---- Rausgehen: Aktivitätsfenster ---- */
@@ -996,15 +1022,20 @@ function renderDays(fc) {
 
 /* Kachel: Titelzeile mit optionalem Mini-Icon rechts, großer Wert, optionaler Zusatz (Skala), Untertitel.
    opts.delay staffelt das Einblenden, opts.icon / opts.extra sind kleine SVGs mit Mikroanimation. */
+const CHEVRON = '<span class="chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>';
+
+/* Aufklappbare Kacheln: Chevron im Titel und eine unsichtbare Disclosure-Schaltfläche über der
+   ganzen Kachel (große Trefferfläche, Tastatur, aria-expanded, aria-controls auf das Detailfeld). */
 function tile(cls, title, big, sub, opts) {
     opts = opts || {};
     const count = isNum(opts.count) ? ' data-count="' + Number(opts.count.toFixed(opts.decimals || 0)) + '" data-decimals="' + (opts.decimals || 0) + '"' : '';
-    const key = opts.key ? ' data-tile="' + opts.key + '" aria-expanded="false"' : '';
+    const key = opts.key ? ' data-tile="' + opts.key + '"' : '';
+    const toggle = opts.key ? '<button type="button" class="t-toggle" aria-expanded="false" aria-controls="tpanel-' + opts.key + '" aria-label="' + title + ': Details anzeigen"></button>' : '';
     return '<div class="tile ' + cls + '"' + key + ' style="animation-delay:' + dl(opts.delay || 0) + 's">' +
-        '<h3>' + title + (opts.icon ? '<span class="t-ico">' + opts.icon + '</span>' : '') + '</h3>' +
+        '<h3>' + title + (opts.icon ? '<span class="t-ico">' + opts.icon + '</span>' : '') + (opts.key ? CHEVRON : '') + '</h3>' +
         '<div class="big"' + count + '>' + big + '</div>' +
         (opts.extra || '') +
-        (sub ? '<div class="sub">' + sub + '</div>' : '') + '</div>';
+        (sub ? '<div class="sub">' + sub + '</div>' : '') + toggle + '</div>';
 }
 
 /* Mini-Icons für die Kacheln: Farben und Bewegung kommen aus dem Stylesheet */
@@ -1076,8 +1107,10 @@ function tpItem(i, inner) {
     return '<div class="tp-item" data-stagger="' + d + '" style="animation-delay:' + d + '">' + inner + '</div>';
 }
 
+const TILE_NAMES = { wind: "Wind", rain: "Regen", sun: "Sonne" };
+
 function tilePanelHtml(key, inner, bodyClass) {
-    return '<div class="tpanel tp-' + key + '" data-for="' + key + '"><div class="tpanel-in"><div class="tpanel-body' + (bodyClass ? ' ' + bodyClass : '') + '">' + inner + '</div></div></div>';
+    return '<div class="tpanel tp-' + key + '" data-for="' + key + '" id="tpanel-' + key + '" role="region" aria-label="' + (TILE_NAMES[key] || key) + ' im Detail"><div class="tpanel-in"><div class="tpanel-body' + (bodyClass ? ' ' + bodyClass : '') + '">' + inner + '</div></div></div>';
 }
 
 /* Wind: Kompass (Nadel zeigt, wohin der Wind weht) plus Böenverlauf der nächsten 12 Stunden */
@@ -1295,7 +1328,14 @@ function setTileState(key, open) {
     const box = D("details");
     if (!box || !box.querySelector) return;
     const tile = box.querySelector('.tile[data-tile="' + key + '"]'), panel = box.querySelector('.tpanel[data-for="' + key + '"]');
-    if (tile && tile.classList) { tile.classList.toggle("open", open); if (tile.setAttribute) tile.setAttribute("aria-expanded", open ? "true" : "false"); }
+    if (tile && tile.classList) {
+        tile.classList.toggle("open", open);
+        const btn = tile.querySelector ? tile.querySelector(".t-toggle") : null;
+        if (btn && btn.setAttribute) {
+            btn.setAttribute("aria-expanded", open ? "true" : "false");
+            btn.setAttribute("aria-label", (TILE_NAMES[key] || key) + ": Details " + (open ? "ausblenden" : "anzeigen"));
+        }
+    }
     if (panel && panel.classList) { panel.classList.toggle("open", open); if (open) restartAnimations(panel); }
 }
 
@@ -1659,6 +1699,9 @@ function clearRendered() {
     lastCounts = {};
     lastData = null;
     previewIdx = null;
+    previewTime = null;
+    openTile = null;
+    updatePreviewBar();
     const hero = D("hero");
     unskel(hero);
     hero.innerHTML = '<div class="meta"><span></span><span>Keine Daten</span></div><div class="main"><div class="temp">–°</div></div>';
@@ -1693,9 +1736,13 @@ function moveTabInk() {
 let lastRenderedLoc = null;
 function renderAllDesign(payload) {
     const locKey = payload.fc ? String(payload.fc.latitude) + "," + String(payload.fc.longitude) : "";
-    if (locKey !== lastRenderedLoc) { lastCounts = {}; lastTemp = null; lastRenderedLoc = locKey; }
+    const sameLoc = locKey === lastRenderedLoc;
+    if (!sameLoc) { lastCounts = {}; lastTemp = null; lastRenderedLoc = locKey; }
+    /* Am selben Ort überleben die gewählte Stunde (per Zeitstempel) und das offene Detailfeld */
+    const keepTime = sameLoc ? previewTime : null, keepTile = sameLoc ? openTile : null;
     lastData = prepareData(payload.fc, payload.ens);
     previewIdx = null;
+    previewTime = null;
     openTile = null;
     renderHero(payload.fc);
     renderWarnings(payload.warn, payload.nina);
@@ -1708,6 +1755,13 @@ function renderAllDesign(payload) {
     startCounters(D("details"));
     startCounters(D("models"));
     moveTabInk();
+    if (keepTime) {
+        const h = payload.fc.hourly, gi = h && h.time ? h.time.indexOf(keepTime) : -1;
+        const w = hourlyWindow(payload.fc, 48);
+        if (gi > w.start && gi < w.end) selectHour(gi, true);
+    }
+    if (keepTile) toggleTile(keepTile);
+    updatePreviewBar();
 }
 
 /* ------------------------------------------------------------------ *
@@ -1954,16 +2008,35 @@ function initDesignApp() {
             }
             const chip = t.closest(".mchip");
             if (chip && chip.getAttribute("data-model")) { highlightModel(chip.getAttribute("data-model")); return; }
+            /* Aufklappbare Kachel: die Disclosure-Schaltfläche liegt über der ganzen Kachel (auch per Tastatur) */
+            const tg = t.closest(".t-toggle");
+            if (tg) {
+                const tile = tg.closest(".tile");
+                if (tile) { toggleTile(tile.getAttribute("data-tile")); restartAnimations(tile); }
+                return;
+            }
             if (t.closest("a, button, input")) return;
-            /* Kacheln entfalten: Tipp auf das offene Feld spielt es erneut, Tipp auf die Kachel klappt auf/zu */
+            /* Tipp auf das offene Detailfeld spielt dessen Animationen erneut */
             const panel = t.closest(".tpanel");
             if (panel) { restartAnimations(panel); return; }
             const box = t.closest(".tile, .field");
             if (!box) return;
-            if (box.getAttribute && box.getAttribute("data-tile")) toggleTile(box.getAttribute("data-tile"));
             /* Nur Icon- und Diagramm-Animationen neu starten; Zahlen bleiben stehen (kein Hochzählen von null) */
             restartAnimations(box);
         });
+    }
+
+    /* Vorschauleiste: Jetzt-Knopf und Beobachtung, ob der Hero im Bild ist */
+    function initPreviewBar() {
+        const btn = D("previewNow");
+        if (btn && btn.addEventListener) btn.addEventListener("click", backToNow);
+        const hero = D("hero");
+        if (typeof IntersectionObserver === "undefined" || !hero) { heroVisible = false; return; }
+        const io = new IntersectionObserver(function (entries) {
+            entries.forEach(function (e) { heroVisible = e.isIntersecting; });
+            updatePreviewBar();
+        }, { threshold: 0.15 });
+        io.observe(hero);
     }
 
     /* Regenpausen: Dauer-Chips in der Nowcast-Karte */
@@ -2049,6 +2122,7 @@ function initDesignApp() {
     initParticles();
     initDesignToggle();
     initReplay();
+    initPreviewBar();
     loadActivity();
     initActivity();
     loadPause();

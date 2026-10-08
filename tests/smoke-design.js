@@ -108,7 +108,7 @@ function boot(opts) {
   const t1 = sb.openTileKey(); sb.toggleTile('wind'); const t2 = sb.openTileKey(); sb.toggleTile('sun'); sb.toggleTile('rain'); const t3 = sb.openTileKey(); sb.toggleTile('rain');
   H.check('Kacheln: öffnen, schließen, wechseln', t1 === 'wind' && t2 === null && t3 === 'rain' && sb.openTileKey() === null, [t1, t2, t3].join(','));
   const detx = G(sb,'details').innerHTML;
-  H.check('Kacheln: data-tile an Wind/Regen/Sonne, Felder nach den Reihen in richtiger Reihenfolge', /<div class="tile wind" data-tile="wind" aria-expanded="false"[\s\S]*?<\/div><div class="tpanel tp-wind" data-for="wind">/.test(detx) && /<div class="tile sun" data-tile="sun"[\s\S]*?<div class="tpanel tp-rain" data-for="rain">[\s\S]*?<div class="tpanel tp-sun" data-for="sun">/.test(detx) && (detx.match(/class="tpanel /g) || []).length === 3 && !/data-tile="uv"/.test(detx) && detx.indexOf('tp-wind') < detx.indexOf('class="tile rain"'), detx.slice(detx.indexOf('tp-wind') - 60, detx.indexOf('tp-wind') + 40));
+  H.check('Kacheln: data-tile an Wind/Regen/Sonne, Felder nach den Reihen in richtiger Reihenfolge', /<div class="tile wind" data-tile="wind"[\s\S]*?<\/div><div class="tpanel tp-wind" data-for="wind" id="tpanel-wind" role="region"/.test(detx) && /<div class="tile sun" data-tile="sun"[\s\S]*?<div class="tpanel tp-rain" data-for="rain"[\s\S]*?<div class="tpanel tp-sun" data-for="sun"/.test(detx) && (detx.match(/class="tpanel /g) || []).length === 3 && !/data-tile="uv"/.test(detx) && detx.indexOf('tp-wind') < detx.indexOf('class="tile rain"'), detx.slice(detx.indexOf('tp-wind') - 60, detx.indexOf('tp-wind') + 40));
   // Abendmodus: Lichtzeiten (verankert an 07:12 / 19:05), Phasen, Bewölkung, Darstellung
   const lt = sb.lightTimes(fc, 0);
   const f = m => sb.fmtMin(m);
@@ -144,6 +144,16 @@ function boot(opts) {
   sb.renderHero(fcNc);
   H.check('Regen: fehlende 15-Minuten-Werte heißen „nicht verfügbar“, nicht „kein Regen“', G(sb,'insight').innerHTML.includes('<b>Kurzfristprognose nicht verfügbar</b>') && !/Kein Regen/.test(G(sb,'insight').innerHTML) && G(sb,'insight').innerHTML.includes('Heute Nachmittag bis zu 71 % Regenrisiko'), G(sb,'insight').innerHTML.slice(-200));
   sb.renderHero(fc);
+  // Aufklappbare Kacheln: Chevron, Disclosure-Schaltfläche, Zuordnung zum Detailfeld
+  const detA = G(sb,'details').innerHTML;
+  H.check('Kacheln: nur Wind, Regen, Sonne tragen Chevron und Disclosure-Schaltfläche', (detA.match(/class="chev"/g) || []).length === 3 && (detA.match(/class="t-toggle"/g) || []).length === 3 && detA.includes('<button type="button" class="t-toggle" aria-expanded="false" aria-controls="tpanel-wind" aria-label="Wind: Details anzeigen"></button>') && detA.includes('id="tpanel-wind" role="region" aria-label="Wind im Detail"') && !/class="tile uv"[^>]*>[\s\S]*?class="chev"[\s\S]*?class="tile wind"/.test(detA.replace(/<div class="tile wind"[\s\S]*/, '')), (detA.match(/class="t-toggle"/g) || []).length);
+  H.check('Kacheln: keine verschachtelten Schaltflächen in den Kacheln', !/<button[^>]*>[^<]*<button/.test(detA) && (detA.match(/<\/button>/g) || []).length === 3, (detA.match(/<\/button>/g) || []).length);
+  // Vorschauleiste: sichtbar während der Vorschau (Harness ohne IntersectionObserver = Hero nicht im Bild)
+  sb.selectHour(42);
+  H.check('Vorschauleiste: zeigt „Vorschau · Morgen, 18 Uhr“, solange eine Stunde gewählt ist', !G(sb,'previewBar').classList.contains('hidden') && G(sb,'previewLabel').textContent === 'Vorschau · Morgen, 18 Uhr', G(sb,'previewLabel').textContent);
+  sb.backToNow();
+  H.check('Vorschauleiste: „Jetzt“ blendet sie aus und stellt das aktuelle Wetter her', G(sb,'previewBar').classList.contains('hidden') && G(sb,'hero').innerHTML.includes('Hoch 18°'));
+  H.check('Shell: Vorschauleiste mit Jetzt-Knopf in index.html', fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8').includes('id="previewBar"') && fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8').includes('id="previewNow"'));
   // Stufe 2: Ziehen vom Griff. Harness ohne Touch/Layout → Zustandsmaschine direkt, columnAt als Stub
   const colStub = (i, sel) => ({ classList: { contains: c => c === 'sel' && sel }, getAttribute: a => a === 'data-i' ? i : null });
   sb.selectHour(20);
@@ -243,11 +253,20 @@ function boot(opts) {
     det.includes('class="windflow"') && det.includes('class="rain-ico"') && det.includes('class="arc"') && det.includes('class="drop-ico"') && det.includes('class="gauge-ico"') && /class="tile uv"[\s\S]*?class="meter"/.test(det));
   H.check('Einblend-Verzögerungen gestaffelt (Stunden, Tage, Kacheln)', /hcol now[^>]*animation-delay:0\.[89]\ds/.test(hh) && /drow[^>]*animation-delay:1\.[34]\ds/.test(dd) && /tile uv" style="animation-delay:(1\.00|0\.9\d)s/.test(det));
 
-  // Zeitreise: ein Neurendern (Aktualisieren, Ortswechsel, Rückkehr in die App) beendet die Vorschau
+  // Zeitreise: am selben Ort überlebt die gewählte Stunde (per Zeitstempel) ein Neurendern; Ortswechsel oder
+  // fehlende Stunde setzen zurück. Das offene Detailfeld bleibt ebenfalls offen.
+  const payloadSame = { fc, ens: data.ens, md: data.md, air: data.air, warn: sb.normalizeWarnings(data.warn), nina: sb.normalizeNina(data.nina) };
+  sb.selectHour(42); sb.toggleTile('wind');
+  sb.renderAllDesign(payloadSame);
+  H.check('Zeitreise: Neurendern am selben Ort erhält die gewählte Stunde und das offene Feld', G(sb,'hero').innerHTML.includes('<span>Morgen, 18 Uhr</span>') && G(sb,'hero').innerHTML.includes('heroNow') && sb.openTileKey() === 'wind', G(sb,'hero').innerHTML.slice(0, 120) + ' ' + sb.openTileKey());
+  const fcShift = JSON.parse(JSON.stringify(fc)); fcShift.hourly.time = fcShift.hourly.time.map(t => t.replace('2026-09-26T18:00', '2026-09-26T18:30'));
+  sb.renderAllDesign(Object.assign({}, payloadSame, { fc: fcShift }));
+  H.check('Zeitreise: nicht mehr vorhandene Stunde setzt die Vorschau zurück', G(sb,'hero').innerHTML.includes('Hoch 18°') && !G(sb,'hero').innerHTML.includes('heroNow'), G(sb,'hero').innerHTML.slice(0, 120));
   sb.selectHour(42);
-  sb.renderAllDesign({ fc, ens: data.ens, md: data.md, air: data.air, warn: sb.normalizeWarnings(data.warn), nina: sb.normalizeNina(data.nina) });
-  H.check('Zeitreise: Neurendern beendet die Vorschau', G(sb,'hero').innerHTML.includes('Hoch 18°') && !G(sb,'hero').innerHTML.includes('heroNow') && sb.lastRendered().fc === fc, G(sb,'hero').innerHTML.slice(0, 120));
-  // Nach dem Neurendern wieder die Ausgangslage für die folgenden Checks herstellen
+  const fcOther = JSON.parse(JSON.stringify(fc)); fcOther.latitude = 53.55; fcOther.longitude = 9.99;
+  sb.renderAllDesign(Object.assign({}, payloadSame, { fc: fcOther }));
+  H.check('Zeitreise: Ortswechsel setzt Vorschau und offenes Feld zurück', G(sb,'hero').innerHTML.includes('Hoch 18°') && !G(sb,'hero').innerHTML.includes('heroNow') && sb.openTileKey() === null, G(sb,'hero').innerHTML.slice(0, 120));
+  sb.renderAllDesign(payloadSame);
   H.check('Zeitreise: Ausgangs-Hero nach Neurendern identisch bis auf Verzögerungen', G(sb,'hero').innerHTML.replace(/animation-delay:[\d.]+s/g, 'D') === heroNow.replace(/animation-delay:[\d.]+s/g, 'D'));
 
   // 3) Ortung abgelehnt -> Banner mit "Ort suchen" -> Sheet öffnet -> Suche -> Auswahl
@@ -325,7 +344,7 @@ function boot(opts) {
   const rad = fs.readFileSync(require('path').join(__dirname, '..', 'radar.html'), 'utf8');
   H.check('Shell: Tab-Pille und Design-Schleier in index.html und radar.html', [idx, rad].every(h => h.includes('<span class="tab-ink"') && h.includes('id="designVeil"')));
   H.check('Shell: Rausgehen-Feld in index.html', idx.includes('id="activityField"') && idx.includes('id="activity"'));
-  H.check('Shell: Versions-Query 20261008x an allen Asset-Links', (idx.match(/\?v=20261008x"/g) || []).length === 4 && (rad.match(/\?v=20261008x"/g) || []).length === 3 && fs.readFileSync(require('path').join(__dirname, '..', 'klassisch.html'), 'utf8').includes('wetter-core.js?v=20261008x"'), (idx.match(/\?v=\w+"/g) || []).join(','));
+  H.check('Shell: Versions-Query 20261008y an allen Asset-Links', (idx.match(/\?v=20261008y"/g) || []).length === 4 && (rad.match(/\?v=20261008y"/g) || []).length === 3 && fs.readFileSync(require('path').join(__dirname, '..', 'klassisch.html'), 'utf8').includes('wetter-core.js?v=20261008y"'), (idx.match(/\?v=\w+"/g) || []).join(','));
 
   if (process.env.DUMP) {
     fs.writeFileSync(__dirname + '/render-design.json', JSON.stringify({

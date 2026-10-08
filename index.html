@@ -16,8 +16,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
 <!-- Zwei Designs auf demselben Markup: modern.css (Bento, Standard) und design.css (klassisches Glas-Design).
      Der Umschalter im Kopf wechselt zwischen beiden, die Wahl bleibt im Gerät gespeichert. -->
-<link rel="stylesheet" href="modern.css?v=20261008x" id="cssModern">
-<link rel="stylesheet" href="design.css?v=20261008x" id="cssClassic" disabled>
+<link rel="stylesheet" href="modern.css?v=20261008y" id="cssModern">
+<link rel="stylesheet" href="design.css?v=20261008y" id="cssClassic" disabled>
 <script>
 (function () {
     /* Gespeichertes Design schon vor dem ersten Zeichnen aktivieren, damit nichts umspringt. */
@@ -62,6 +62,12 @@
     </header>
 
     <div class="banner hidden" id="banner"></div>
+
+    <!-- Zeitreise: feste Leiste, sobald der Hero aus dem Bild gescrollt ist; „Jetzt“ führt zurück -->
+    <div class="preview-bar hidden" id="previewBar" role="status">
+        <div class="pb-txt"><b id="previewLabel">Vorschau</b><span>Kacheln und Felder zeigen jetzt</span></div>
+        <button type="button" class="pb-now" id="previewNow" aria-label="Zurück zum aktuellen Wetter">Jetzt</button>
+    </div>
 
     <section class="sec" id="sec-today">
         <div class="field hero-field skel a-pop" id="hero" style="height:250px;animation-delay:.15s">&nbsp;</div>
@@ -138,8 +144,8 @@
     <button type="button" class="gps hidden" id="gps">Zurück zu meinem Standort</button>
 </div>
 
-<script src="wetter-core.js?v=20261008x"></script>
-<script src="design.js?v=20261008x"></script>
+<script src="wetter-core.js?v=20261008y"></script>
+<script src="design.js?v=20261008y"></script>
 <script>initDesignApp();</script>
 </body>
 </html>

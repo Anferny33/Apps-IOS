@@ -286,7 +286,22 @@ body {
 .tile .sub { font-size: 12.5px; color: var(--ink-2); margin-top: auto; line-height: 1.4; }
 .tile .meter { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.14); position: relative; margin-top: 4px; }
 .tile .meter i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; }
-.tile[data-tile] { cursor: pointer; transition: transform 0.3s ease, box-shadow 0.3s ease; }
+.tile { position: relative; }
+.tile[data-tile] { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+.t-toggle { position: absolute; inset: 0; border: 0; border-radius: inherit; background: transparent; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.t-toggle:focus-visible { outline: 3px solid rgba(255,255,255,0.9); outline-offset: -3px; }
+.tile h3 .t-ico { margin-left: auto; }
+.tile h3 .chev { flex: none; width: 18px; height: 18px; display: flex; margin-left: auto; color: var(--ink-2); }
+.tile h3 .t-ico + .chev { margin-left: 0; }
+.tile h3 .chev svg { width: 18px; height: 18px; transition: transform 0.3s ease; }
+.tile.open h3 .chev svg { transform: rotate(180deg); }
+.preview-bar { position: fixed; top: calc(env(safe-area-inset-top) + 10px); left: 16px; right: 16px; z-index: 45; display: flex; align-items: center; gap: 10px; max-width: 608px; margin: 0 auto; padding: 8px 8px 8px 14px; border-radius: 999px; background: rgba(20,28,48,0.8); color: #fff; border: 1px solid rgba(255,255,255,0.18); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: 0 10px 30px rgba(0,0,0,0.3); animation: fadeUp 0.4s ease both; }
+.preview-bar.hidden { display: none; }
+.preview-bar .pb-txt { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.2; }
+.preview-bar .pb-txt b { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.preview-bar .pb-txt span { font-size: 11px; color: rgba(255,255,255,0.7); }
+.preview-bar .pb-now { flex: none; min-width: 64px; height: 36px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--accent); color: #0b1a33; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.preview-bar .pb-now:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .tile.open { transform: translateY(-2px); box-shadow: inset 0 0 0 2px rgba(255,255,255,0.85); }
 .tpanel { grid-column: 1 / -1; align-self: start; display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.6s cubic-bezier(.2,.8,.2,1); }
 .tpanel.open { grid-template-rows: 1fr; }

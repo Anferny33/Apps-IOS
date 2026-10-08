@@ -15,6 +15,26 @@ const capsA = '<WMS_Capabilities><Layer><Name>dwd:Niederschlagsradar</Name>' +
 // Lauf 11:05, aber Zeitachse reicht schon über "jetzt" hinaus: 11:10 ist Prognose, nicht Beobachtung
 const capsB = capsA.replace('11:07', '11:07');
 const T = s => '2026-10-08T' + s + ':00.000Z';
+const sld = '<sld:StyledLayerDescriptor><sld:ColorMap type="intervals">' +
+  '<sld:ColorMapEntry color="#7d7d7d" opacity="0.3" quantity="-10" label="Keine Daten"/>' +
+  '<sld:ColorMapEntry color="#ffffff" opacity="0" quantity="0.008" label="mm/h"/>' +
+  '<sld:ColorMapEntry color="#33ffff" quantity="0.017" label="[0.1 - 0.2)"/>' +
+  '<sld:ColorMapEntry color="#1acc9a" quantity="0.033" label="[0.2 - 0.4)"/>' +
+  '<sld:ColorMapEntry color="#019934" quantity="0.083" label="[0.4 - 1.0)"/>' +
+  '<sld:ColorMapEntry color="#4db31b" quantity="0.167" label="[1.0 - 2.0)"/>' +
+  '<sld:ColorMapEntry color="#99cc01" quantity="0.250" label="[2.0 - 3.0)"/>' +
+  '<sld:ColorMapEntry color="#cce601" quantity="0.417" label="[3.0 - 5.0)"/>' +
+  '<sld:ColorMapEntry color="#ffff01" quantity="0.625" label="[5.0 - 7.5)"/>' +
+  '<sld:ColorMapEntry color="#ffc401" quantity="0.833" label="[7.5 - 10)"/>' +
+  '<sld:ColorMapEntry color="#ff8901" quantity="1.250" label="[10 - 15)"/>' +
+  '<sld:ColorMapEntry color="#ff4501" quantity="2.500" label="[15 - 30)"/>' +
+  '<sld:ColorMapEntry color="#fe0000" quantity="3.750" label="[30 - 45)"/>' +
+  '<sld:ColorMapEntry color="#e5004c" quantity="6.250" label="[45 - 75)"/>' +
+  '<sld:ColorMapEntry color="#cc0098" quantity="8.333" label="[75 - 100)"/>' +
+  '<sld:ColorMapEntry color="#6600cb" quantity="12.500" label="[100 - 150)"/>' +
+  '<sld:ColorMapEntry color="#0000fe" quantity="25.000" label="&gt;= 150"/>' +
+  '</sld:ColorMap></sld:StyledLayerDescriptor>';
+const localHM = iso => new Date(iso).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
 function el(id) {
@@ -70,6 +90,7 @@ function run(opts) {
     URL: { createObjectURL: () => 'blob:' + (++log.created), revokeObjectURL: () => { log.revoked++; } },
     fetch: async (url) => {
       if (url.indexOf('GetCapabilities') >= 0) { log.caps++; if (opts.caps === null) throw new Error('blocked'); return { ok: true, text: async () => opts.caps }; }
+      if (url.indexOf('GetStyles') >= 0) { log.styles = (log.styles || 0) + 1; if (opts.style === null) throw new Error('blocked'); return { ok: true, text: async () => sld }; }
       if (url.indexOf('GetMap') >= 0) {
         const m = /time=([^&]+)/.exec(url); const time = m ? decodeURIComponent(m[1]) : null;
         log.maps.push(time);
@@ -120,7 +141,9 @@ const check = (n, c, x) => { console.log((c ? '  ok   ' : '  FAIL ') + n + (c ? 
   check('Alle 14 Bilder nur je einmal angefragt (Cache + Warteschlange)', L.maps.length === 14 && new Set(L.maps).size === 14, L.maps.length);
   const shownA = map.layers.find(l => map.paint[l.id + '|raster-opacity'] === 0.72);
   check('Genau eine Ebene sichtbar mit dem Bild von 11:05, Überblendung konfiguriert', !!shownA && map.layers.filter(l => map.paint[l.id + '|raster-opacity'] === 0.72).length === 1 && map.sources[shownA.id].url.indexOf('blob:') === 0 && map.paint[shownA.id + '|raster-opacity-transition'].duration === 280, JSON.stringify(map.paint));
-  check('Slider 0..13 auf 5, Ticks –50 min / +2 h, Wiedergabe läuft', N.slider.max === 13 && N.slider.value === 5 && N.tickStart.textContent === '–50 min' && N.tickEnd.textContent === '+2 h' && N.play.textContent === '❚❚', N.slider.value + ' ' + N.tickStart.textContent + ' ' + N.tickEnd.textContent);
+  check('Slider 0..13 auf 5, Wiedergabe läuft', N.slider.max === 13 && N.slider.value === 5 && N.play.textContent === '❚❚', N.slider.value);
+  check('Zeitachse: Marker an der echten Grenze (Index 5 von 13), Zeitstempel der Beobachtung, Beschriftungen, Zweiton-Regler', N.tlMark.style.left === 'calc(13px + 0.3846 * (100% - 26px))' && N.tlMarkTime.textContent === localHM(T('11:05')) && /11:05|13:05/.test(N.tlMarkTime.textContent) === true && !N.tlAxis.classList.contains('hidden') && !N.tlObs.classList.contains('hidden') && !N.tlFc.classList.contains('hidden') && N.slider.style.background.indexOf('linear-gradient') === 0 && N.slider.style.background.indexOf('calc(13px + 0.3846 * (100% - 26px))') > 0 && /Beobachtung springen, /.test(N.tlMark['aria-label']), N.tlMark.style.left + ' ' + N.tlMarkTime.textContent + ' ' + N.slider.style.background);
+  check('Legende: 15 Klassen aus der Stildefinition, untere Grenzen, offene Klasse, keine Daten, Details', (N.legend.innerHTML.match(/<i style="background:#[0-9a-f]{6}" title="/g) || []).length === 15 && N.legend.innerHTML.includes('<span>0,1</span>') && N.legend.innerHTML.includes('>≥150<') && N.legend.innerHTML.includes('keine Daten') && N.legend.innerHTML.includes('<details class="lg-more">') && N.legend.innerHTML.includes('0,1 bis 0,2 mm/h') && N.legend.innerHTML.includes('ab 150 mm/h') && !/gradient\(/.test(N.legend.innerHTML) && L.styles === 1, N.legend.innerHTML.slice(0, 200));
   check('WMS-Bild: EPSG:3857, Bbox mit 25 % Rand, Größe 1,5-fach aus dem Canvas, transparent', (() => { const u = A.sb.getMapUrl(frames[5].time, A.sb.viewOf(map)); return /crs=EPSG%3A3857/.test(u) && /width=600&height=900/.test(u) && /transparent=true/.test(u) && /bbox=890555\.93%2C5820502\.81%2C1558472\.87%2C6577190\.19/.test(u); })(), A.sb.getMapUrl(frames[5].time, A.sb.viewOf(map)));
 
   // Kleine Verschiebung innerhalb des geladenen Rands: nichts nachladen
@@ -159,6 +182,9 @@ const check = (n, c, x) => { console.log((c ? '  ok   ' : '  FAIL ') + n + (c ? 
   N.slider.value = '9'; N.slider.trigger('input'); await wait(30);
   check('Zeitachse verschieben: Wiedergabe pausiert, Frame 9 (Prognose) angezeigt', N.play.textContent === '▶' && A.st().current === 9 && N.framePill.textContent === 'Prognose' && N.framePill.className === 'pill fc', N.play.textContent + ' ' + A.st().current);
   A.sb.setPlaying(true);
+  N.tlMark.trigger('click'); await wait(30);
+  check('Marker-Tipp: springt zur jüngsten Beobachtung (Frame 5) und pausiert', A.st().current === 5 && N.play.textContent === '▶' && N.framePill.textContent === 'Beobachtung', A.st().current + ' ' + N.play.textContent);
+  A.sb.setPlaying(true);
   A.sb.document.hidden = true; A.docHandlers.visibilitychange(); 
   check('Im Hintergrund: pausiert', N.play.textContent === '▶');
   const capsBefore2 = L.caps;
@@ -184,6 +210,10 @@ const check = (n, c, x) => { console.log((c ? '  ok   ' : '  FAIL ') + n + (c ? 
   // ---- B: Metadaten blockiert → aktuelles Bild ohne Zeitraffer ----
   const B = run({ caps: null, pos: null });
   await wait(80);
+  check('Ohne Zeitachse: Marker und Beschriftung ausgeblendet, Regler ohne Zweiton', B.nodes.tlAxis.classList.contains('hidden') && !B.nodes.slider.style.background, B.nodes.slider.style.background);
+  const G2 = run({ caps: capsA, pos: null, style: null });
+  await wait(80);
+  check('Legende ohne Stildefinition: DWD-Legendenbild statt erfundener Skala', /<img [^>]*GetLegendGraphic/.test(G2.nodes.legend.innerHTML) && !/gradient\(/.test(G2.nodes.legend.innerHTML), G2.nodes.legend.innerHTML.slice(0, 120));
   check('Ohne Metadaten: ein Bild ohne TIME, Badge "aktuell", Hinweis im Notiztext, Play aus, Deutschland-Mitte', B.log.maps.length === 1 && B.log.maps[0] === null && B.nodes.frameTime.textContent === 'aktuell' && /ohne Zeitraffer/.test(B.nodes.note.textContent) && B.nodes.play.textContent === '▶' && B.st().map.opts.center[1] === 51.16, B.nodes.note.textContent);
 
   // ---- C: Bildabruf schlägt fehl → Status, altes Bild bleibt, nichts behauptet "kein Regen" ----
