@@ -104,7 +104,8 @@ function restartAnimations(root) {
         return !cs.animationIterationCount.split(",").some(function (v) { return v.trim() === "infinite"; });
     });
     nodes.forEach(function (el) {
-        if (el.style.animationDelay) el.style.animationDelay = "0s";   /* Staffelung vom ersten Laden nicht erneut abwarten */
+        /* Staffelung vom ersten Laden nicht erneut abwarten; eine kurze Eigen-Staffelung (data-stagger) bleibt */
+        if (el.style.animationDelay) el.style.animationDelay = (el.dataset && el.dataset.stagger) || "0s";
         el.style.animation = "none";
     });
     /* Ein Reflow zwischen Aus und Ein, sonst startet nichts neu; getBoundingClientRect
@@ -283,8 +284,11 @@ function dNowcast(fc) {
     const peak = Math.max.apply(null, nc.vals.concat([0.4]));
     box.innerHTML =
         '<div class="nc-lead">' + nc.text + '</div>' +
-        '<div class="nc-bars">' + nc.vals.map(function (v) {
-            return '<i class="' + (v > 0 ? '' : 'z') + '" style="height:' + (v > 0 ? Math.max(8, Math.round(v / peak * 100)) : 4) + '%"></i>';
+        /* Balken wachsen nacheinander von links nach rechts aus der Grundlinie; data-stagger
+           hält die Staffelung auch beim Neustart per Antippen */
+        '<div class="nc-bars">' + nc.vals.map(function (v, i) {
+            const stagger = (i * 0.045).toFixed(3) + 's';
+            return '<i class="' + (v > 0 ? '' : 'z') + '" data-stagger="' + stagger + '" style="height:' + (v > 0 ? Math.max(8, Math.round(v / peak * 100)) : 4) + '%;animation-delay:' + dl(1.0 + i * 0.045) + 's"></i>';
         }).join('') + '</div>' +
         '<div class="nc-axis">' + nc.times.map(function (t, i) { return '<span>' + (i % 4 === 0 ? hhmm(t) : '') + '</span>'; }).join('') + '</div>';
 }

@@ -227,6 +227,8 @@ body {
 .nc-bars { display: flex; align-items: flex-end; gap: 3px; height: 56px; }
 .nc-bars i { flex: 1; display: block; background: var(--cool); border-radius: 3px 3px 1px 1px; min-height: 2px; opacity: 0.9; }
 .nc-bars i.z { background: var(--line); }
+.nc-bars i { transform-origin: center bottom; animation: aGrowY 0.7s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes aGrowY { from { transform: scaleY(0); } to { transform: none; } }
 .nc-axis { display: flex; margin-top: 6px; font-size: 11px; color: var(--ink-3); }
 .nc-axis span { flex: 1; text-align: center; }
 
