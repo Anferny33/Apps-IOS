@@ -1,0 +1,6 @@
+name = "wetter-nina-proxy"
+main = "src/worker.js"
+compatibility_date = "2026-10-01"
+
+# Ohne eigene Domain läuft der Worker unter https://wetter-nina-proxy.<konto>.workers.dev
+workers_dev = true

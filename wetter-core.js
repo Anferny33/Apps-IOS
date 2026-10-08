@@ -169,6 +169,42 @@ function normalizeWarnings(data, now) {
     return out;
 }
 
+/* Meldungen des Bevölkerungsschutzes (NINA / warnung.bund.de) über den eigenen
+   Cloudflare-Worker in proxy/, der die fehlenden CORS-Header ergänzt und den
+   Kreis zum Punkt ermittelt. Leer gelassen = Funktion aus. */
+const NINA_PROXY = (typeof window !== "undefined" && window.NINA_PROXY) || "https://wetter-nina-proxy.anferny-wetter.workers.dev";
+
+function fetchNina(loc) {
+    if (!NINA_PROXY) return Promise.resolve([]);
+    return getJson(NINA_PROXY + "/nina?lat=" + loc.lat + "&lon=" + loc.lon).then(function (data) { return normalizeNina(data); });
+}
+
+function normalizeNina(data) {
+    const list = data && Array.isArray(data.warnings) ? data.warnings : [];
+    return list.filter(function (w) {
+        /* DWD-Warnungen kommen direkt vom DWD (mit Gemeindegenauigkeit), nicht doppelt über NINA */
+        return w && w.provider !== "DWD" && w.msgType !== "Cancel";
+    }).map(function (w) {
+        return {
+            id: w.id || null,
+            source: "nina",
+            provider: w.provider || "",
+            providerLabel: w.providerLabel || "Amtliche Meldung",
+            level: Math.max(1, Math.min(4, parseInt(w.level, 10) || 1)),
+            severity: w.severity || "Minor",
+            event: w.event || "",
+            headline: w.headline || "Amtliche Meldung",
+            description: w.description || "",
+            instruction: w.instruction || "",
+            sent: w.sent || null,
+            onset: w.onset || null,
+            expires: w.expires || null,
+            area: w.area || "",
+            upcoming: false
+        };
+    });
+}
+
 /* Ortsname – für Browser-Clients gedacht, ohne Schlüssel */
 async function fetchPlace(lat, lon) {
     try {

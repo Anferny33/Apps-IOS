@@ -11,6 +11,7 @@ GitHub Pages ausgeliefert: <https://anferny33.github.io/Apps-IOS/>
 | `index.html` + `design.js` | Startseite: Hero, Stundenfelder, Kacheln, 14 Tage, Modellvergleich, Ortssuche. Zwei Designs auf demselben Markup; Umschalter oben rechts (Palette) und in der Fußzeile, die Wahl bleibt im Gerät gespeichert |
 | `modern.css` | Bento-Design (Standard): flache Farbfelder, Hero-Feld in Wetterfarbe, Schrift Sora. Animationen: Sonne/Wolke fahren je nach Wetterlage ein, Bereiche blenden gestaffelt ein, Kacheln mit Mikroanimationen (Wind, Regen, Sonnenbogen, Tropfen, Druckzeiger) |
 | `design.css` | Klassisches Design: Glas-Karten auf Himmelsverlauf mit Lichtflecken und Regen-/Schneepartikeln |
+| `proxy/` | Cloudflare Worker für die NINA-Meldungen (kein CORS bei warnung.bund.de): ermittelt den Kreis zum Punkt über den BKG-Dienst, liefert bereinigte Meldungen mit CORS-Freigabe. Läuft unter `https://wetter-nina-proxy.anferny-wetter.workers.dev`, Adresse steht in `wetter-core.js` (`NINA_PROXY`) |
 | `icons/`, `manifest.webmanifest` | App-Icon im Bento-Design (`icon.svg` ist die Quelle, die PNGs sind daraus gerendert) und Web-Manifest für den Homescreen |
 | `klassisch.html` + `wetter.css` | Klassische Ansicht mit allen Karten (Nowcast, Ensemble, Trend, Luftqualität, Modellvergleich) |
 | `wetter-core.js` | Gemeinsame Datenschicht: Open-Meteo (Forecast, Ensemble, Modelle, Luftqualität, Geocoding), Cache, Standortlogik |
@@ -18,7 +19,7 @@ GitHub Pages ausgeliefert: <https://anferny33.github.io/Apps-IOS/>
 | `box-breathing.html` | Atemübung (eigenständig) |
 | `design.html`, `lignano-*.html` | Nur Weiterleitungen für alte Homescreen-Icons |
 
-Datenquellen: [Open-Meteo](https://open-meteo.com/) (CC BY 4.0), [DWD Geodienste](https://www.dwd.de/DE/leistungen/geodienste/geodienste.html) (CC BY 4.0: Radar und amtliche Wetterwarnungen per WFS `dwd:Warnungen_Gemeinden`, nur für Deutschland), BigDataCloud (Ortsname), CARTO/OpenStreetMap (Karte).
+Datenquellen: [Open-Meteo](https://open-meteo.com/) (CC BY 4.0), [DWD Geodienste](https://www.dwd.de/DE/leistungen/geodienste/geodienste.html) (CC BY 4.0: Radar und amtliche Wetterwarnungen per WFS `dwd:Warnungen_Gemeinden`, nur für Deutschland), [NINA / warnung.bund.de](https://nina.api.bund.dev/) (Katastrophenschutz, Hochwasser, Polizei; über den eigenen Worker in `proxy/`, siehe dort), BigDataCloud (Ortsname), CARTO/OpenStreetMap (Karte).
 
 ## Lokal arbeiten (Mac)
 

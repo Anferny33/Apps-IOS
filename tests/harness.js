@@ -158,6 +158,18 @@ function mockWarnings() {
   ] };
 }
 
+// Antwort des NINA-Proxys: eine Katastrophenschutz-Meldung (Stufe 2) und eine DWD-Doppelung, die wegfallen muss
+function mockNina() {
+  return { ars: '091620000000', kreis: 'Kreisfreie Stadt München', fetchedAt: new Date().toISOString(), warnings: [
+    { id: 'mow.TEST-1', provider: 'MOWAS', providerLabel: 'Katastrophenschutz', level: 2, severity: 'Moderate', msgType: 'Alert',
+      event: 'Gefahreninformation', headline: 'Großbrand im Gewerbegebiet: Fenster und Türen geschlossen halten',
+      description: 'Starke Rauchentwicklung.\nBetroffen ist der Stadtteil Nord.', instruction: 'Fenster und Türen schließen.\nLüftung abschalten.',
+      sent: new Date(Date.now() - 1800 * 1000).toISOString(), onset: null, expires: null, area: 'Stadt München' },
+    { id: 'dwd.TEST-2', provider: 'DWD', providerLabel: 'Deutscher Wetterdienst', level: 1, severity: 'Minor', msgType: 'Alert',
+      headline: 'Amtliche WARNUNG vor FROST', description: '', instruction: '', sent: new Date().toISOString(), area: 'Stadt München' }
+  ] };
+}
+
 function mockGeocode() {
   return { results: [
     { name: 'Hamburg', admin1: 'Hamburg', country: 'Deutschland', latitude: 53.55, longitude: 9.99 },
@@ -213,6 +225,7 @@ function okFetch(data) {
     else if (url.includes('ensemble')) body = data.ens;
     else if (url.includes('models=')) body = data.md;
     else if (url.includes('maps.dwd.de')) body = data.warn;
+    else if (url.includes('/nina?')) body = data.nina;
     else body = data.fc;
     if (body === undefined || body === null) throw new Error('not available');
     return { ok: true, json: async () => body };
@@ -229,4 +242,4 @@ function finish() {
   process.exit(failCount ? 1 : 0);
 }
 
-module.exports = { makeSandbox, okFetch, mockForecast, mockEnsemble, mockModels, mockAir, mockGeocode, mockWarnings, check, finish, el };
+module.exports = { makeSandbox, okFetch, mockForecast, mockEnsemble, mockModels, mockAir, mockGeocode, mockWarnings, mockNina, check, finish, el };

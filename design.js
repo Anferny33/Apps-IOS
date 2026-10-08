@@ -152,7 +152,8 @@ const UI = {
     leaf: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 19c0-8 5-13 14-14-1 9-6 14-14 14z"/><path d="M5 19l7-7"/></svg>',
     layers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>',
     alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5L2.5 20h19L12 3.5z"/><path d="M12 10v4.5"/><circle cx="12" cy="17.3" r="0.6" fill="currentColor"/></svg>',
-    chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>'
+    chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
+    megaphone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10v4a1 1 0 0 0 1 1h3l6 4V5L7 9H4a1 1 0 0 0-1 1z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19.5 6a9 9 0 0 1 0 12"/></svg>'
 };
 
 /* Statusfarben für helle Flächen (Wort neben dem Wert) */
@@ -507,27 +508,51 @@ function fmtWarnTime(iso) {
     const hm = d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + " Uhr";
     const now = new Date();
     const sameDay = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
-    return sameDay ? hm : d.toLocaleDateString("de-DE", { weekday: "short" }) + " " + hm;
+    if (sameDay) return hm;
+    /* Innerhalb einer Woche reicht der Wochentag, davor oder danach braucht es das Datum */
+    const days = Math.abs(d.getTime() - now.getTime()) / 86400000;
+    if (days < 6) return d.toLocaleDateString("de-DE", { weekday: "short" }) + " " + hm;
+    return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) + ", " + hm;
 }
 
-function renderWarnings(list) {
+/* DWD-Wetterwarnungen und NINA-Meldungen in einem Feld: höchste Stufe zuerst,
+   bei gleicher Stufe Bevölkerungsschutz vor Wetter. */
+function mergeWarnings(dwd, nina) {
+    const all = (dwd || []).map(function (w) { return Object.assign({ source: "dwd" }, w); }).concat(nina || []);
+    all.sort(function (a, b) {
+        return b.level - a.level || (a.source === b.source ? 0 : (a.source === "nina" ? -1 : 1));
+    });
+    return all;
+}
+
+function renderWarnings(dwd, nina) {
     const box = D("warnings");
     if (!box) return;
-    if (!list || !list.length) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+    const list = mergeWarnings(dwd, nina);
+    if (!list.length) { box.classList.add("hidden"); box.innerHTML = ""; return; }
     box.classList.remove("hidden");
     box.innerHTML = list.map(function (w) {
-        const when = (w.upcoming ? "ab " + fmtWarnTime(w.onset) + " " : "") + "bis " + fmtWarnTime(w.expires);
+        const isNina = w.source === "nina";
+        let meta;
+        if (isNina) {
+            meta = w.providerLabel + (w.sent ? ' · seit ' + fmtWarnTime(w.sent) : '') + (w.expires ? ' · bis ' + fmtWarnTime(w.expires) : '');
+        } else {
+            meta = WARN_WORDS[w.level] + ' · ' + (w.upcoming ? "ab " + fmtWarnTime(w.onset) + " " : "") + "bis " + fmtWarnTime(w.expires);
+        }
         const text = String(w.description || "").trim();
-        return '<details class="field warn lvl-' + w.level + '">' +
+        const src = isNina
+            ? 'Quelle: ' + escHtml(w.providerLabel) + ' über NINA (warnung.bund.de)' + (w.area ? ' · ' + escHtml(w.area) : '')
+            : 'Quelle: Deutscher Wetterdienst' + (w.area ? ' · ' + escHtml(w.area) : '');
+        return '<details class="field warn lvl-' + w.level + (isNina ? ' nina' : '') + '">' +
             '<summary>' +
-                '<span class="ico">' + UI.alert + '</span>' +
-                '<span class="txt"><b>' + escHtml(w.headline) + '</b><span>' + WARN_WORDS[w.level] + ' · ' + when + '</span></span>' +
+                '<span class="ico">' + (isNina ? UI.megaphone : UI.alert) + '</span>' +
+                '<span class="txt"><b>' + escHtml(w.headline) + '</b><span>' + escHtml(meta) + '</span></span>' +
                 '<span class="chev">' + UI.chevron + '</span>' +
             '</summary>' +
             '<div class="body">' +
-                (text ? '<p>' + escHtml(text) + '</p>' : '') +
-                (w.instruction ? '<p class="instr">' + escHtml(w.instruction) + '</p>' : '') +
-                '<p class="src">Quelle: Deutscher Wetterdienst' + (w.area ? ' · ' + escHtml(w.area) : '') + '</p>' +
+                (text ? '<p>' + escHtml(text).replace(/\n/g, '<br>') + '</p>' : '') +
+                (w.instruction ? '<p class="instr">' + escHtml(w.instruction).replace(/\n/g, '<br>') + '</p>' : '') +
+                '<p class="src">' + src + '</p>' +
             '</div>' +
         '</details>';
     }).join('');
@@ -535,7 +560,7 @@ function renderWarnings(list) {
 
 function renderAllDesign(payload) {
     renderHero(payload.fc);
-    renderWarnings(payload.warn);
+    renderWarnings(payload.warn, payload.nina);
     dHourly(payload.fc, payload.ens);
     dNowcast(payload.fc);
     renderDays(payload.fc);
@@ -573,7 +598,7 @@ function initDesignApp() {
         setLocLabel(loc);
 
         const results = await Promise.allSettled([
-            fetchForecast(loc), fetchEnsemble(loc), fetchModels(loc), fetchAir(loc), fetchWarnings(loc)
+            fetchForecast(loc), fetchEnsemble(loc), fetchModels(loc), fetchAir(loc), fetchWarnings(loc), fetchNina(loc)
         ]);
         /* Inzwischen ein anderer Ort (z. B. GPS nach gespeicherter Position)? Dann diese Antwort verwerfen. */
         if (currentLoc !== loc) { loading = false; return load(); }
@@ -581,7 +606,7 @@ function initDesignApp() {
         const fc = val(0);
 
         if (fc) {
-            const payload = { fc: fc, ens: val(1), md: val(2), air: val(3), warn: val(4) };
+            const payload = { fc: fc, ens: val(1), md: val(2), air: val(3), warn: val(4), nina: val(5) };
             renderAllDesign(payload);
             saveCache(currentLoc, payload);
             setUpdatedLabel(new Date().toISOString());

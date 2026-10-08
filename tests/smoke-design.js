@@ -5,7 +5,7 @@ const fs = require('fs');
 
 const DESIGN = fs.readFileSync(require('path').join(__dirname, '..', 'design.js'), 'utf8');
 const fc = H.mockForecast();
-const data = { fc, ens: H.mockEnsemble(fc), md: H.mockModels(), air: H.mockAir(), geo: H.mockGeocode(), warn: H.mockWarnings(),
+const data = { fc, ens: H.mockEnsemble(fc), md: H.mockModels(), air: H.mockAir(), geo: H.mockGeocode(), warn: H.mockWarnings(), nina: H.mockNina(),
                place: { city: 'München', principalSubdivision: 'Bayern' } };
 const granted = { getCurrentPosition: ok => ok({ coords: { latitude: 48.137, longitude: 11.575 } }) };
 const denied = { getCurrentPosition: (ok, err) => err({ code: 1, message: 'denied' }) };
@@ -43,8 +43,11 @@ function boot(opts) {
   const wn = G(sb,'warnings').innerHTML;
   const dwdUrl = sb._fetchLog.find(u => u.includes('maps.dwd.de')) || '';
   H.check('Warnungen: DWD-WFS mit Punkt in Breite/Länge-Reihenfolge abgefragt', decodeURIComponent(dwdUrl).replace(/\+/g, ' ').includes('INTERSECTS(THE_GEOM,POINT(48.137 11.575))') && dwdUrl.includes('typeName=dwd%3AWarnungen_Gemeinden'), decodeURIComponent(dwdUrl));
-  H.check('Warnungen: Feld sichtbar, 2 aktive (abgelaufen + aufgehoben weggefallen)', !G(sb,'warnings').classList.contains('hidden') && (wn.match(/<details class="field warn/g) || []).length === 2, wn.slice(0, 200));
-  H.check('Warnungen: höchste Stufe zuerst (Gewitter, Stufe 2)', wn.indexOf('lvl-2') < wn.indexOf('lvl-1') && /lvl-2[\s\S]*GEWITTER/.test(wn) && wn.includes('Markante Wetterwarnung'));
+  H.check('Warnungen: Feld sichtbar, 3 Einträge (2 DWD aktiv + 1 NINA; DWD-Doppelung aus NINA weg)', !G(sb,'warnings').classList.contains('hidden') && (wn.match(/<details class="field warn/g) || []).length === 3 && !wn.includes('FROST'), wn.slice(0, 200));
+  H.check('Warnungen: Stufe 2 zuerst, dabei NINA vor DWD', /^<details class="field warn lvl-2 nina"/.test(wn) && wn.indexOf('lvl-2 nina') < wn.indexOf('lvl-2"') && wn.indexOf('lvl-2"') < wn.indexOf('lvl-1'), wn.slice(0, 60));
+  H.check('NINA: Katastrophenschutz-Zeile, Umbrüche, Quelle', wn.includes('Katastrophenschutz · seit') && wn.includes('Rauchentwicklung.<br>Betroffen') && wn.includes('class="instr">Fenster und Türen schließen.<br>Lüftung') && wn.includes('über NINA (warnung.bund.de) · Stadt München'), wn.match(/Katastrophenschutz[^<]*/));
+  const ninaUrl = sb._fetchLog.find(u => u.includes('/nina?')) || '';
+  H.check('NINA: Proxy mit Koordinaten abgefragt', ninaUrl.endsWith('/nina?lat=48.137&lon=11.575'), ninaUrl);
   H.check('Warnungen: bevorstehende mit "ab … bis …", Hinweis + Quelle', /Wetterwarnung · ab \S+ Uhr bis \S+ Uhr/.test(wn) && wn.includes('class="instr">Lose Gegenstände sichern.') && wn.includes('Quelle: Deutscher Wetterdienst · Stadt München'), wn.match(/Wetterwarnung · [^<]*/));
 
   const hh = G(sb,'hourly').innerHTML;
@@ -85,13 +88,16 @@ function boot(opts) {
   const fc2 = H.mockForecast();
   fc2.current.weather_code = 61; fc2.current.is_day = 0;
   fc2.minutely_15.precipitation = fc2.minutely_15.precipitation.map(() => 0);
-  const sb2 = boot({ fetchImpl: H.okFetch(Object.assign({}, data, { fc: fc2, warn: { type: 'FeatureCollection', features: [] } })), geolocation: granted });
+  const sb2 = boot({ fetchImpl: H.okFetch(Object.assign({}, data, { fc: fc2, warn: { type: 'FeatureCollection', features: [] }, nina: { warnings: [] } })), geolocation: granted });
   await wait(300);
   H.check('Theme Regen', sb2.document.body.classList.contains('theme-rain'), [...sb2.document.body.classList.c]);
   H.check('Ohne Warnungen: Feld versteckt und leer', G(sb2,'warnings').classList.contains('hidden') && G(sb2,'warnings').innerHTML === '');
-  const sb2b = boot({ fetchImpl: H.okFetch(Object.assign({}, data, { fc: fc2, warn: null })), geolocation: granted });
+  const sb2b = boot({ fetchImpl: H.okFetch(Object.assign({}, data, { fc: fc2, warn: null, nina: null })), geolocation: granted });
   await wait(300);
-  H.check('DWD nicht erreichbar: Wetter trotzdem gerendert, Warnfeld versteckt', G(sb2b,'hero').innerHTML.includes('17°') && G(sb2b,'warnings').classList.contains('hidden'));
+  H.check('DWD und NINA nicht erreichbar: Wetter trotzdem gerendert, Warnfeld versteckt', G(sb2b,'hero').innerHTML.includes('17°') && G(sb2b,'warnings').classList.contains('hidden'));
+  const sb2c = boot({ fetchImpl: H.okFetch(Object.assign({}, data, { fc: fc2, nina: null })), geolocation: granted });
+  await wait(300);
+  H.check('Nur NINA nicht erreichbar: DWD-Warnungen bleiben', (G(sb2c,'warnings').innerHTML.match(/<details class="field warn/g) || []).length === 2);
   H.check('Ohne Regen: Nowcast-Karte versteckt, Hinweis "Kein Regen"', G(sb2,'nowcastCard').classList.contains('hidden') && G(sb2,'insight').innerHTML.includes('Kein Regen in den nächsten 4 Stunden'), G(sb2,'insight').innerHTML);
   const fc3 = H.mockForecast(); fc3.current.weather_code = 0; fc3.current.is_day = 0;
   const sb3 = boot({ fetchImpl: H.okFetch(Object.assign({}, data, { fc: fc3 })), geolocation: granted });
