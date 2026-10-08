@@ -135,13 +135,17 @@ body {
 .hcol {
     flex: 0 0 54px; display: flex; flex-direction: column; align-items: center; gap: 7px;
     padding: 12px 0 10px; border-radius: 16px; background: var(--ground); color: var(--ink);
+    position: relative; overflow: hidden;
 }
+.hcol > :not(.fill) { position: relative; z-index: 1; }
+/* Regenstunden: Wasserstand bis zur Regenwahrscheinlichkeit, wächst aus der Grundlinie */
+.hcol .fill { position: absolute; left: 0; right: 0; bottom: 0; height: var(--p, 0%); background: var(--rain); transform-origin: center bottom; animation: aGrowY 0.9s cubic-bezier(.2,.8,.2,1) both; }
 .hcol .t { font-size: 11px; font-weight: 600; color: var(--ink-2); }
 .hcol.newday .t { color: var(--ink); }
 .hcol .ic { width: 22px; height: 22px; }
 .hcol .v { font-size: 15px; font-weight: 700; }
 .hcol .p { font-size: 11px; font-weight: 600; color: var(--ink-2); }
-.hcol.wet { background: var(--rain); }
+.hcol.wet { background: #DCE9F9; }
 .hcol.wet .t, .hcol.wet .p { color: var(--rain-ink); }
 .hcol.now { background: var(--dark); color: var(--white); }
 .hcol.now .t, .hcol.now .p { color: var(--dark-muted); }
@@ -347,6 +351,9 @@ footer a { color: var(--ink); }
 .windflow { stroke-dasharray: 14 10; animation: windflow 1.6s linear infinite; }
 .windflow.w2 { animation-delay: 0.4s; } .windflow.w3 { animation-delay: 0.8s; }
 @keyframes windflow { to { stroke-dashoffset: -24; } }
+/* Richtungspfeil dreht mit Überschwung auf die Windrichtung */
+.wdir { transform-box: fill-box; transform-origin: center; transform: rotate(var(--ang, 0deg)); animation: swing 1.4s cubic-bezier(.34,1.56,.64,1) 0.9s both; }
+@keyframes swing { from { transform: rotate(calc(var(--ang, 0deg) - 160deg)); } to { transform: rotate(var(--ang, 0deg)); } }
 
 .tiledrop { animation: tiledrop 1.3s linear infinite; transform-box: fill-box; transform-origin: center; }
 .tiledrop.d2 { animation-delay: 0.45s; } .tiledrop.d3 { animation-delay: 0.9s; }

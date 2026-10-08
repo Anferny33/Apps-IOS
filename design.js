@@ -116,20 +116,53 @@ function restartAnimations(root) {
 
 let lastTemp = null;
 
-/* Zahl im Hero von 0 hochzählen (nur im Browser, nicht bei reduzierter Bewegung) */
-function countUp(el, target) {
+/* Erster Textknoten eines Elements: so bleiben <small>/<span> neben der Zahl stehen */
+function firstTextNode(el) {
+    const kids = el.childNodes || [];
+    for (let i = 0; i < kids.length; i++) if (kids[i].nodeType === 3) return kids[i];
+    if (typeof document === "undefined" || !document.createTextNode) return null;
+    const t = document.createTextNode("");
+    el.insertBefore(t, el.firstChild);
+    return t;
+}
+
+/* Zahl von 0 auf den Zielwert hochzählen (nur im Browser, nicht bei reduzierter Bewegung).
+   opts: decimals (Nachkommastellen, deutsches Komma), suffix ("°"), delay/dur in ms. */
+function countUpEl(el, target, opts) {
+    opts = opts || {};
     if (!el || typeof requestAnimationFrame !== "function" || !isNum(target)) return;
     if (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const start = Date.now(), delay = 350, dur = 1000;
-    el.textContent = "0°";
+    const node = firstTextNode(el);
+    if (!node) return;
+    const decimals = opts.decimals || 0, suffix = opts.suffix || "";
+    const delay = isNum(opts.delay) ? opts.delay : 350, dur = opts.dur || 1000;
+    const fmt = function (v) { return (decimals ? fmtNum(v, decimals) : String(Math.round(v))) + suffix; };
+    const start = Date.now();
+    node.nodeValue = fmt(0);
     function step() {
         let p = Math.min(1, (Date.now() - start - delay) / dur);
         if (p < 0) p = 0;
         const eased = 1 - Math.pow(1 - p, 3);
-        el.textContent = Math.round(target * eased) + "°";
+        node.nodeValue = fmt(target * eased);
         if (p < 1) requestAnimationFrame(step);
     }
     requestAnimationFrame(step);
+}
+
+function countUp(el, target) { countUpEl(el, target, { suffix: "°" }); }
+
+/* Alle Zahlen mit data-count unterhalb von root hochzählen, versetzt zur Kachel-Einblendung */
+function startCounters(root) {
+    if (!root || !root.querySelectorAll) return;
+    Array.prototype.slice.call(root.querySelectorAll("[data-count]")).forEach(function (el) {
+        const holder = el.closest ? el.closest(".tile, .mchip") : null;
+        const base = holder && holder.style && holder.style.animationDelay ? parseFloat(holder.style.animationDelay) * 1000 : 0;
+        countUpEl(el, parseFloat(el.getAttribute("data-count")), {
+            decimals: parseInt(el.getAttribute("data-decimals") || "0", 10),
+            delay: (isNaN(base) ? 0 : base) + 350,
+            dur: 900
+        });
+    });
 }
 
 const UI = {
@@ -266,8 +299,11 @@ function dHourly(fc, ens) {
         const dd = dayOf(t);
         const newDay = prevDay !== null && dd !== prevDay;
         prevDay = dd;
+        const wet = i !== 0 && prob >= 25;
         cols +=
-            '<div class="hcol' + (i === 0 ? ' now' : '') + (newDay ? ' newday' : '') + (i !== 0 && prob >= 25 ? ' wet' : '') + '" style="animation-delay:' + dl(0.9 + Math.min(i, 8) * 0.06) + 's">' +
+            '<div class="hcol' + (i === 0 ? ' now' : '') + (newDay ? ' newday' : '') + (wet ? ' wet' : '') + '" style="animation-delay:' + dl(0.9 + Math.min(i, 8) * 0.06) + 's">' +
+                /* Regenstunden: das Blau steigt wie ein Wasserstand bis zur Wahrscheinlichkeit */
+                (wet ? '<i class="fill" data-stagger="' + (Math.min(i, 8) * 0.06).toFixed(2) + 's" style="--p:' + Math.round(prob) + '%;animation-delay:' + dl(1.15 + Math.min(i, 8) * 0.06) + 's"></i>' : '') +
                 '<div class="t">' + (i === 0 ? "Jetzt" : (newDay ? weekday(dd) : hhmm(t).slice(0, 2))) + '</div>' +
                 svgIcon(h.weather_code[gi], h.is_day ? h.is_day[gi] : 1, "ic") +
                 '<div class="v">' + (isNum(v) ? Math.round(v) + '°' : '–') + '</div>' +
@@ -344,16 +380,24 @@ function renderDays(fc) {
    opts.delay staffelt das Einblenden, opts.icon / opts.extra sind kleine SVGs mit Mikroanimation. */
 function tile(cls, title, big, sub, opts) {
     opts = opts || {};
+    const count = isNum(opts.count) ? ' data-count="' + Number(opts.count.toFixed(opts.decimals || 0)) + '" data-decimals="' + (opts.decimals || 0) + '"' : '';
     return '<div class="tile ' + cls + '" style="animation-delay:' + dl(opts.delay || 0) + 's">' +
         '<h3>' + title + (opts.icon ? '<span class="t-ico">' + opts.icon + '</span>' : '') + '</h3>' +
-        '<div class="big">' + big + '</div>' +
+        '<div class="big"' + count + '>' + big + '</div>' +
         (opts.extra || '') +
         (sub ? '<div class="sub">' + sub + '</div>' : '') + '</div>';
 }
 
 /* Mini-Icons für die Kacheln: Farben und Bewegung kommen aus dem Stylesheet */
+/* Windlinien plus Richtungspfeil (zeigt, wohin der Wind weht; Drehung mit Überschwung im Stylesheet) */
+function windMini(dirFrom) {
+    const ang = isNum(dirFrom) ? Math.round((dirFrom + 180) % 360) : 0;
+    return '<svg viewBox="0 0 64 24" width="58" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<path class="windflow" d="M2 6h26a4 4 0 1 0-4-4"/><path class="windflow w2" d="M2 13h30a4 4 0 1 1-4 4"/><path class="windflow w3" d="M2 20h18"/>' +
+        '<g class="wdir" style="--ang:' + ang + 'deg"><path d="M55 3v18M49 9l6-6 6 6"/></g></svg>';
+}
+
 const MINI = {
-    wind: '<svg viewBox="0 0 48 24" width="44" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path class="windflow" d="M2 6h26a4 4 0 1 0-4-4"/><path class="windflow w2" d="M2 13h36a4 4 0 1 1-4 4"/><path class="windflow w3" d="M2 20h18"/></svg>',
     rain: '<svg class="rain-ico" viewBox="0 0 40 28" width="36" height="26" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 12h20a6 6 0 0 0 .6-12A9 9 0 0 0 7 7a5 5 0 0 0 1 5z"/><line class="tiledrop" x1="12" y1="16" x2="11" y2="21"/><line class="tiledrop d2" x1="20" y1="16" x2="19" y2="21"/><line class="tiledrop d3" x1="28" y1="16" x2="27" y2="21"/></svg>'
 };
 
@@ -416,19 +460,19 @@ function renderDetails(fc, air) {
     html += tile("uv", "UV-Index",
         (isNum(uvNow) ? fmtNum(uvNow, 1) : '–') + (lv ? '<span class="word">' + lv.word + '</span>' : ''),
         isNum(uvMax) ? 'Maximum heute ' + fmtNum(uvMax, 1) : null,
-        { delay: next(), extra: '<div class="meter"><i class="st-' + (lv ? lv.st : 'none') + '" style="width:' + (isNum(uvNow) ? Math.max(3, Math.min(100, uvNow / 11 * 100)).toFixed(0) : 0) + '%"></i></div>' });
+        { delay: next(), count: isNum(uvNow) ? uvNow : null, decimals: 1, extra: '<div class="meter"><i class="st-' + (lv ? lv.st : 'none') + '" style="width:' + (isNum(uvNow) ? Math.max(3, Math.min(100, uvNow / 11 * 100)).toFixed(0) : 0) + '%"></i></div>' });
 
     html += tile("wind", "Wind",
         (isNum(c.wind_speed_10m) ? Math.round(c.wind_speed_10m) : '–') + '<small>km/h</small>',
         'Aus ' + compass(c.wind_direction_10m) + ' · Böen ' + Math.round(c.wind_gusts_10m),
-        { delay: next(), icon: MINI.wind });
+        { delay: next(), count: isNum(c.wind_speed_10m) ? Math.round(c.wind_speed_10m) : null, icon: windMini(c.wind_direction_10m) });
 
     html += tile("rain", "Regen",
         fmtMm(d.precipitation_sum[0]) + '<small>mm</small>',
         (isNum(d.precipitation_probability_max[0]) ? 'Risiko ' + d.precipitation_probability_max[0] + '&nbsp;%' : '') +
         (isNum(d.precipitation_hours && d.precipitation_hours[0]) && d.precipitation_hours[0] > 0 ? ' · ' + Math.round(d.precipitation_hours[0]) + '&nbsp;h' : '') +
         '<br>Morgen ' + fmtMm(d.precipitation_sum[1]) + '&nbsp;mm · ' + (isNum(d.precipitation_probability_max[1]) ? d.precipitation_probability_max[1] + '&nbsp;%' : '–'),
-        { delay: next(), icon: MINI.rain });
+        { delay: next(), count: isNum(d.precipitation_sum[0]) ? d.precipitation_sum[0] : null, decimals: isNum(d.precipitation_sum[0]) && d.precipitation_sum[0] >= 0.05 && d.precipitation_sum[0] < 10 ? 1 : 0, icon: MINI.rain });
 
     html += tile("sun", "Sonne",
         hhmm(d.sunset && d.sunset[0]),
@@ -438,12 +482,12 @@ function renderDetails(fc, air) {
     html += tile("plain", "Luftfeuchte",
         Math.round(c.relative_humidity_2m) + '<small>%</small>',
         'Bewölkung ' + fmtNum(c.cloud_cover, 0) + '&nbsp;%',
-        { delay: next(), icon: dropIcon(c.relative_humidity_2m) });
+        { delay: next(), count: isNum(c.relative_humidity_2m) ? Math.round(c.relative_humidity_2m) : null, icon: dropIcon(c.relative_humidity_2m) });
 
     html += tile("plain", "Luftdruck",
         fmtNum(c.pressure_msl, 0),
         'hPa · ' + (isNum(c.pressure_msl) ? (c.pressure_msl >= 1020 ? 'Hochdruck' : (c.pressure_msl <= 1005 ? 'Tiefdruck' : 'normal')) : '–'),
-        { delay: next(), icon: gaugeIcon(c.pressure_msl) });
+        { delay: next(), count: isNum(c.pressure_msl) ? Math.round(c.pressure_msl) : null, icon: gaugeIcon(c.pressure_msl) });
 
     if (air && air.current) {
         const a = air.current, al = aqiLevel(a.european_aqi);
@@ -453,7 +497,7 @@ function renderDetails(fc, air) {
             (al ? '<span class="word" style="color:' + STATUS[al.st] + '">' + al.word + '</span>' : '') +
             '<div class="meter"><i class="st-' + (al ? al.st : 'none') + '" style="width:' + xpos + '%"></i></div>',
             'PM2,5 ' + fmtNum(a.pm2_5, 0) + ' · PM10 ' + fmtNum(a.pm10, 0) + ' · O₃ ' + fmtNum(a.ozone, 0) + ' µg/m³',
-            { delay: next() });
+            { delay: next(), count: isNum(a.european_aqi) ? Math.round(a.european_aqi) : null });
 
         const chips = POLLEN.map(function (p) {
             const lvp = pollenLevel(a[p.key], p.thr);
@@ -481,7 +525,8 @@ function dModels(md, fc, ens) {
         const s = md.daily["precipitation_sum_" + m.id];
         if (!Array.isArray(s) || !isNum(s[0])) return;
         if (isNum(s[1])) tomorrow.push(s[1]);
-        chips += '<div class="mchip" style="animation-delay:' + dl(2.0 + tomorrow.length * 0.07) + 's"><span class="k">' + m.name + '</span><span class="v">' + fmtMm(s[0]) + ' / ' + (isNum(s[1]) ? fmtMm(s[1]) : '–') + '</span></div>';
+        const num = function (v) { return isNum(v) ? '<span data-count="' + v + '" data-decimals="' + (v >= 0.05 && v < 10 ? 1 : 0) + '">' + fmtMm(v) + '</span>' : '–'; };
+        chips += '<div class="mchip" style="animation-delay:' + dl(2.0 + tomorrow.length * 0.07) + 's"><span class="k">' + m.name + '</span><span class="v">' + num(s[0]) + ' / ' + num(s[1]) + '</span></div>';
     });
     if (!chips) { box.innerHTML = '<div class="note">Modellvergleich derzeit nicht verfügbar.</div>'; return; }
 
@@ -608,6 +653,8 @@ function renderAllDesign(payload) {
     renderDays(payload.fc);
     renderDetails(payload.fc, payload.air);
     dModels(payload.md, payload.fc, payload.ens);
+    startCounters(D("details"));
+    startCounters(D("models"));
 }
 
 /* ------------------------------------------------------------------ *
@@ -823,6 +870,7 @@ function initDesignApp() {
             if (!box) return;
             restartAnimations(box);
             if (box.id === "hero" && lastTemp !== null) countUp(box.querySelector(".temp"), lastTemp);
+            else startCounters(box);
         });
     }
 

@@ -48,11 +48,12 @@ function boot(opts) {
   H.check('NINA: Katastrophenschutz-Zeile, Umbrüche, Quelle', wn.includes('Katastrophenschutz · seit') && wn.includes('Rauchentwicklung.<br>Betroffen') && wn.includes('class="instr">Fenster und Türen schließen.<br>Lüftung') && wn.includes('über NINA (warnung.bund.de) · Stadt München'), wn.match(/Katastrophenschutz[^<]*/));
   const ninaUrl = sb._fetchLog.find(u => u.includes('/nina?')) || '';
   H.check('NINA: Proxy mit Koordinaten abgefragt', ninaUrl.endsWith('/nina?lat=48.137&lon=11.575'), ninaUrl);
-  H.check('Warnungen: bevorstehende mit "ab … bis …", Hinweis + Quelle', /Wetterwarnung · ab \S+ Uhr bis \S+ Uhr/.test(wn) && wn.includes('class="instr">Lose Gegenstände sichern.') && wn.includes('Quelle: Deutscher Wetterdienst · Stadt München'), wn.match(/Wetterwarnung · [^<]*/));
+  H.check('Warnungen: bevorstehende mit "ab … bis …", Hinweis + Quelle', /Wetterwarnung · ab (\S+ )?\S+ Uhr bis (\S+ )?\S+ Uhr/.test(wn) && wn.includes('class="instr">Lose Gegenstände sichern.') && wn.includes('Quelle: Deutscher Wetterdienst · Stadt München'), wn.match(/Wetterwarnung · [^<]*/));
 
   const hh = G(sb,'hourly').innerHTML;
   H.check('Stunden: 48 Spalten', (hh.match(/class="hcol/g) || []).length === 48, (hh.match(/class="hcol/g) || []).length);
   H.check('Stunden: 48 Temperaturen', (hh.match(/class="v">-?\d+°</g) || []).length === 48, (hh.match(/class="v">-?\d+°</g) || []).length);
+  H.check('Stunden: Regenstunden mit Füllstand (--p = Wahrscheinlichkeit), trockene ohne', /class="hcol[^"]* wet" style="[^"]*"><i class="fill" data-stagger="[\d.]+s" style="--p:\d+%;animation-delay:[\d.]+s"><\/i>/.test(hh) && !/class="hcol( newday)?" style="[^"]*"><i class="fill"/.test(hh), hh.match(/<i class="fill"[^>]*>/));
   H.check('Stunden: "Jetzt" dunkel, Regenstunden blau', hh.startsWith('<div class="strip"><div class="strip-inner"><div class="hcol now') && /class="hcol[^"]* wet"/.test(hh), hh.slice(0, 80));
   H.check('Stunden: "Jetzt" und Tageswechsel', hh.includes('>Jetzt<') && hh.includes('hcol newday'));
   H.check('Stunden: Ensemble-Wahrscheinlichkeiten', /class="p">\d+%/.test(hh));
@@ -72,6 +73,9 @@ function boot(opts) {
   const det = G(sb,'details').innerHTML;
   H.check('Details: 8 Kacheln (6 + Luft + Pollen)', (det.match(/class="tile /g) || []).length === 8, (det.match(/class="tile /g) || []).length);
   H.check('Details: UV-Kachel mit Stufe + Maximum', det.includes('class="tile uv"') && det.includes('UV-Index') && det.includes('mittel') && det.includes('Maximum heute'));
+  H.check('Details: Windpfeil zeigt wohin es weht (SW -> 45°)', det.includes('class="wdir" style="--ang:45deg"'), det.match(/wdir[^>]*>/));
+  H.check('Details: Zählbare Werte (UV, Wind, Regen, Feuchte, Druck, Luft) mit data-count', (det.match(/class="big" data-count="/g) || []).length === 6 && det.includes('data-count="4.3" data-decimals="1"'), (det.match(/data-count="[^"]*"/g) || []).join(','));
+  H.check('Modelle: beide Werte zählbar', (G(sb,'models').innerHTML.match(/<span data-count="/g) || []).length >= 6);
   H.check('Details: Wind-Kachel (aus SW, km/h)', det.includes('class="tile wind"') && det.includes('Aus SW') && det.includes('km/h'), det.match(/Aus [^<]*/));
   H.check('Details: Sonnen-Kachel (Untergang groß, Aufgang klein)', det.includes('class="tile sun"') && det.includes('class="big">19:05') && det.includes('Aufgang 07:12'));
   H.check('Details: Luftqualität-Meter + Wort', det.includes('Luftqualität') && det.includes('mäßig') && det.includes('class="meter"'));

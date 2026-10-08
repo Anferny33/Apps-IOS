@@ -214,7 +214,10 @@ body {
 .strip { overflow-x: auto; margin: 0 -16px; padding: 0 16px 4px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
 .strip::-webkit-scrollbar { display: none; }
 .strip-inner { display: flex; }
-.hcol { flex: 0 0 58px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; padding: 4px 0; border-radius: 12px; }
+.hcol { flex: 0 0 58px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; padding: 4px 0; border-radius: 12px; position: relative; overflow: hidden; }
+.hcol > :not(.fill) { position: relative; z-index: 1; }
+.hcol.wet { background: rgba(143,208,255,0.1); }
+.hcol .fill { position: absolute; left: 0; right: 0; bottom: 0; height: var(--p, 0%); background: rgba(143,208,255,0.32); transform-origin: center bottom; animation: aGrowY 0.9s cubic-bezier(.2,.8,.2,1) both; }
 .hcol .t { font-size: 12px; color: var(--ink-3); }
 .hcol.newday .t, .hcol.now .t { color: var(--ink); font-weight: 600; }
 .hcol .ic { width: 26px; height: 26px; }
@@ -266,6 +269,8 @@ body {
 .windflow { stroke-dasharray: 14 10; animation: windflow 1.6s linear infinite; }
 .windflow.w2 { animation-delay: 0.4s; } .windflow.w3 { animation-delay: 0.8s; }
 @keyframes windflow { to { stroke-dashoffset: -24; } }
+.wdir { transform-box: fill-box; transform-origin: center; transform: rotate(var(--ang, 0deg)); animation: swing 1.4s cubic-bezier(.34,1.56,.64,1) 0.6s both; }
+@keyframes swing { from { transform: rotate(calc(var(--ang, 0deg) - 160deg)); } to { transform: rotate(var(--ang, 0deg)); } }
 
 .pollen-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .pchip { font-size: 12px; padding: 5px 9px; border-radius: 999px; background: rgba(255,255,255,0.1); display: inline-flex; align-items: center; gap: 5px; }
