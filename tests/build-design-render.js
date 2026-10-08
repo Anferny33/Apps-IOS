@@ -3,7 +3,7 @@ const fs = require('fs');
 const r = JSON.parse(fs.readFileSync(__dirname + '/render-design.json', 'utf8'));
 let h = fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
 const css = fs.readFileSync(require('path').join(__dirname, '..', 'design.css'), 'utf8');
-h = h.replace('<link rel="stylesheet" href="design.css">', '<style>' + css + '</style>');
+h = h.replace(/<link rel="stylesheet" href="design\.css[^"]*">/, '<style>' + css + '</style>');
 h = h.replace(/<script[\s\S]*?<\/script>\s*/g, '');
 h = h.replace('<body class="theme-partly-day">', '<body class="' + r.theme + '">');
 
