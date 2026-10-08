@@ -974,6 +974,124 @@ function gaugeIcon(p) {
         '<path class="track" d="M4 26 A20 20 0 0 1 44 26"/><line class="needle" x1="24" y1="26" x2="24" y2="9"/></svg>';
 }
 
+/* ---- Kacheln entfalten: Instrument-Felder für Wind, Regen, Sonne ---- */
+
+let openTile = null;
+function openTileKey() { return openTile; }
+
+/* Inhaltsblock eines Feldes mit gestaffelter Einblendung; data-stagger hält die Staffelung beim Neustart */
+function tpItem(i, inner) {
+    const d = (i * 0.08).toFixed(2) + 's';
+    return '<div class="tp-item" data-stagger="' + d + '" style="animation-delay:' + d + '">' + inner + '</div>';
+}
+
+function tilePanelHtml(key, inner) {
+    return '<div class="tpanel tp-' + key + '" data-for="' + key + '"><div class="tpanel-in"><div class="tpanel-body">' + inner + '</div></div></div>';
+}
+
+/* Wind: Kompass (Nadel zeigt, wohin der Wind weht) plus Böenverlauf der nächsten 12 Stunden */
+function windPanelHtml(fc) {
+    const c = fc.current, h = fc.hourly;
+    const dir = c.wind_direction_10m;
+    const ang = isNum(dir) ? Math.round((dir + 180) % 360) : 0;
+    let ticks = "";
+    for (let a = 0; a < 360; a += 45) {
+        const major = a % 90 === 0, r1 = major ? 44 : 47, rad = a * Math.PI / 180;
+        ticks += '<line' + (major ? ' class="major"' : '') + ' x1="' + (70 + r1 * Math.sin(rad)).toFixed(1) + '" y1="' + (70 - r1 * Math.cos(rad)).toFixed(1) + '" x2="' + (70 + 52 * Math.sin(rad)).toFixed(1) + '" y2="' + (70 - 52 * Math.cos(rad)).toFixed(1) + '"/>';
+    }
+    const letters = [["N", 70, 12], ["O", 128, 74], ["S", 70, 136], ["W", 12, 74]].map(function (l) {
+        return '<text x="' + l[1] + '" y="' + l[2] + '" text-anchor="middle">' + l[0] + '</text>';
+    }).join('');
+    const compassSvg = '<svg class="compass" viewBox="0 0 140 140" aria-hidden="true">' +
+        '<circle class="ring" cx="70" cy="70" r="52"/>' + ticks + letters +
+        /* Nadelgruppe symmetrisch um 70/70, damit sie um die Mitte dreht (transform-box: fill-box) */
+        '<g class="needle" style="--ang:' + ang + 'deg"><path class="tip" d="M70 24l7 26h-14z"/><path class="tail" d="M70 116l-5-20h10z"/><circle class="hub" cx="70" cy="70" r="4"/></g>' +
+        '</svg>';
+
+    const w = hourlyWindow(fc, 12);
+    let maxG = 20, bars = "", labels = "", peak = null;
+    for (let i = w.start; i < w.end; i++) { const g = h.wind_gusts_10m ? h.wind_gusts_10m[i] : null; if (isNum(g)) maxG = Math.max(maxG, g); }
+    for (let i = w.start; i < w.end; i++) {
+        const v = h.wind_speed_10m ? h.wind_speed_10m[i] : null, g = h.wind_gusts_10m ? h.wind_gusts_10m[i] : null;
+        if (isNum(g) && (peak === null || g > peak.g)) peak = { g: g, t: h.time[i] };
+        bars += '<span class="gh"><i class="w" style="height:' + (isNum(v) ? Math.max(3, Math.round(v / maxG * 100)) : 0) + '%"></i><i class="g" style="height:' + (isNum(g) ? Math.max(3, Math.round(g / maxG * 100)) : 0) + '%"></i></span>';
+        labels += '<span>' + ((i - w.start) % 3 === 0 ? hhmm(h.time[i]).slice(0, 2) : '') + '</span>';
+    }
+    const sentence = peak && peak.g >= 20 ? 'Böen bis ' + Math.round(peak.g) + ' km/h gegen ' + parseInt(peak.t.slice(11, 13), 10) + ' Uhr' : 'Ruhig, Böen unter 20 km/h';
+    return tpItem(0, '<div class="wind-wrap">' + compassSvg +
+            '<div class="wind-now"><div class="big">' + (isNum(c.wind_speed_10m) ? Math.round(c.wind_speed_10m) : '–') + '<small>km/h</small></div>' +
+            '<div class="sub">Böen ' + (isNum(c.wind_gusts_10m) ? Math.round(c.wind_gusts_10m) : '–') + ' km/h<br>aus ' + compass(dir) + '</div></div></div>') +
+        tpItem(1, '<div class="gusts">' + bars + '</div><div class="gust-axis">' + labels + '</div>') +
+        tpItem(2, '<div class="tp-note">' + sentence + ' · hell Wind, dunkel Böen</div>');
+}
+
+/* Regen: die nächsten 24 Stunden als Balken, Wahrscheinlichkeit alle drei Stunden, Tagessummen */
+function rainPanelHtml(fc) {
+    const h = fc.hourly, d = fc.daily;
+    const w = hourlyWindow(fc, 24);
+    let maxV = 1, bars = "", labels = "";
+    for (let i = w.start; i < w.end; i++) if (h.precipitation && isNum(h.precipitation[i])) maxV = Math.max(maxV, h.precipitation[i]);
+    for (let i = w.start; i < w.end; i++) {
+        const v = h.precipitation && isNum(h.precipitation[i]) ? h.precipitation[i] : 0;
+        bars += '<i class="' + (v > 0 ? '' : 'z ') + 'rb" style="height:' + (v > 0 ? Math.max(6, Math.round(v / maxV * 100)) : 3) + '%"></i>';
+        if ((i - w.start) % 3 === 0) {
+            const prob = lastData ? hourProb(lastData, i) : (h.precipitation_probability && isNum(h.precipitation_probability[i]) ? h.precipitation_probability[i] : 0);
+            labels += '<span><b>' + hhmm(h.time[i]).slice(0, 2) + '</b>' + Math.round(prob) + ' %</span>';
+        }
+    }
+    const today = d && isNum(d.precipitation_sum[0]) ? d.precipitation_sum[0] : null;
+    const hours = d && d.precipitation_hours && isNum(d.precipitation_hours[0]) ? Math.round(d.precipitation_hours[0]) : 0;
+    const tomorrow = d && isNum(d.precipitation_sum[1]) ? d.precipitation_sum[1] : null;
+    const sentence = (today === null ? 'Heute –' : (today < 0.05 ? 'Heute trocken' : 'Heute ' + fmtMm(today) + ' mm' + (hours > 0 ? ' in ' + hours + ' Regenstunde' + (hours === 1 ? '' : 'n') : ''))) +
+        ' · Morgen ' + (tomorrow === null ? '–' : fmtMm(tomorrow) + ' mm');
+    return tpItem(0, '<div class="rain24">' + bars + '</div><div class="rain-axis">' + labels + '</div>') +
+        tpItem(1, '<div class="tp-note">' + sentence + '</div>');
+}
+
+/* Sonne: großer Halbkreisbogen mit Sonnenstand, Lichtzeiten und Vergleich zu morgen */
+function sunPanelHtml(fc) {
+    const c = fc.current, d = fc.daily;
+    const rise = d && d.sunrise ? d.sunrise[0] : null, set = d && d.sunset ? d.sunset[0] : null;
+    const now = minutesOf(c.time), r = minutesOf(rise), s = minutesOf(set);
+    let p = 0, night = true;
+    if (now !== null && r !== null && s !== null && s > r) { p = Math.max(0, Math.min(1, (now - r) / (s - r))); night = p <= 0 || p >= 1; }
+    const path = 'M20 150 A140 140 0 0 1 300 150';
+    const stops = [0, 0.25, 0.5, 0.75, 1].map(function (k, i) { return '--c' + i + ':' + sunColor(p * k); }).join(';');
+    const svg = '<svg class="sunbig" viewBox="0 0 320 172" aria-hidden="true" style="--p:' + Math.round(p * 100) + ';--ang:' + Math.round(p * 180) + 'deg;' + stops + '">' +
+        '<line class="horizon" x1="10" y1="150" x2="310" y2="150"/>' +
+        '<path class="track" d="' + path + '" fill="none" stroke-width="4" stroke-linecap="round"/>' +
+        (p > 0 ? '<path class="done" pathLength="100" d="' + path + '" fill="none" stroke-width="4" stroke-linecap="round"/>' : '') +
+        '<g class="sunpos"><circle class="dot" cx="20" cy="150" r="9" stroke-width="2.4"/></g>' +
+        '<text class="tl" x="20" y="168" text-anchor="middle">' + hhmm(rise) + '</text><text class="tl" x="300" y="168" text-anchor="middle">' + hhmm(set) + '</text>' +
+        (night ? '<text class="tn" x="160" y="100" text-anchor="middle">Nacht</text>' : '') + '</svg>';
+    const dl0 = d && d.daylight_duration ? d.daylight_duration[0] : null, dl1 = d && d.daylight_duration ? d.daylight_duration[1] : null;
+    const sun0 = d && d.sunshine_duration ? d.sunshine_duration[0] : null;
+    let cmp = '–';
+    if (isNum(dl0) && isNum(dl1)) {
+        const diff = dl1 - dl0;
+        cmp = Math.abs(diff) < 30 ? 'Morgen gleich lang' : 'Morgen ' + Math.round(Math.abs(diff) / 60) + ' min ' + (diff > 0 ? 'länger' : 'kürzer');
+    }
+    const fact = function (k, v) { return '<div class="fact"><span>' + k + '</span>' + v + '</div>'; };
+    return tpItem(0, svg) +
+        tpItem(1, '<div class="facts">' + fact('Tageslänge', fmtDuration(dl0)) + fact('Sonnenschein', fmtDuration(sun0)) + fact('Vergleich', cmp) + '</div>');
+}
+
+function setTileState(key, open) {
+    const box = D("details");
+    if (!box || !box.querySelector) return;
+    const tile = box.querySelector('.tile[data-tile="' + key + '"]'), panel = box.querySelector('.tpanel[data-for="' + key + '"]');
+    if (tile && tile.classList) { tile.classList.toggle("open", open); if (tile.setAttribute) tile.setAttribute("aria-expanded", open ? "true" : "false"); }
+    if (panel && panel.classList) { panel.classList.toggle("open", open); if (open) restartAnimations(panel); }
+}
+
+/* Öffnen, schließen, wechseln; höchstens ein Feld ist offen */
+function toggleTile(key) {
+    if (openTile === key) { setTileState(key, false); openTile = null; return; }
+    if (openTile) setTileState(openTile, false);
+    openTile = key;
+    setTileState(key, true);
+}
+
 function renderDetails(fc, air) {
     const box = D("details");
     unskel(box);

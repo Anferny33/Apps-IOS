@@ -99,6 +99,14 @@ function boot(opts) {
   sb.setPause(60);
   H.check('Regenpause: Wechsel auf 60 min, gespeichert', G(sb,'nowcast').innerHTML.includes('Nächste trockene Phase: ab ca. 16:15, mindestens bis 18:15.') && G(sb,'nowcast').innerHTML.includes('class="pchip on" data-min="60"') && sb._store['wetter:pause'] === '60', G(sb,'nowcast').innerHTML.slice(G(sb,'nowcast').innerHTML.indexOf('pause'), G(sb,'nowcast').innerHTML.indexOf('pause') + 300));
   sb.setPause(30);
+  // Kacheln entfalten: Instrument-Bauer und Zustand
+  const wp = sb.windPanelHtml(fc), rp = sb.rainPanelHtml(fc), spn = sb.sunPanelHtml(fc);
+  H.check('Kacheln: Wind-Feld mit Kompassnadel 45°, Böensatz, 12 Doppelbalken', wp.includes('class="needle" style="--ang:45deg"') && wp.includes('Böen bis 36 km/h gegen 14 Uhr') && (wp.match(/<span class="gh">/g) || []).length === 12 && wp.includes('>N<') && wp.includes('aus SW'), wp.slice(0, 200));
+  H.check('Kacheln: Regen-Feld mit 24 Balken, Wahrscheinlichkeiten, Satz', (rp.match(/<i class="(z )?rb"/g) || []).length === 24 && rp.includes('Heute trocken · Morgen 3,4 mm') && (rp.match(/\d+ %/g) || []).length === 8, rp.slice(0, 200));
+  H.check('Kacheln: Sonnen-Feld mit Bogen 59 %, Zeiten und Fakten', spn.includes('--p:59') && spn.includes('>07:12<') && spn.includes('>19:05<') && spn.includes('Tageslänge</span>11 h 53 min') && spn.includes('Sonnenschein</span>6 h 00 min') && spn.includes('Morgen gleich lang'), spn.slice(0, 200));
+  sb.toggleTile('wind');
+  const t1 = sb.openTileKey(); sb.toggleTile('wind'); const t2 = sb.openTileKey(); sb.toggleTile('sun'); sb.toggleTile('rain'); const t3 = sb.openTileKey(); sb.toggleTile('rain');
+  H.check('Kacheln: öffnen, schließen, wechseln', t1 === 'wind' && t2 === null && t3 === 'rain' && sb.openTileKey() === null, [t1, t2, t3].join(','));
   // Stufe 2: Ziehen vom Griff. Harness ohne Touch/Layout → Zustandsmaschine direkt, columnAt als Stub
   const colStub = (i, sel) => ({ classList: { contains: c => c === 'sel' && sel }, getAttribute: a => a === 'data-i' ? i : null });
   sb.selectHour(20);
