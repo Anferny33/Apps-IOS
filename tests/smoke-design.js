@@ -44,7 +44,8 @@ function boot(opts) {
   const dwdUrl = sb._fetchLog.find(u => u.includes('maps.dwd.de')) || '';
   H.check('Warnungen: DWD-WFS mit Punkt in Breite/Länge-Reihenfolge abgefragt', decodeURIComponent(dwdUrl).replace(/\+/g, ' ').includes('INTERSECTS(THE_GEOM,POINT(48.137 11.575))') && dwdUrl.includes('typeName=dwd%3AWarnungen_Gemeinden'), decodeURIComponent(dwdUrl));
   H.check('Warnungen: Feld sichtbar, 3 Einträge (2 DWD aktiv + 1 NINA; DWD-Doppelung aus NINA weg)', !G(sb,'warnings').classList.contains('hidden') && (wn.match(/<details class="field warn/g) || []).length === 3 && !wn.includes('FROST'), wn.slice(0, 200));
-  H.check('Warnungen: Stufe 2 zuerst, dabei NINA vor DWD', /^<details class="field warn lvl-2 nina"/.test(wn) && wn.indexOf('lvl-2 nina') < wn.indexOf('lvl-2"') && wn.indexOf('lvl-2"') < wn.indexOf('lvl-1'), wn.slice(0, 60));
+  H.check('Warnungen: Felder blenden gestaffelt ein, Dreieck wackelt, Megafon sendet Wellen', (wn.match(/ a-up" style="animation-delay:/g) || []).length === 3 && wn.includes('<svg class="wobble"') && wn.includes('<svg class="wave"') && wn.includes('class="w1"'), wn.slice(0, 120));
+  H.check('Warnungen: Stufe 2 zuerst, dabei NINA vor DWD', /^<details class="field warn lvl-2 nina a-up"/.test(wn) && wn.indexOf('lvl-2 nina') < wn.indexOf('lvl-2 a-up"') && wn.indexOf('lvl-2 a-up"') < wn.indexOf('lvl-1'), wn.slice(0, 60));
   H.check('NINA: Katastrophenschutz-Zeile, Umbrüche, Quelle', wn.includes('Katastrophenschutz · seit') && wn.includes('Rauchentwicklung.<br>Betroffen') && wn.includes('class="instr">Fenster und Türen schließen.<br>Lüftung') && wn.includes('über NINA (warnung.bund.de) · Stadt München'), wn.match(/Katastrophenschutz[^<]*/));
   const ninaUrl = sb._fetchLog.find(u => u.includes('/nina?')) || '';
   H.check('NINA: Proxy mit Koordinaten abgefragt', ninaUrl.endsWith('/nina?lat=48.137&lon=11.575'), ninaUrl);
@@ -65,6 +66,7 @@ function boot(opts) {
 
   const dd = G(sb,'days').innerHTML;
   H.check('Tage: 14 Zeilen', (dd.match(/class="drow/g) || []).length === 14, (dd.match(/class="drow/g) || []).length);
+  H.check('Tage: weitere 7 in aufklappbarem Container, ohne eigene Einblend-Verzögerung', /<div class="more-wrap"><div class="more-inner">(<div class="drow[^"]* more">[\s\S]*?){7}<\/div><\/div><button/.test(dd), dd.indexOf('more-wrap'));
   H.check('Tage: 7 sichtbar, 7 aufklappbar', (dd.match(/ more"/g) || []).length === 7 && dd.includes('Weitere 7 Tage'), (dd.match(/ more"/g) || []).length);
   H.check('Tage: Heute mit Jetzt-Punkt', /Heute[\s\S]*?<b style="left:/.test(dd));
   H.check('Tage: Spannen auf gemeinsamer Skala', (dd.match(/<i style="left:/g) || []).length === 14);

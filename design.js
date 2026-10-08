@@ -187,7 +187,7 @@ const UI = {
     layers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>',
     alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5L2.5 20h19L12 3.5z"/><path d="M12 10v4.5"/><circle cx="12" cy="17.3" r="0.6" fill="currentColor"/></svg>',
     chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
-    megaphone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10v4a1 1 0 0 0 1 1h3l6 4V5L7 9H4a1 1 0 0 0-1 1z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19.5 6a9 9 0 0 1 0 12"/></svg>'
+    megaphone: '<svg class="wave" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10v4a1 1 0 0 0 1 1h3l6 4V5L7 9H4a1 1 0 0 0-1 1z"/><path class="w1" d="M16.5 8.5a5 5 0 0 1 0 7"/><path class="w2" d="M19.5 6a9 9 0 0 1 0 12"/></svg>'
 };
 
 /* Statusfarben für helle Flächen (Wort neben dem Wert) */
@@ -339,26 +339,30 @@ function renderDays(fc) {
     const span = Math.max(1, tHi - tLo);
     const cur = fc.current.temperature_2m;
     const SHOWN = 7;
-    let rows = "";
+    let rows = "", moreRows = "";
     for (let i = 0; i < n; i++) {
         const lo = d.temperature_2m_min[i], hi = d.temperature_2m_max[i];
         const prob = d.precipitation_probability_max[i];
         const code = d.weather_code[i];
         const left = (lo - tLo) / span * 100, width = Math.max(3, (hi - lo) / span * 100);
         const mood = isWetCode(code) || (isNum(prob) && prob >= 50) ? ' wet' : (code === 0 || code === 1 ? ' fair' : '');
-        const delay = dl(1.4 + Math.min(i, SHOWN) * 0.05);
-        rows +=
-            '<div class="drow' + mood + (i >= SHOWN ? ' more' : '') + '" style="animation-delay:' + delay + 's">' +
+        const more = i >= SHOWN;
+        /* Weitere Tage blenden erst beim Aufklappen ein (Staffelung im Stylesheet), ihre Spannen wachsen dann */
+        const delay = more ? null : dl(1.4 + Math.min(i, SHOWN) * 0.05);
+        const row =
+            '<div class="drow' + mood + (more ? ' more' : '') + '"' + (more ? '' : ' style="animation-delay:' + delay + 's"') + '>' +
                 '<div class="n">' + (i === 0 ? "Heute" : weekday(d.time[i])) + '</div>' +
                 svgIcon(code, 1, "ic") +
                 '<div class="pp">' + (isNum(prob) ? Math.round(prob) + '%' : '') + '</div>' +
                 '<div class="lo">' + Math.round(lo) + '°</div>' +
-                '<div class="bar"><i style="left:' + left.toFixed(1) + '%;width:' + width.toFixed(1) + '%;animation-delay:' + (+delay + 0.2).toFixed(2) + 's"></i>' +
+                '<div class="bar"><i style="left:' + left.toFixed(1) + '%;width:' + width.toFixed(1) + '%;animation-delay:' + (more ? '0.25' : (+delay + 0.2).toFixed(2)) + 's"></i>' +
                     (i === 0 && isNum(cur) ? '<b style="left:' + Math.max(0, Math.min(100, (cur - tLo) / span * 100)).toFixed(1) + '%"></b>' : '') +
                 '</div>' +
                 '<div class="hi">' + Math.round(hi) + '°</div>' +
             '</div>';
+        if (more) moreRows += row; else rows += row;
     }
+    if (moreRows) rows += '<div class="more-wrap"><div class="more-inner">' + moreRows + '</div></div>';
     if (n > SHOWN) {
         rows += '<button type="button" class="days-more" id="daysMore"><span id="daysMoreLabel">Weitere ' + (n - SHOWN) + ' Tage</span>' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>';
@@ -595,7 +599,7 @@ function renderWarnings(dwd, nina) {
     const list = mergeWarnings(dwd, nina);
     if (!list.length) { box.classList.add("hidden"); box.innerHTML = ""; return; }
     box.classList.remove("hidden");
-    box.innerHTML = list.map(function (w) {
+    box.innerHTML = list.map(function (w, i) {
         const isNina = w.source === "nina";
         let meta;
         if (isNina) {
@@ -607,9 +611,10 @@ function renderWarnings(dwd, nina) {
         const src = isNina
             ? 'Quelle: ' + escHtml(w.providerLabel) + ' über NINA (warnung.bund.de)' + (w.area ? ' · ' + escHtml(w.area) : '')
             : 'Quelle: Deutscher Wetterdienst' + (w.area ? ' · ' + escHtml(w.area) : '');
-        return '<details class="field warn lvl-' + w.level + (isNina ? ' nina' : '') + '">' +
+        /* Felder gleiten nacheinander ein; das Dreieck wackelt einmal, das Megafon sendet Wellen */
+        return '<details class="field warn lvl-' + w.level + (isNina ? ' nina' : '') + ' a-up" style="animation-delay:' + dl(0.55 + i * 0.08) + 's">' +
             '<summary>' +
-                '<span class="ico">' + (isNina ? UI.megaphone : UI.alert) + '</span>' +
+                '<span class="ico">' + (isNina ? UI.megaphone : UI.alert.replace('<svg ', '<svg class="wobble" ')) + '</span>' +
                 '<span class="txt"><b>' + escHtml(w.headline) + '</b><span>' + escHtml(meta) + '</span></span>' +
                 '<span class="chev">' + UI.chevron + '</span>' +
             '</summary>' +
