@@ -308,6 +308,16 @@ footer a { color: var(--ink); }
 .insight .ico svg { animation: bob 2.8s ease-in-out 1.2s infinite; }
 @keyframes bob { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-10deg); } }
 
+/* Bei Regen: der Schirm spannt sich auf (aus dem schmalen, geschlossenen Zustand),
+   danach fällt leichter Regen darauf, in Endlosschleife */
+.insight .ico svg.umb { animation: none; overflow: visible; }
+.umb .umb-canopy { transform-box: fill-box; transform-origin: 50% 100%; animation: umbOpen 1s cubic-bezier(.2,.8,.2,1) 0.9s both; }
+@keyframes umbOpen { 0% { transform: scale(0.12, 1.3); } 70% { transform: scale(1.08, 0.94); } 100% { transform: scale(1, 1); } }
+.umb .umb-drops line { stroke: var(--rain-ink); opacity: 0; animation: umbRain 1.4s linear 2.1s infinite; }
+.umb .umb-drops line:nth-child(2) { animation-delay: 2.55s; }
+.umb .umb-drops line:nth-child(3) { animation-delay: 3s; }
+@keyframes umbRain { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: 1; } 75% { opacity: 1; } 100% { transform: translateY(8px); opacity: 0; } }
+
 /* ---------- Mikroanimationen in den Kacheln ---------- */
 .windflow { stroke-dasharray: 14 10; animation: windflow 1.6s linear infinite; }
 .windflow.w2 { animation-delay: 0.4s; } .windflow.w3 { animation-delay: 0.8s; }
