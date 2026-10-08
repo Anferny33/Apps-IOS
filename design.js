@@ -525,6 +525,56 @@ function activityNote(reason) {
     return "In den nächsten 48 Stunden passt keine Zeit" + (reason && FAIL_WORDS[reason] ? ", " + FAIL_WORDS[reason] : "") + ".";
 }
 
+let activityId = "walk";
+
+function loadActivity() {
+    try {
+        const v = localStorage.getItem("wetter:activity");
+        if (v && activityById(v)) activityId = v;
+    } catch (e) { /* kein Speicher */ }
+}
+
+/* Spur unter den Spalten: Klassen auf den Zellen setzen, ohne die Leiste neu zu rendern */
+function updateActTrack(windows) {
+    const box = D("hourly");
+    if (!box || !box.querySelectorAll) return;
+    const cells = Array.prototype.slice.call(box.querySelectorAll(".act-track i"));
+    if (!cells.length) return;
+    const inWin = {}, first = {}, last = {};
+    windows.forEach(function (w) { for (let gi = w.start; gi <= w.end; gi++) inWin[gi] = true; first[w.start] = true; last[w.end] = true; });
+    cells.forEach(function (c) {
+        const i = c.getAttribute("data-i");
+        const on = i !== null && inWin[i];
+        c.className = on ? "on" + (first[i] ? " first" : "") + (last[i] ? " last" : " cont") : "";
+    });
+}
+
+function dActivity() {
+    const field = D("activityField"), box = D("activity");
+    if (!field || !box) return;
+    if (!lastData || !lastData.fc || !lastData.fc.hourly) { field.classList.add("hidden"); return; }
+    field.classList.remove("hidden");
+    const act = activityById(activityId) || ACTIVITIES[0];
+    const res = activityWindows(lastData, act);
+    const chips = ACTIVITIES.map(function (a) {
+        return '<button type="button" class="act-chip' + (a.id === act.id ? ' on' : '') + '" data-act="' + a.id + '">' + a.name + '</button>';
+    }).join('');
+    const list = res.windows.slice(0, 3).map(function (w, i) {
+        return '<button type="button" class="act-win" data-i="' + w.start + '" style="animation-delay:' + dl(1.1 + i * 0.08) + 's"><b>' + w.when + '</b><span>' + w.facts + '</span></button>';
+    }).join('');
+    box.innerHTML = '<div class="act-chips">' + chips + '</div>' +
+        (list ? '<div class="act-list">' + list + '</div>' : '') +
+        '<div class="note">' + (list ? 'Antippen zeigt die Stunde oben im Hero.' : activityNote(res.reason)) + '</div>';
+    updateActTrack(res.windows);
+}
+
+function setActivity(id) {
+    if (!activityById(id)) return;
+    activityId = id;
+    try { localStorage.setItem("wetter:activity", id); } catch (e) { /* kein Speicher */ }
+    dActivity();
+}
+
 /* ---- Zeitreise Stufe 2: Ziehen vom Griff (markierte Spalte) ---- */
 
 const scrub = { pending: false, active: false, x0: 0, y0: 0, lastX: 0, lastY: 0, raf: null, endedAt: 0 };
@@ -653,9 +703,11 @@ function dHourly(fc, ens) {
 
     const data = lastData && lastData.fc === fc ? lastData : prepareData(fc, ens);
 
-    let cols = "", prevDay = null;
+    let cols = "", cells = "", prevDay = null;
     for (let i = 0; i < n; i++) {
         const gi = w.start + i;
+        /* Rausgehen-Spur: eine Zelle je Spalte, die Spalte „Jetzt" ohne Index */
+        cells += i === 0 ? '<i></i>' : '<i data-i="' + gi + '"></i>';
         const t = h.time[gi];
         const v = h.temperature_2m[gi];
         const prob = hourProb(data, gi);
@@ -674,7 +726,7 @@ function dHourly(fc, ens) {
                 '<div class="p">' + Math.round(prob) + '%</div>' +
             '</div>';
     }
-    box.innerHTML = '<div class="strip"><div class="strip-inner">' + cols + '</div></div>';
+    box.innerHTML = '<div class="strip"><div class="strip-inner">' + cols + '</div><div class="act-track">' + cells + '</div></div>';
 }
 
 function dNowcast(fc) {
@@ -1000,11 +1052,11 @@ function clearRendered() {
     const hero = D("hero");
     unskel(hero);
     hero.innerHTML = '<div class="meta"><span></span><span>Keine Daten</span></div><div class="main"><div class="temp">–°</div></div>';
-    ["warnings", "insight", "nowcastCard"].forEach(function (id) {
+    ["warnings", "insight", "nowcastCard", "activityField"].forEach(function (id) {
         const el = D(id);
         if (!el) return;
         el.classList.add("hidden");
-        if (id !== "nowcastCard") el.innerHTML = "";
+        if (id !== "nowcastCard" && id !== "activityField") el.innerHTML = "";
     });
     ["hourly", "days", "details", "models"].forEach(function (id) {
         const el = D(id);
@@ -1034,6 +1086,7 @@ function renderAllDesign(payload) {
     renderHero(payload.fc);
     renderWarnings(payload.warn, payload.nina);
     dHourly(payload.fc, payload.ens);
+    dActivity();
     dNowcast(payload.fc);
     renderDays(payload.fc);
     renderDetails(payload.fc, payload.air);
@@ -1275,7 +1328,7 @@ function initDesignApp() {
             if (scrub.endedAt && Date.now() - scrub.endedAt < 300) return;   /* Klick nach Maus-Ziehen */
             /* Zeitreise: Jetzt-Knopf im Hero, Spalte mit Stundenindex, Spalte „Jetzt" */
             if (t.closest("#heroNow")) { clearHour(); return; }
-            const col = t.closest(".hcol");
+            const col = t.closest(".hcol, .act-track i");
             if (col) {
                 const i = col.getAttribute("data-i");
                 if (i === null) clearHour(); else selectHour(parseInt(i, 10));
@@ -1287,6 +1340,25 @@ function initDesignApp() {
             restartAnimations(box);
             if (box.id === "hero" && lastTemp !== null) countUp(box.querySelector(".temp"), lastTemp);
             else startCounters(box);
+        });
+    }
+
+    /* Rausgehen: Chips wechseln die Aktivität, ein Fenster springt per Zeitreise auf seine Startstunde */
+    function initActivity() {
+        const box = D("activity");
+        if (!box || !box.addEventListener) return;
+        box.addEventListener("click", function (ev) {
+            const t = ev.target;
+            if (!t || !t.closest) return;
+            const chip = t.closest(".act-chip");
+            if (chip) { setActivity(chip.getAttribute("data-act")); return; }
+            const win = t.closest(".act-win");
+            if (!win) return;
+            const gi = parseInt(win.getAttribute("data-i"), 10);
+            selectHour(gi);
+            const hourly = D("hourly");
+            const col = hourly && hourly.querySelector ? hourly.querySelector('.hcol[data-i="' + gi + '"]') : null;
+            if (col && col.scrollIntoView) col.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
         });
     }
 
@@ -1340,6 +1412,8 @@ function initDesignApp() {
     initParticles();
     initDesignToggle();
     initReplay();
+    loadActivity();
+    initActivity();
     initScrub();
 
     const cached = window.PREVIEW_LOC || loadPos();

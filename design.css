@@ -235,6 +235,18 @@ body {
 .strip { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .strip.scrubbing { cursor: grabbing; }
 .strip.scrubbing .hcol.sel { transform: translateY(-2px) scale(1.04); box-shadow: 0 6px 16px rgba(0,0,0,0.3); }
+.act-track { display: flex; margin-top: 4px; height: 4px; padding: 0 2px; }
+.act-track i { flex: 0 0 58px; height: 4px; border-radius: 2px; background: transparent; transition: background 0.3s; }
+.act-track i.on { background: rgba(143,208,143,0.85); }
+.act-track i.on:not(.first) { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.act-track i.on.cont { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.act-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.act-chip { padding: 7px 12px; border: 1px solid rgba(255,255,255,0.2); border-radius: 999px; background: rgba(255,255,255,0.1); color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; transition: background 0.3s; }
+.act-chip.on { background: rgba(255,255,255,0.28); border-color: rgba(255,255,255,0.4); font-weight: 600; }
+.act-list { display: flex; flex-direction: column; gap: 6px; }
+.act-win { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 10px 12px; border: 0; border-radius: 12px; background: rgba(143,208,143,0.16); color: var(--ink); font: inherit; cursor: pointer; animation: fadeUp 0.5s ease both; }
+.act-win b { font-size: 15px; font-weight: 600; }
+.act-win span { font-size: 13px; color: var(--ink-2); }
 
 /* ---------- Nowcast ---------- */
 .nc-lead { font-size: 15px; font-weight: 500; margin-bottom: 12px; }

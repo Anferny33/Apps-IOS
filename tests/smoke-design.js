@@ -64,6 +64,13 @@ function boot(opts) {
   H.check('Rausgehen: Fenster über Mitternacht', run.windows[1] && run.windows[1].when === 'Heute 22 bis Morgen 4 Uhr' && run.windows[1].facts.startsWith('4°'), run.windows[1] && run.windows[1].when);
   const none = sb.activityWindows(sb.lastRendered(), { id: 'x', name: 'x', minH: 1, feel: [40, 50], prob: 30, light: 'any' });
   H.check('Rausgehen: kein Fenster mit häufigstem Grund', none.windows.length === 0 && none.reason === 'kalt' && sb.activityNote('kalt').includes('meist zu kalt'), JSON.stringify(none));
+  H.check('Rausgehen: Spur mit 48 Zellen in der Leiste, 47 mit data-i', (G(sb,'hourly').innerHTML.match(/<div class="act-track">/g) || []).length === 1 && (G(sb,'hourly').innerHTML.match(/<i data-i="\d+"><\/i>/g) || []).length === 47 && G(sb,'hourly').innerHTML.includes('<div class="act-track"><i></i><i data-i="15"></i>'), G(sb,'hourly').innerHTML.slice(G(sb,'hourly').innerHTML.indexOf('act-track'), G(sb,'hourly').innerHTML.indexOf('act-track') + 80));
+  const act = G(sb,'activity').innerHTML;
+  H.check('Rausgehen: vier Chips, Spaziergang aktiv, drei Fenster mit Startindex', (act.match(/class="act-chip( on)?" data-act=/g) || []).length === 4 && act.includes('class="act-chip on" data-act="walk"') && act.includes('<button type="button" class="act-win" data-i="15"') && act.includes('<b>Heute 15 bis 21 Uhr</b><span>10°, kaum Regen, wenig Wind</span>') && (act.match(/class="act-win"/g) || []).length === 3 && !G(sb,'activityField').classList.contains('hidden'), act.slice(0, 300));
+  sb.setActivity('sit');
+  const act2 = G(sb,'activity').innerHTML;
+  H.check('Rausgehen: Wechsel auf Draußen sitzen, Wahl gespeichert', act2.includes('class="act-chip on" data-act="sit"') && act2.includes('<b>Morgen 9 bis 11 Uhr</b>') && sb._store['wetter:activity'] === 'sit', act2.slice(0, 200));
+  sb.setActivity('walk');
   // Stufe 2: Ziehen vom Griff. Harness ohne Touch/Layout → Zustandsmaschine direkt, columnAt als Stub
   const colStub = (i, sel) => ({ classList: { contains: c => c === 'sel' && sel }, getAttribute: a => a === 'data-i' ? i : null });
   sb.selectHour(20);
@@ -214,6 +221,7 @@ function boot(opts) {
   const idx = fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
   const rad = fs.readFileSync(require('path').join(__dirname, '..', 'radar.html'), 'utf8');
   H.check('Shell: Tab-Pille und Design-Schleier in index.html und radar.html', [idx, rad].every(h => h.includes('<span class="tab-ink"') && h.includes('id="designVeil"')));
+  H.check('Shell: Rausgehen-Feld in index.html', idx.includes('id="activityField"') && idx.includes('id="activity"'));
   H.check('Shell: Versions-Query 20261008n an allen Asset-Links', (idx.match(/\?v=20261008n"/g) || []).length === 4 && (rad.match(/\?v=20261008n"/g) || []).length === 2 && fs.readFileSync(require('path').join(__dirname, '..', 'klassisch.html'), 'utf8').includes('wetter-core.js?v=20261008n"'), (idx.match(/\?v=\w+"/g) || []).join(','));
 
   if (process.env.DUMP) {
