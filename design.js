@@ -93,6 +93,28 @@ function introElapsed() {
 }
 function dl(seconds) { return Math.max(0, seconds - introElapsed()).toFixed(2); }
 
+/* Antippen einer Kachel oder eines Feldes startet dessen Einmal-Animationen neu
+   (Einblenden, Sonne/Wolke, Bogen, Zeiger, Balken). Dauerläufer wie Windlinien,
+   Regentropfen oder Sonnenstrahlen laufen ungestört weiter. */
+function restartAnimations(root) {
+    if (typeof getComputedStyle !== "function" || !root.querySelectorAll) return;
+    const nodes = [root].concat(Array.prototype.slice.call(root.querySelectorAll("*"))).filter(function (el) {
+        const cs = getComputedStyle(el);
+        if (!cs.animationName || cs.animationName === "none") return false;
+        return !cs.animationIterationCount.split(",").some(function (v) { return v.trim() === "infinite"; });
+    });
+    nodes.forEach(function (el) {
+        if (el.style.animationDelay) el.style.animationDelay = "0s";   /* Staffelung vom ersten Laden nicht erneut abwarten */
+        el.style.animation = "none";
+    });
+    /* Ein Reflow zwischen Aus und Ein, sonst startet nichts neu; getBoundingClientRect
+       wirkt auch für SVG-Teile (offsetWidth gibt es dort nicht). */
+    void root.getBoundingClientRect();
+    nodes.forEach(function (el) { el.style.animation = ""; });
+}
+
+let lastTemp = null;
+
 /* Zahl im Hero von 0 hochzählen (nur im Browser, nicht bei reduzierter Bewegung) */
 function countUp(el, target) {
     if (!el || typeof requestAnimationFrame !== "function" || !isNum(target)) return;
@@ -188,6 +210,7 @@ function renderHero(fc) {
     const hero = D("hero");
     unskel(hero);
     const first = introElapsed() < 0.3;
+    lastTemp = Math.round(c.temperature_2m);
     hero.innerHTML =
         '<div class="meta a-up" style="animation-delay:' + dl(0.4) + 's"><span>' + when + '</span><span>' + wmo(code)[1] + '</span></div>' +
         '<div class="main"><div class="temp fade-in">' + Math.round(c.temperature_2m) + '°</div>' + heroIcon(code, day) + '</div>' +
@@ -664,6 +687,21 @@ function initDesignApp() {
         });
     }
 
+    /* ---- Antippen: Animationen der Kachel neu starten ---- */
+
+    function initReplay() {
+        if (!document.body || !document.body.addEventListener) return;
+        document.body.addEventListener("click", function (ev) {
+            const t = ev.target;
+            if (!t || !t.closest) return;
+            if (t.closest("a, button, input")) return;
+            const box = t.closest(".tile, .field");
+            if (!box) return;
+            restartAnimations(box);
+            if (box.id === "hero" && lastTemp !== null) countUp(box.querySelector(".temp"), lastTemp);
+        });
+    }
+
     /* ---- Hintergrund-Partikel ---- */
 
     function initParticles() {
@@ -688,6 +726,7 @@ function initDesignApp() {
     initTabs();
     initParticles();
     initDesignToggle();
+    initReplay();
 
     const cached = window.PREVIEW_LOC || loadPos();
     if (cached) {
