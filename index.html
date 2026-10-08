@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" data-design="modern">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -11,36 +11,65 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="design.css?v=20261008b">
+<!-- Zwei Designs auf demselben Markup: modern.css (Bento, Standard) und design.css (klassisches Glas-Design).
+     Der Umschalter im Kopf wechselt zwischen beiden, die Wahl bleibt im Gerät gespeichert. -->
+<link rel="stylesheet" href="modern.css?v=20261008c" id="cssModern">
+<link rel="stylesheet" href="design.css?v=20261008c" id="cssClassic" disabled>
+<script>
+(function () {
+    /* Gespeichertes Design schon vor dem ersten Zeichnen aktivieren, damit nichts umspringt. */
+    var d = null;
+    try { d = localStorage.getItem("wetter:design"); } catch (e) {}
+    if (d === "classic") {
+        document.getElementById("cssModern").disabled = true;
+        document.getElementById("cssClassic").disabled = false;
+        document.documentElement.setAttribute("data-design", "classic");
+        var m = document.querySelector('meta[name="theme-color"]');
+        if (m) m.setAttribute("content", "#2a558c");
+    }
+})();
+</script>
 </head>
 <body class="theme-partly-day">
+
+<!-- Himmel mit Lichtflecken und Niederschlag: nur im klassischen Design sichtbar -->
+<div class="sky" aria-hidden="true">
+    <div class="orb a"></div>
+    <div class="orb b"></div>
+    <div class="precip" id="precip"></div>
+</div>
 
 <div class="page">
 
     <header class="top">
-        <button type="button" class="loc" id="locBtn" aria-label="Ort wählen">
+        <button type="button" class="loc a-left" id="locBtn" aria-label="Ort wählen">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
             <span id="locName">Standort …</span>
         </button>
-        <button type="button" class="iconbtn" id="refresh" aria-label="Aktualisieren">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
-        </button>
+        <div class="top-actions">
+            <button type="button" class="iconbtn a-pop" id="designBtn" aria-label="Design wechseln" title="Design wechseln" style="animation-delay:.05s">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.4 0 2-.9 2-1.8 0-.9-.9-1.3-.9-2.2 0-.8.7-1.5 1.6-1.5H17a4 4 0 0 0 4-4 8.5 8.5 0 0 0-9-8.5z"/><circle cx="7.5" cy="11" r="1"/><circle cx="11" cy="7.5" r="1"/><circle cx="15.5" cy="8.5" r="1"/></svg>
+            </button>
+            <button type="button" class="iconbtn a-pop" id="refresh" aria-label="Aktualisieren" style="animation-delay:.1s">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+            </button>
+        </div>
     </header>
 
     <div class="banner hidden" id="banner"></div>
 
     <section class="sec" id="sec-today">
-        <div class="field hero-field skel" id="hero" style="height:250px">&nbsp;</div>
+        <div class="field hero-field skel a-pop" id="hero" style="height:250px;animation-delay:.15s">&nbsp;</div>
 
-        <div class="field dark insight hidden" id="insight"></div>
+        <div class="field dark insight a-up hidden" id="insight" style="animation-delay:.7s"></div>
 
-        <div class="field white">
+        <div class="field white a-up" style="animation-delay:.8s">
             <h2>Nächste Stunden <span class="r" id="hourlyHint">48 h →</span></h2>
             <div id="hourly" class="skel" style="height:112px">&nbsp;</div>
             <div class="note">Blaue Felder: Regen wahrscheinlich (ab 25 %)</div>
         </div>
 
-        <div class="field white hidden" id="nowcastCard">
+        <div class="field white a-up hidden" id="nowcastCard" style="animation-delay:.9s">
             <h2>Regen in den nächsten 4 Stunden</h2>
             <div id="nowcast"></div>
         </div>
@@ -56,25 +85,25 @@
     </section>
 
     <section class="sec" id="sec-days">
-        <div class="field dark days-field" id="daysField">
+        <div class="field dark days-field a-up" id="daysField" style="animation-delay:1.3s">
             <h2>14 Tage <span class="r">Tief · Hoch</span></h2>
             <div id="days" class="skel" style="height:260px">&nbsp;</div>
         </div>
 
-        <div class="field white">
+        <div class="field white a-up" style="animation-delay:1.9s">
             <h2>Modellvergleich <span class="r">Regen mm · heute / morgen</span></h2>
             <div id="models" class="skel" style="height:90px">&nbsp;</div>
         </div>
     </section>
 
-    <footer>
+    <footer class="a-up" style="animation-delay:2.2s">
         <span id="updated"></span> · <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a> · CC BY 4.0 · Ortsname: BigDataCloud<br>
-        <a href="klassisch.html">Klassische Ansicht</a> · <a href="radar.html">Regenradar</a>
+        <a href="klassisch.html">Klassische Ansicht</a> · <a href="radar.html">Regenradar</a> · <button type="button" class="linkbtn" id="designLink">Design wechseln</button>
     </footer>
 </div>
 
 <div class="tabs">
-    <nav aria-label="Bereiche">
+    <nav aria-label="Bereiche" class="a-nav" style="animation-delay:.45s">
         <a href="#sec-today" data-target="sec-today" class="on" aria-label="Heute">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Heute</span></a>
         <a href="#sec-details" data-target="sec-details" aria-label="Details">
@@ -94,8 +123,8 @@
     <button type="button" class="gps hidden" id="gps">Zurück zu meinem Standort</button>
 </div>
 
-<script src="wetter-core.js?v=20261008b"></script>
-<script src="design.js?v=20261008b"></script>
+<script src="wetter-core.js?v=20261008c"></script>
+<script src="design.js?v=20261008c"></script>
 <script>initDesignApp();</script>
 </body>
 </html>

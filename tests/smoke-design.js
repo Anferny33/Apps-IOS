@@ -67,6 +67,12 @@ function boot(opts) {
   H.check('Platzhalter-Höhen nach dem Rendern entfernt', ['hourly','days','models'].every(id => !G(sb,id).style.height), ['hourly','days','models'].map(id => G(sb,id).style.height));
   H.check('Stand-Zeile', G(sb,'updated').textContent.startsWith('Stand '));
 
+  // Design-Umschalter: klassisch <-> modern, Wahl gespeichert
+  G(sb,'designBtn').trigger('click');
+  H.check('Umschalter: klassisches Design aktiv + gespeichert', sb._store['wetter:design'] === 'classic' && G(sb,'cssModern').disabled === true && G(sb,'cssClassic').disabled === false, sb._store['wetter:design']);
+  G(sb,'designLink').trigger('click');
+  H.check('Umschalter: zurück zu modern', sb._store['wetter:design'] === 'modern' && G(sb,'cssModern').disabled === false && G(sb,'cssClassic').disabled === true, sb._store['wetter:design']);
+
   // 2) Nacht + Regen -> anderes Theme, Nowcast-Karte ohne Regen ausgeblendet
   const fc2 = H.mockForecast();
   fc2.current.weather_code = 61; fc2.current.is_day = 0;
@@ -78,7 +84,12 @@ function boot(opts) {
   const fc3 = H.mockForecast(); fc3.current.weather_code = 0; fc3.current.is_day = 0;
   const sb3 = boot({ fetchImpl: H.okFetch(Object.assign({}, data, { fc: fc3 })), geolocation: granted });
   await wait(300);
-  H.check('Theme klare Nacht + Mond-Icon', sb3.document.body.classList.contains('theme-clear-night') && G(sb3,'hero').innerHTML.includes('#f1e3a8'));
+  H.check('Theme klare Nacht + Mond-Icon', sb3.document.body.classList.contains('theme-clear-night') && G(sb3,'hero').innerHTML.includes('<svg class="big-icon wx wx-nacht"'), G(sb3,'hero').innerHTML.slice(0, 200));
+  H.check('Hero-Icon nach Lage: Tag mit Wolken = Sonne hinter Wolke', hero.includes('wx wx-teils"') && hero.includes('class="cloud"') && hero.includes('class="sun"'));
+  H.check('Regen-Icon mit Tropfen-Ebene', G(sb2,'hero').innerHTML.includes('wx wx-regen"') && G(sb2,'hero').innerHTML.includes('class="drops"'));
+  H.check('Kacheln: Mini-Icons und Skalen (Wind, Regen, Sonnenbogen, Tropfen, Druck, UV-Meter)',
+    det.includes('class="windflow"') && det.includes('class="rain-ico"') && det.includes('class="arc"') && det.includes('class="drop-ico"') && det.includes('class="gauge-ico"') && /class="tile uv"[\s\S]*?class="meter"/.test(det));
+  H.check('Einblend-Verzögerungen gestaffelt (Stunden, Tage, Kacheln)', /hcol now[^>]*animation-delay:0\.[89]\ds/.test(hh) && /drow[^>]*animation-delay:1\.[34]\ds/.test(dd) && /tile uv" style="animation-delay:(1\.00|0\.9\d)s/.test(det));
 
   // 3) Ortung abgelehnt -> Banner mit "Ort suchen" -> Sheet öffnet -> Suche -> Auswahl
   const sb4 = boot({ fetchImpl: H.okFetch(data), geolocation: denied });

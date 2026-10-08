@@ -2,8 +2,12 @@
 const fs = require('fs');
 const r = JSON.parse(fs.readFileSync(__dirname + '/render-design.json', 'utf8'));
 let h = fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
-const css = fs.readFileSync(require('path').join(__dirname, '..', 'design.css'), 'utf8');
-h = h.replace(/<link rel="stylesheet" href="design\.css[^"]*">/, '<style>' + css + '</style>');
+// Vorschau wahlweise im modernen (Standard) oder klassischen Design: DESIGN=classic
+const cssFile = process.env.DESIGN === 'classic' ? 'design.css' : 'modern.css';
+const css = fs.readFileSync(require('path').join(__dirname, '..', cssFile), 'utf8');
+h = h.replace(/<link rel="stylesheet" href="modern\.css[^"]*" id="cssModern">/, '<style>' + css + '</style>');
+h = h.replace(/<link rel="stylesheet" href="design\.css[^"]*" id="cssClassic" disabled>/, '');
+if (process.env.DESIGN === 'classic') h = h.replace('data-design="modern"', 'data-design="classic"');
 h = h.replace(/<script[\s\S]*?<\/script>\s*/g, '');
 h = h.replace('<body class="theme-partly-day">', '<body class="' + r.theme + '">');
 
@@ -20,12 +24,13 @@ function inject(id, html) {
     if (mm[0][1] === '/') depth--; else depth++;
     if (depth === 0) { closeStart = mm.index; break; }
   }
-  const open = m[0].replace(' skel', '').replace(/ style="[^"]*"/, '');
+  // Skelett-Klasse entfernen (sowohl class="skel" als auch class="… skel"), sonst bleibt der Text transparent
+  const open = m[0].replace(/ class="skel"/, '').replace(' skel', '').replace(/ style="[^"]*"/, '');
   h = h.slice(0, openStart) + open + html + h.slice(closeStart);
 }
 ['hero','insight','hourly','nowcast','days','details','models'].forEach(id => inject(id, r[id]));
-h = h.replace('class="field white hidden" id="nowcastCard"', 'class="field white" id="nowcastCard"');
-h = h.replace('class="field dark insight hidden" id="insight"', 'class="field dark insight" id="insight"');
+h = h.replace('class="field white a-up hidden" id="nowcastCard"', 'class="field white a-up" id="nowcastCard"');
+h = h.replace('class="field dark insight a-up hidden" id="insight"', 'class="field dark insight a-up" id="insight"');
 h = h.replace('Standort …', 'München, Bayern');
 h = h.replace('<span id="updated"></span>', '<span id="updated">Stand 08.10., 09:15 Uhr</span>');
 const extra = process.argv[2] || '';

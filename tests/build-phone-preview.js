@@ -13,8 +13,11 @@ const name = process.argv[5] || 'München, Bayern';
 let app = fs.readFileSync(path.join(REPO, page + '.html'), 'utf8');
 
 // CSS- und JS-Dateien inline einbetten, damit die Vorschau aus einer Datei besteht
-app = app.replace(/<link rel="stylesheet" href="([a-z-]+\.css)(?:\?[^"]*)?">/g, (m, f) =>
-  '<style>' + fs.readFileSync(path.join(REPO, f), 'utf8') + '</style>');
+// Die Startseite trägt zwei Stylesheets (modern.css aktiv, design.css abgeschaltet), der
+// Umschalter in design.js setzt .disabled auf den Elementen; das klappt auch mit <style>.
+app = app.replace(/<link rel="stylesheet" href="([a-z-]+\.css)(?:\?[^"]*)?"( id="[A-Za-z]+")?( disabled)?>/g, (m, f, id, off) =>
+  '<style' + (id || '') + '>' + fs.readFileSync(path.join(REPO, f), 'utf8') + '</style>' +
+  (off ? '<script>document.getElementById("' + id.slice(5, -1) + '").disabled = true;</script>' : ''));
 app = app.replace(/<script src="([a-z-]+\.js)(?:\?[^"]*)?"><\/script>/g, (m, f) =>
   '<script>' + fs.readFileSync(path.join(REPO, f), 'utf8') + '</script>');
 

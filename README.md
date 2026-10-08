@@ -8,7 +8,9 @@ GitHub Pages ausgeliefert: <https://anferny33.github.io/Apps-IOS/>
 
 | Datei | Inhalt |
 |---|---|
-| `index.html` + `design.css` + `design.js` | Startseite (Bento-Design): flache Farbfelder, Hero-Feld in Wetterfarbe, Stundenfelder, Kacheln, 14 Tage, Modellvergleich, Ortssuche; Schrift Sora via Google Fonts mit System-Fallback |
+| `index.html` + `design.js` | Startseite: Hero, Stundenfelder, Kacheln, 14 Tage, Modellvergleich, Ortssuche. Zwei Designs auf demselben Markup; Umschalter oben rechts (Palette) und in der Fußzeile, die Wahl bleibt im Gerät gespeichert |
+| `modern.css` | Bento-Design (Standard): flache Farbfelder, Hero-Feld in Wetterfarbe, Schrift Sora. Animationen: Sonne/Wolke fahren je nach Wetterlage ein, Bereiche blenden gestaffelt ein, Kacheln mit Mikroanimationen (Wind, Regen, Sonnenbogen, Tropfen, Druckzeiger) |
+| `design.css` | Klassisches Design: Glas-Karten auf Himmelsverlauf mit Lichtflecken und Regen-/Schneepartikeln |
 | `klassisch.html` + `wetter.css` | Klassische Ansicht mit allen Karten (Nowcast, Ensemble, Trend, Luftqualität, Modellvergleich) |
 | `wetter-core.js` | Gemeinsame Datenschicht: Open-Meteo (Forecast, Ensemble, Modelle, Luftqualität, Geocoding), Cache, Standortlogik |
 | `radar.html` | Regenradar (DWD RADOLAN RV über WMS, mit 2-h-Prognose) auf Leaflet |
@@ -58,6 +60,11 @@ API-Antworten, Standort- und Suchfluss, Offline-Verhalten, Radar-Zeitachse).
 
 ```bash
 npm run preview      # baut tests/iphone-preview.html: die App im iPhone-Rahmen
+```
+
+Die Vorschau enthält beide Designs, der Umschalter in der App funktioniert dort genauso.
+
+```bash
 ```
 
 ## Veröffentlichen

@@ -1,6 +1,9 @@
-/* Design-Variante der Wetter-App.
+/* Startseite der Wetter-App.
  * Nutzt die Datenschicht aus wetter-core.js (fetch*, Helfer, Cache, Ensemble)
- * und rendert eine eigene, auf Lesbarkeit und Atmosphäre ausgelegte Oberfläche.
+ * und rendert das Markup aus index.html. Das Aussehen liefern modern.css (Bento,
+ * Standard) oder design.css (klassisch); der Umschalter unten in dieser Datei
+ * wechselt zwischen beiden. Die Einblend-Animationen steuert das Stylesheet,
+ * hier werden nur Klassen und Verzögerungen gesetzt.
  */
 "use strict";
 
@@ -50,6 +53,60 @@ function svgIcon(code, isDay, cls) {
     else if (code >= 95) body = ICO.cloudHi + ICO.bolt;
     else body = ICO.cloud;
     return '<svg class="' + (cls || "") + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + body + '</svg>';
+}
+
+/* Großes Hero-Icon aus Ebenen (Sterne, Sonne, Mond, Wolken, Regen, Schnee, Blitz).
+   Welche Ebenen sichtbar sind und wie sie beim Öffnen hereinfahren, regelt das
+   Stylesheet über die Klasse wx-<lage>; Farben kommen ebenfalls aus dem Stylesheet. */
+function heroKind(code, isDay) {
+    const day = isDay !== 0;
+    if (code === 0 || code === 1) return day ? "sonnig" : "nacht";
+    if (code === 2) return day ? "teils" : "teilsnacht";
+    if (code === 3 || code === 45 || code === 48) return "bewoelkt";
+    if (code >= 71 && code <= 77 || code === 85 || code === 86) return "schnee";
+    if (code >= 95) return "gewitter";
+    if (code >= 51 && code <= 82) return "regen";
+    return day ? "teils" : "teilsnacht";
+}
+
+function heroIcon(code, isDay) {
+    return '<svg class="big-icon wx wx-' + heroKind(code, isDay) + '" viewBox="0 0 96 96" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<g class="stars"><circle cx="16" cy="18" r="2"/><circle cx="80" cy="14" r="1.6"/><circle cx="86" cy="42" r="2.2"/><circle cx="12" cy="50" r="1.6"/></g>' +
+        '<g class="sun"><g class="rays"><path d="M34 10v7M34 55v7M8 36h7M53 36h7M15.6 17.6l5 5M47.4 49.4l5 5M15.6 54.4l5-5M47.4 22.6l5-5"/></g><circle cx="34" cy="36" r="13"/></g>' +
+        '<g class="moon"><path d="M52 18a24 24 0 1 0 22 36a19 19 0 0 1-22-36z"/></g>' +
+        '<g class="cloud2"><path d="M14 88h18a7 7 0 0 0 .5-14A10 10 0 0 0 13 70a6.5 6.5 0 0 0 1 18z"/></g>' +
+        '<g class="cloud"><path d="M41 82h31a13.5 13.5 0 0 0 1-27A19.5 19.5 0 0 0 38 57a12.75 12.75 0 0 0 3 25z"/></g>' +
+        '<g class="drops"><line x1="50" y1="86" x2="48" y2="92"/><line x1="61" y1="86" x2="59" y2="92"/><line x1="72" y1="86" x2="70" y2="92"/></g>' +
+        '<g class="flakes"><circle cx="50" cy="88" r="2.6"/><circle cx="61" cy="88" r="2.6"/><circle cx="72" cy="88" r="2.6"/></g>' +
+        '<g class="bolt"><path d="M62 70l-8 13h6l-3 11 10-15h-6l3-9z"/></g>' +
+        '</svg>';
+}
+
+/* Einblend-Verzögerungen sind relativ zum ersten Rendern: wird kurz danach erneut
+   gerendert (Standort-Update, Aktualisieren), läuft die Sequenz nahtlos weiter statt von
+   vorn; nach ein paar Sekunden sind alle Verzögerungen null und neue Inhalte blenden
+   nur noch kurz ein. */
+let introStart = 0;
+function introElapsed() {
+    if (!introStart) introStart = Date.now();
+    return (Date.now() - introStart) / 1000;
+}
+function dl(seconds) { return Math.max(0, seconds - introElapsed()).toFixed(2); }
+
+/* Zahl im Hero von 0 hochzählen (nur im Browser, nicht bei reduzierter Bewegung) */
+function countUp(el, target) {
+    if (!el || typeof requestAnimationFrame !== "function" || !isNum(target)) return;
+    if (typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const start = Date.now(), delay = 350, dur = 1000;
+    el.textContent = "0°";
+    function step() {
+        let p = Math.min(1, (Date.now() - start - delay) / dur);
+        if (p < 0) p = 0;
+        const eased = 1 - Math.pow(1 - p, 3);
+        el.textContent = Math.round(target * eased) + "°";
+        if (p < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
 }
 
 const UI = {
@@ -130,13 +187,15 @@ function renderHero(fc) {
 
     const hero = D("hero");
     unskel(hero);
+    const first = introElapsed() < 0.3;
     hero.innerHTML =
-        '<div class="meta"><span>' + when + '</span><span>' + wmo(code)[1] + '</span></div>' +
-        '<div class="main"><div class="temp fade-in">' + Math.round(c.temperature_2m) + '°</div>' + svgIcon(code, day, "big-icon fade-in") + '</div>' +
+        '<div class="meta a-up" style="animation-delay:' + dl(0.4) + 's"><span>' + when + '</span><span>' + wmo(code)[1] + '</span></div>' +
+        '<div class="main"><div class="temp fade-in">' + Math.round(c.temperature_2m) + '°</div>' + heroIcon(code, day) + '</div>' +
         '<div class="chips">' +
-            (hi !== null ? '<span>Hoch ' + hi + '°</span><span>Tief ' + lo + '°</span>' : '') +
-            '<span>Gefühlt ' + Math.round(c.apparent_temperature) + '°</span>' +
+            (hi !== null ? '<span class="a-up" style="animation-delay:' + dl(0.5) + 's">Hoch ' + hi + '°</span><span class="a-up" style="animation-delay:' + dl(0.58) + 's">Tief ' + lo + '°</span>' : '') +
+            '<span class="a-up" style="animation-delay:' + dl(0.66) + 's">Gefühlt ' + Math.round(c.apparent_temperature) + '°</span>' +
         '</div>';
+    if (first) countUp(hero.querySelector(".temp"), Math.round(c.temperature_2m));
 
     /* Hinweis-Feld: Nowcast als Satz, darunter eine Einordnung */
     const ins = D("insight");
@@ -175,7 +234,7 @@ function dHourly(fc, ens) {
         const newDay = prevDay !== null && dd !== prevDay;
         prevDay = dd;
         cols +=
-            '<div class="hcol' + (i === 0 ? ' now' : '') + (newDay ? ' newday' : '') + (i !== 0 && prob >= 25 ? ' wet' : '') + '">' +
+            '<div class="hcol' + (i === 0 ? ' now' : '') + (newDay ? ' newday' : '') + (i !== 0 && prob >= 25 ? ' wet' : '') + '" style="animation-delay:' + dl(0.9 + Math.min(i, 8) * 0.06) + 's">' +
                 '<div class="t">' + (i === 0 ? "Jetzt" : (newDay ? weekday(dd) : hhmm(t).slice(0, 2))) + '</div>' +
                 svgIcon(h.weather_code[gi], h.is_day ? h.is_day[gi] : 1, "ic") +
                 '<div class="v">' + (isNum(v) ? Math.round(v) + '°' : '–') + '</div>' +
@@ -215,13 +274,14 @@ function renderDays(fc) {
         const code = d.weather_code[i];
         const left = (lo - tLo) / span * 100, width = Math.max(3, (hi - lo) / span * 100);
         const mood = isWetCode(code) || (isNum(prob) && prob >= 50) ? ' wet' : (code === 0 || code === 1 ? ' fair' : '');
+        const delay = dl(1.4 + Math.min(i, SHOWN) * 0.05);
         rows +=
-            '<div class="drow' + mood + (i >= SHOWN ? ' more' : '') + '">' +
+            '<div class="drow' + mood + (i >= SHOWN ? ' more' : '') + '" style="animation-delay:' + delay + 's">' +
                 '<div class="n">' + (i === 0 ? "Heute" : weekday(d.time[i])) + '</div>' +
                 svgIcon(code, 1, "ic") +
                 '<div class="pp">' + (isNum(prob) ? Math.round(prob) + '%' : '') + '</div>' +
                 '<div class="lo">' + Math.round(lo) + '°</div>' +
-                '<div class="bar"><i style="left:' + left.toFixed(1) + '%;width:' + width.toFixed(1) + '%"></i>' +
+                '<div class="bar"><i style="left:' + left.toFixed(1) + '%;width:' + width.toFixed(1) + '%;animation-delay:' + (+delay + 0.2).toFixed(2) + 's"></i>' +
                     (i === 0 && isNum(cur) ? '<b style="left:' + Math.max(0, Math.min(100, (cur - tLo) / span * 100)).toFixed(1) + '%"></b>' : '') +
                 '</div>' +
                 '<div class="hi">' + Math.round(hi) + '°</div>' +
@@ -244,9 +304,52 @@ function renderDays(fc) {
 
 /* ---- Kacheln ---- */
 
-function tile(cls, title, big, sub) {
-    return '<div class="tile ' + cls + '"><h3>' + title + '</h3><div class="big">' + big + '</div>' +
+/* Kachel: Titelzeile mit optionalem Mini-Icon rechts, großer Wert, optionaler Zusatz (Skala), Untertitel.
+   opts.delay staffelt das Einblenden, opts.icon / opts.extra sind kleine SVGs mit Mikroanimation. */
+function tile(cls, title, big, sub, opts) {
+    opts = opts || {};
+    return '<div class="tile ' + cls + '" style="animation-delay:' + dl(opts.delay || 0) + 's">' +
+        '<h3>' + title + (opts.icon ? '<span class="t-ico">' + opts.icon + '</span>' : '') + '</h3>' +
+        '<div class="big">' + big + '</div>' +
+        (opts.extra || '') +
         (sub ? '<div class="sub">' + sub + '</div>' : '') + '</div>';
+}
+
+/* Mini-Icons für die Kacheln: Farben und Bewegung kommen aus dem Stylesheet */
+const MINI = {
+    wind: '<svg viewBox="0 0 48 24" width="44" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path class="windflow" d="M2 6h26a4 4 0 1 0-4-4"/><path class="windflow w2" d="M2 13h36a4 4 0 1 1-4 4"/><path class="windflow w3" d="M2 20h18"/></svg>',
+    rain: '<svg class="rain-ico" viewBox="0 0 40 28" width="36" height="26" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 12h20a6 6 0 0 0 .6-12A9 9 0 0 0 7 7a5 5 0 0 0 1 5z"/><line class="tiledrop" x1="12" y1="16" x2="11" y2="21"/><line class="tiledrop d2" x1="20" y1="16" x2="19" y2="21"/><line class="tiledrop d3" x1="28" y1="16" x2="27" y2="21"/></svg>'
+};
+
+/* Sonnenbogen: Anteil des Tages, der schon vorbei ist, als Bogen plus Sonnenpunkt */
+function sunArc(c, d) {
+    const now = minutesOf(c.time), rise = minutesOf(d.sunrise && d.sunrise[0]), set = minutesOf(d.sunset && d.sunset[0]);
+    if (now === null || rise === null || set === null || set <= rise) return '';
+    const p = Math.max(0, Math.min(1, (now - rise) / (set - rise)));
+    const a = Math.PI * (1 - p), cx = 60 + 52 * Math.cos(a), cy = 54 - 52 * Math.sin(a);
+    const path = 'M8 54 A52 52 0 0 1 112 54';
+    return '<svg class="arc" viewBox="0 0 120 60" aria-hidden="true" style="--p:' + Math.round(p * 100) + '">' +
+        '<path class="track" d="' + path + '" fill="none" stroke-width="4" stroke-linecap="round"/>' +
+        '<path class="done" pathLength="100" d="' + path + '" fill="none" stroke-width="4" stroke-linecap="round"/>' +
+        (p > 0 && p < 1 ? '<circle class="dot" cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="6" stroke-width="2.4"/>' : '') +
+        '</svg>';
+}
+
+/* Tropfen, der sich bis zur Luftfeuchte füllt */
+function dropIcon(humidity) {
+    const y = isNum(humidity) ? 2 + (1 - Math.max(0, Math.min(100, humidity)) / 100) * 26 : 30;
+    const shape = 'M12 2c5 7 9 12 9 17a9 9 0 0 1-18 0c0-5 4-10 9-17z';
+    return '<svg class="drop-ico" viewBox="0 0 24 30" width="20" height="26" fill="none" stroke-width="2" stroke-linejoin="round" aria-hidden="true">' +
+        '<clipPath id="dropclip"><path d="' + shape + '"/></clipPath>' +
+        '<rect clip-path="url(#dropclip)" x="0" y="' + y.toFixed(1) + '" width="24" height="30" stroke="none"/>' +
+        '<path d="' + shape + '"/></svg>';
+}
+
+/* Druckanzeige: Zeiger zwischen 980 und 1040 hPa */
+function gaugeIcon(p) {
+    const ang = isNum(p) ? Math.max(-90, Math.min(90, (p - 980) / 60 * 180 - 90)) : -90;
+    return '<svg class="gauge-ico" viewBox="0 0 48 28" width="44" height="26" fill="none" stroke-width="2.4" stroke-linecap="round" aria-hidden="true" style="--ang:' + ang.toFixed(0) + 'deg">' +
+        '<path class="track" d="M4 26 A20 20 0 0 1 44 26"/><line class="needle" x1="24" y1="26" x2="24" y2="9"/></svg>';
 }
 
 function renderDetails(fc, air) {
@@ -257,33 +360,40 @@ function renderDetails(fc, air) {
     const uvNow = h.uv_index ? h.uv_index[w.start] : null;
     const uvMax = d.uv_index_max ? d.uv_index_max[0] : null;
     const lv = uvLevel(uvNow);
-    let html = "";
+    let html = "", k = 0;
+    const next = function () { return 1.0 + (k++) * 0.07; };
 
     html += tile("uv", "UV-Index",
         (isNum(uvNow) ? fmtNum(uvNow, 1) : '–') + (lv ? '<span class="word">' + lv.word + '</span>' : ''),
-        isNum(uvMax) ? 'Maximum heute ' + fmtNum(uvMax, 1) : null);
+        isNum(uvMax) ? 'Maximum heute ' + fmtNum(uvMax, 1) : null,
+        { delay: next(), extra: '<div class="meter"><i class="st-' + (lv ? lv.st : 'none') + '" style="width:' + (isNum(uvNow) ? Math.max(3, Math.min(100, uvNow / 11 * 100)).toFixed(0) : 0) + '%"></i></div>' });
 
     html += tile("wind", "Wind",
         (isNum(c.wind_speed_10m) ? Math.round(c.wind_speed_10m) : '–') + '<small>km/h</small>',
-        'Aus ' + compass(c.wind_direction_10m) + ' · Böen ' + Math.round(c.wind_gusts_10m));
+        'Aus ' + compass(c.wind_direction_10m) + ' · Böen ' + Math.round(c.wind_gusts_10m),
+        { delay: next(), icon: MINI.wind });
 
     html += tile("rain", "Regen",
         fmtMm(d.precipitation_sum[0]) + '<small>mm</small>',
         (isNum(d.precipitation_probability_max[0]) ? 'Risiko ' + d.precipitation_probability_max[0] + '&nbsp;%' : '') +
         (isNum(d.precipitation_hours && d.precipitation_hours[0]) && d.precipitation_hours[0] > 0 ? ' · ' + Math.round(d.precipitation_hours[0]) + '&nbsp;h' : '') +
-        '<br>Morgen ' + fmtMm(d.precipitation_sum[1]) + '&nbsp;mm · ' + (isNum(d.precipitation_probability_max[1]) ? d.precipitation_probability_max[1] + '&nbsp;%' : '–'));
+        '<br>Morgen ' + fmtMm(d.precipitation_sum[1]) + '&nbsp;mm · ' + (isNum(d.precipitation_probability_max[1]) ? d.precipitation_probability_max[1] + '&nbsp;%' : '–'),
+        { delay: next(), icon: MINI.rain });
 
     html += tile("sun", "Sonne",
         hhmm(d.sunset && d.sunset[0]),
-        'Aufgang ' + hhmm(d.sunrise && d.sunrise[0]) + ' · <span style="white-space:nowrap">' + fmtDuration(d.daylight_duration && d.daylight_duration[0]) + '</span>');
+        'Aufgang ' + hhmm(d.sunrise && d.sunrise[0]) + ' · <span style="white-space:nowrap">' + fmtDuration(d.daylight_duration && d.daylight_duration[0]) + '</span>',
+        { delay: next(), extra: sunArc(c, d) });
 
     html += tile("plain", "Luftfeuchte",
         Math.round(c.relative_humidity_2m) + '<small>%</small>',
-        'Bewölkung ' + fmtNum(c.cloud_cover, 0) + '&nbsp;%');
+        'Bewölkung ' + fmtNum(c.cloud_cover, 0) + '&nbsp;%',
+        { delay: next(), icon: dropIcon(c.relative_humidity_2m) });
 
     html += tile("plain", "Luftdruck",
         fmtNum(c.pressure_msl, 0),
-        'hPa · ' + (isNum(c.pressure_msl) ? (c.pressure_msl >= 1020 ? 'Hochdruck' : (c.pressure_msl <= 1005 ? 'Tiefdruck' : 'normal')) : '–'));
+        'hPa · ' + (isNum(c.pressure_msl) ? (c.pressure_msl >= 1020 ? 'Hochdruck' : (c.pressure_msl <= 1005 ? 'Tiefdruck' : 'normal')) : '–'),
+        { delay: next(), icon: gaugeIcon(c.pressure_msl) });
 
     if (air && air.current) {
         const a = air.current, al = aqiLevel(a.european_aqi);
@@ -292,7 +402,8 @@ function renderDetails(fc, air) {
             (isNum(a.european_aqi) ? Math.round(a.european_aqi) : '–') +
             (al ? '<span class="word" style="color:' + STATUS[al.st] + '">' + al.word + '</span>' : '') +
             '<div class="meter"><i class="st-' + (al ? al.st : 'none') + '" style="width:' + xpos + '%"></i></div>',
-            'PM2,5 ' + fmtNum(a.pm2_5, 0) + ' · PM10 ' + fmtNum(a.pm10, 0) + ' · O₃ ' + fmtNum(a.ozone, 0) + ' µg/m³');
+            'PM2,5 ' + fmtNum(a.pm2_5, 0) + ' · PM10 ' + fmtNum(a.pm10, 0) + ' · O₃ ' + fmtNum(a.ozone, 0) + ' µg/m³',
+            { delay: next() });
 
         const chips = POLLEN.map(function (p) {
             const lvp = pollenLevel(a[p.key], p.thr);
@@ -300,7 +411,8 @@ function renderDetails(fc, air) {
         }).join('');
         const anyPollen = POLLEN.some(function (p) { return isNum(a[p.key]); });
         html += tile("plain", "Pollen",
-            '<div class="pollen-chips">' + (chips || '<span class="pchip"><i class="st-none"></i>' + (anyPollen ? 'Zurzeit kein nennenswerter Pollenflug' : 'Pollendaten nur in Europa') + '</span>') + '</div>', null);
+            '<div class="pollen-chips">' + (chips || '<span class="pchip"><i class="st-none"></i>' + (anyPollen ? 'Zurzeit kein nennenswerter Pollenflug' : 'Pollendaten nur in Europa') + '</span>') + '</div>', null,
+            { delay: next() });
     }
 
     box.innerHTML = html;
@@ -319,7 +431,7 @@ function dModels(md, fc, ens) {
         const s = md.daily["precipitation_sum_" + m.id];
         if (!Array.isArray(s) || !isNum(s[0])) return;
         if (isNum(s[1])) tomorrow.push(s[1]);
-        chips += '<div class="mchip"><span class="k">' + m.name + '</span><span class="v">' + fmtMm(s[0]) + ' / ' + (isNum(s[1]) ? fmtMm(s[1]) : '–') + '</span></div>';
+        chips += '<div class="mchip" style="animation-delay:' + dl(2.0 + tomorrow.length * 0.07) + 's"><span class="k">' + m.name + '</span><span class="v">' + fmtMm(s[0]) + ' / ' + (isNum(s[1]) ? fmtMm(s[1]) : '–') + '</span></div>';
     });
     if (!chips) { box.innerHTML = '<div class="note">Modellvergleich derzeit nicht verfügbar.</div>'; return; }
 
@@ -524,6 +636,34 @@ function initDesignApp() {
         });
     }
 
+    /* ---- Design-Umschalter: modern.css (Bento) oder design.css (klassisch), Wahl bleibt gespeichert ---- */
+
+    function applyDesign(name) {
+        const modern = name !== "classic";
+        const m = D("cssModern"), c = D("cssClassic");
+        if (m) m.disabled = !modern;
+        if (c) c.disabled = modern;
+        if (document.documentElement && document.documentElement.setAttribute) {
+            document.documentElement.setAttribute("data-design", modern ? "modern" : "classic");
+        }
+        const meta = document.querySelector ? document.querySelector('meta[name="theme-color"]') : null;
+        if (meta) meta.setAttribute("content", modern ? "#ECEAF4" : "#2a558c");
+        try { localStorage.setItem("wetter:design", modern ? "modern" : "classic"); } catch (e) {}
+    }
+
+    function initDesignToggle() {
+        let current = "modern";
+        try { current = localStorage.getItem("wetter:design") === "classic" ? "classic" : "modern"; } catch (e) {}
+        function toggle() {
+            current = current === "classic" ? "modern" : "classic";
+            applyDesign(current);
+        }
+        ["designBtn", "designLink"].forEach(function (id) {
+            const b = D(id);
+            if (b) b.addEventListener("click", toggle);
+        });
+    }
+
     /* ---- Hintergrund-Partikel ---- */
 
     function initParticles() {
@@ -547,6 +687,7 @@ function initDesignApp() {
     initSearch();
     initTabs();
     initParticles();
+    initDesignToggle();
 
     const cached = window.PREVIEW_LOC || loadPos();
     if (cached) {
