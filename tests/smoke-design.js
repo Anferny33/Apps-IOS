@@ -107,6 +107,8 @@ function boot(opts) {
   sb.toggleTile('wind');
   const t1 = sb.openTileKey(); sb.toggleTile('wind'); const t2 = sb.openTileKey(); sb.toggleTile('sun'); sb.toggleTile('rain'); const t3 = sb.openTileKey(); sb.toggleTile('rain');
   H.check('Kacheln: öffnen, schließen, wechseln', t1 === 'wind' && t2 === null && t3 === 'rain' && sb.openTileKey() === null, [t1, t2, t3].join(','));
+  const detx = G(sb,'details').innerHTML;
+  H.check('Kacheln: data-tile an Wind/Regen/Sonne, Felder nach den Reihen in richtiger Reihenfolge', /<div class="tile wind" data-tile="wind" aria-expanded="false"[\s\S]*?<\/div><div class="tpanel tp-wind" data-for="wind">/.test(detx) && /<div class="tile sun" data-tile="sun"[\s\S]*?<div class="tpanel tp-rain" data-for="rain">[\s\S]*?<div class="tpanel tp-sun" data-for="sun">/.test(detx) && (detx.match(/class="tpanel /g) || []).length === 3 && !/data-tile="uv"/.test(detx) && detx.indexOf('tp-wind') < detx.indexOf('class="tile rain"'), detx.slice(detx.indexOf('tp-wind') - 60, detx.indexOf('tp-wind') + 40));
   // Stufe 2: Ziehen vom Griff. Harness ohne Touch/Layout → Zustandsmaschine direkt, columnAt als Stub
   const colStub = (i, sel) => ({ classList: { contains: c => c === 'sel' && sel }, getAttribute: a => a === 'data-i' ? i : null });
   sb.selectHour(20);

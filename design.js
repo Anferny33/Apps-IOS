@@ -909,7 +909,8 @@ function renderDays(fc) {
 function tile(cls, title, big, sub, opts) {
     opts = opts || {};
     const count = isNum(opts.count) ? ' data-count="' + Number(opts.count.toFixed(opts.decimals || 0)) + '" data-decimals="' + (opts.decimals || 0) + '"' : '';
-    return '<div class="tile ' + cls + '" style="animation-delay:' + dl(opts.delay || 0) + 's">' +
+    const key = opts.key ? ' data-tile="' + opts.key + '" aria-expanded="false"' : '';
+    return '<div class="tile ' + cls + '"' + key + ' style="animation-delay:' + dl(opts.delay || 0) + 's">' +
         '<h3>' + title + (opts.icon ? '<span class="t-ico">' + opts.icon + '</span>' : '') + '</h3>' +
         '<div class="big"' + count + '>' + big + '</div>' +
         (opts.extra || '') +
@@ -1111,19 +1112,22 @@ function renderDetails(fc, air) {
     html += tile("wind", "Wind",
         (isNum(c.wind_speed_10m) ? Math.round(c.wind_speed_10m) : '–') + '<small>km/h</small>',
         'Aus ' + compass(c.wind_direction_10m) + ' · Böen ' + Math.round(c.wind_gusts_10m),
-        { delay: next(), count: isNum(c.wind_speed_10m) ? Math.round(c.wind_speed_10m) : null, icon: windMini(c.wind_direction_10m) });
+        { delay: next(), count: isNum(c.wind_speed_10m) ? Math.round(c.wind_speed_10m) : null, icon: windMini(c.wind_direction_10m), key: "wind" });
+    /* Instrument-Feld der Reihe UV/Wind: klappt unter der Reihe auf, das Raster bleibt stehen */
+    html += tilePanelHtml("wind", windPanelHtml(fc));
 
     html += tile("rain", "Regen",
         fmtMm(d.precipitation_sum[0]) + '<small>mm</small>',
         (isNum(d.precipitation_probability_max[0]) ? 'Risiko ' + d.precipitation_probability_max[0] + '&nbsp;%' : '') +
         (isNum(d.precipitation_hours && d.precipitation_hours[0]) && d.precipitation_hours[0] > 0 ? ' · ' + Math.round(d.precipitation_hours[0]) + '&nbsp;h' : '') +
         '<br>Morgen ' + fmtMm(d.precipitation_sum[1]) + '&nbsp;mm · ' + (isNum(d.precipitation_probability_max[1]) ? d.precipitation_probability_max[1] + '&nbsp;%' : '–'),
-        { delay: next(), count: isNum(d.precipitation_sum[0]) ? d.precipitation_sum[0] : null, decimals: isNum(d.precipitation_sum[0]) && d.precipitation_sum[0] >= 0.05 && d.precipitation_sum[0] < 10 ? 1 : 0, icon: MINI.rain });
+        { delay: next(), count: isNum(d.precipitation_sum[0]) ? d.precipitation_sum[0] : null, decimals: isNum(d.precipitation_sum[0]) && d.precipitation_sum[0] >= 0.05 && d.precipitation_sum[0] < 10 ? 1 : 0, icon: MINI.rain, key: "rain" });
 
     html += tile("sun", "Sonne",
         hhmm(d.sunset && d.sunset[0]),
         'Aufgang ' + hhmm(d.sunrise && d.sunrise[0]) + ' · <span style="white-space:nowrap">' + fmtDuration(d.daylight_duration && d.daylight_duration[0]) + '</span>',
-        { delay: next(), extra: sunArc(c, d) });
+        { delay: next(), extra: sunArc(c, d), key: "sun" });
+    html += tilePanelHtml("rain", rainPanelHtml(fc)) + tilePanelHtml("sun", sunPanelHtml(fc));
 
     html += tile("plain", "Luftfeuchte",
         Math.round(c.relative_humidity_2m) + '<small>%</small>',
@@ -1473,6 +1477,7 @@ function moveTabInk() {
 function renderAllDesign(payload) {
     lastData = prepareData(payload.fc, payload.ens);
     previewIdx = null;
+    openTile = null;
     renderHero(payload.fc);
     renderWarnings(payload.warn, payload.nina);
     dHourly(payload.fc, payload.ens);
@@ -1727,8 +1732,12 @@ function initDesignApp() {
             const chip = t.closest(".mchip");
             if (chip && chip.getAttribute("data-model")) { highlightModel(chip.getAttribute("data-model")); return; }
             if (t.closest("a, button, input")) return;
+            /* Kacheln entfalten: Tipp auf das offene Feld spielt es erneut, Tipp auf die Kachel klappt auf/zu */
+            const panel = t.closest(".tpanel");
+            if (panel) { restartAnimations(panel); return; }
             const box = t.closest(".tile, .field");
             if (!box) return;
+            if (box.getAttribute && box.getAttribute("data-tile")) toggleTile(box.getAttribute("data-tile"));
             restartAnimations(box);
             if (box.id === "hero" && lastTemp !== null) countUp(box.querySelector(".temp"), lastTemp);
             else startCounters(box);
