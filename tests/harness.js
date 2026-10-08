@@ -1,0 +1,211 @@
+// Gemeinsamer Harness: lädt wetter-core.js in eine Sandbox mit DOM-/Fetch-Stubs.
+const fs = require('fs');
+const vm = require('vm');
+
+const CORE = fs.readFileSync(require('path').join(__dirname, '..', 'wetter-core.js'), 'utf8');
+
+function el() {
+  const children = {};
+  const handlers = {};
+  let html = '';
+  const e = {
+    // innerHTML-Zuweisung hält textContent wie im Browser synchron (Tags entfernt)
+    get innerHTML() { return html; },
+    set innerHTML(v) { html = String(v); e.textContent = html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' '); },
+    textContent: '', value: '', max: '0', className: '',
+    style: {},
+    classList: {
+      c: new Set(),
+      add(x){this.c.add(x)}, remove(x){this.c.delete(x)}, contains(x){return this.c.has(x)},
+      toggle(x, force){ if (force) this.c.add(x); else this.c.delete(x); }
+    },
+    addEventListener(ev, fn) { handlers[ev] = fn; },
+    trigger(ev, arg) { if (handlers[ev]) return handlers[ev].call(e, arg || {}); },
+    setAttribute() {}, getAttribute() { return null; },
+    focus() { e.focused = true; }, blur() {},
+    getBoundingClientRect() { return { width: 640, left: 0 }; },
+    querySelector(sel) { return children[sel] || (children[sel] = el()); },
+    // Suchtreffer: aus dem innerHTML gerenderte Buttons als klickbare Stubs
+    querySelectorAll(sel) {
+      if (sel !== '.place') return [];
+      const btns = [...e.innerHTML.matchAll(/data-i="(\d+)"/g)].map(m => {
+        const h = {};
+        return { getAttribute: () => m[1], addEventListener: (ev, fn) => { h[ev] = fn; }, trigger: ev => h[ev] && h[ev]() };
+      });
+      e._buttons = btns;
+      return btns;
+    }
+  };
+  return e;
+}
+
+const IDS = ['subline','reload','error','stale','now','nowcast','tempchart','sun','windchart',
+             'hourly','hourlyNote','daily','trend','models','air','updated',
+             'placeSearch','placeResults','gpsBtn'];
+
+// --- Mock-Wetterdaten ----------------------------------------------
+function mockForecast() {
+  const day = '2026-09-25';
+  function hours(n) {
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const d = 25 + Math.floor(i / 24);
+      out.push('2026-09-' + String(d).padStart(2,'0') + 'T' + String(i % 24).padStart(2,'0') + ':00');
+    }
+    return out;
+  }
+  const hTimes = hours(72);
+  const days = Array.from({length: 14}, (_, i) => {
+    const d = new Date(Date.UTC(2026, 8, 25 + i));
+    return d.toISOString().slice(0, 10);
+  });
+  return {
+    current: { time: day + 'T14:15', temperature_2m: 17.4, apparent_temperature: 16.1,
+               relative_humidity_2m: 71, precipitation: 0.0, weather_code: 2,
+               wind_speed_10m: 12, wind_gusts_10m: 25, wind_direction_10m: 225,
+               pressure_msl: 1018.4, cloud_cover: 55, is_day: 1 },
+    minutely_15: {
+      time: Array.from({length: 96}, (_, i) => day + 'T' + String(Math.floor(i/4)).padStart(2,'0') + ':' + String((i%4)*15).padStart(2,'0')),
+      precipitation: Array.from({length: 96}, (_, i) => (i >= 60 && i < 66 ? 0.4 : 0))
+    },
+    hourly: {
+      time: hTimes,
+      temperature_2m: hTimes.map((_, i) => 12 + 8 * Math.sin((i % 24 - 5) / 24 * 2 * Math.PI)),
+      apparent_temperature: hTimes.map((_, i) => 11 + 8 * Math.sin((i % 24 - 5) / 24 * 2 * Math.PI)),
+      precipitation: hTimes.map((_, i) => (i % 7 === 0 ? 1.2 : 0)),
+      precipitation_probability: hTimes.map((_, i) => (i * 7) % 100),
+      weather_code: hTimes.map((_, i) => (i % 7 === 0 ? 61 : 2)),
+      is_day: hTimes.map((_, i) => (i % 24 > 6 && i % 24 < 20 ? 1 : 0)),
+      wind_speed_10m: hTimes.map((_, i) => 8 + 10 * Math.abs(Math.sin(i / 9))),
+      wind_gusts_10m: hTimes.map((_, i) => 18 + 18 * Math.abs(Math.sin(i / 9))),
+      wind_direction_10m: hTimes.map((_, i) => (200 + i * 3) % 360),
+      uv_index: hTimes.map((_, i) => Math.max(0, 5 * Math.sin((i % 24 - 6) / 12 * Math.PI)))
+    },
+    daily: {
+      time: days,
+      weather_code: days.map((_, i) => [2,61,80,95,3,1,0][i % 7]),
+      temperature_2m_max: days.map((_, i) => 18 + ((i * 5) % 9)),
+      temperature_2m_min: days.map((_, i) => 8 + ((i * 3) % 6)),
+      precipitation_sum: days.map((_, i) => [0, 3.4, 12.7, 22.1, 0.2, 0, 0][i % 7]),
+      precipitation_probability_max: days.map((_, i) => [10, 55, 80, 90, 20, 5, 0][i % 7]),
+      precipitation_hours: days.map((_, i) => [0,3,6,8,1,0,0][i % 7]),
+      wind_speed_10m_max: days.map(() => 22),
+      wind_gusts_10m_max: days.map(() => 48),
+      wind_direction_10m_dominant: days.map(() => 240),
+      uv_index_max: days.map(() => 4.6),
+      sunrise: days.map(d => d + 'T07:12'),
+      sunset: days.map(d => d + 'T19:05'),
+      daylight_duration: days.map(() => 42780),
+      sunshine_duration: days.map(() => 21600)
+    }
+  };
+}
+
+function mockEnsemble(forecast) {
+  const eHours = forecast.hourly.time.slice(0, 48);
+  const ens = { hourly: { time: eHours } };
+  ens.hourly.precipitation = eHours.map((_, i) => (i % 7 === 0 ? 1.0 : 0));
+  for (let m = 1; m <= 20; m++) {
+    const k = 'precipitation_member' + String(m).padStart(2, '0');
+    ens.hourly[k] = eHours.map((_, i) => (i % 7 === 0 && m % 3 !== 0 ? 0.5 * m / 4 : 0));
+  }
+  return ens;
+}
+
+function mockModels() {
+  const md = { daily: { time: ['2026-09-25','2026-09-26','2026-09-27'] } };
+  ['icon_d2','icon_eu','ecmwf_ifs025','gfs_seamless','ukmo_seamless'].forEach((id, i) => {
+    md.daily['precipitation_sum_' + id] = [0, 2 + i, 9 + i * 2];
+  });
+  return md; // ARPEGE fehlt absichtlich -> Zeile muss wegfallen
+}
+
+function mockAir() {
+  return {
+    current: {
+      time: '2026-09-25T14:00', european_aqi: 34, pm10: 14.2, pm2_5: 8.1, nitrogen_dioxide: 11.3, ozone: 62,
+      birch_pollen: 0, grass_pollen: 7, alder_pollen: 0, mugwort_pollen: 12, ragweed_pollen: 1.5, olive_pollen: 0
+    },
+    hourly: {
+      time: Array.from({length: 24}, (_, i) => '2026-09-25T' + String(i).padStart(2,'0') + ':00'),
+      grass_pollen: Array.from({length: 24}, (_, i) => (i === 16 ? 15 : 7)),
+      mugwort_pollen: Array.from({length: 24}, () => 12),
+      ragweed_pollen: Array.from({length: 24}, () => 1.5),
+      birch_pollen: Array.from({length: 24}, () => 0),
+      alder_pollen: Array.from({length: 24}, () => 0),
+      olive_pollen: Array.from({length: 24}, () => 0)
+    }
+  };
+}
+
+function mockGeocode() {
+  return { results: [
+    { name: 'Hamburg', admin1: 'Hamburg', country: 'Deutschland', latitude: 53.55, longitude: 9.99 },
+    { name: 'Hamburg', admin1: 'New Jersey', country: 'USA', latitude: 41.15, longitude: -74.57 }
+  ] };
+}
+
+// --- Sandbox --------------------------------------------------------
+// opts: { fetchImpl, storage, geolocation }
+function makeSandbox(opts) {
+  opts = opts || {};
+  const nodes = {};
+  IDS.forEach(i => nodes[i] = el());
+  const dyn = {};
+  const store = opts.storage || {};
+  const fetchLog = [];
+
+  const sb = {
+    console, URLSearchParams, Date, Math, Object, Array, JSON,
+    isNaN, parseInt, Promise, setTimeout, clearTimeout,
+    document: {
+      getElementById: id => nodes[id] || (dyn[id] = dyn[id] || el()),
+      querySelectorAll: () => [],
+      body: el(),
+      addEventListener() {}, hidden: false
+    },
+    scrollTo() {},
+    localStorage: {
+      getItem: k => (k in store ? store[k] : null),
+      setItem: (k, v) => { store[k] = String(v); },
+      removeItem: k => { delete store[k]; }
+    },
+    fetch: async (url) => {
+      fetchLog.push(url);
+      if (!opts.fetchImpl) throw new Error('Failed to fetch');
+      return opts.fetchImpl(url);
+    },
+    navigator: opts.geolocation ? { geolocation: opts.geolocation } : {}
+  };
+  sb.window = sb;
+  sb._nodes = nodes; sb._dyn = dyn; sb._store = store; sb._fetchLog = fetchLog;
+  vm.createContext(sb);
+  vm.runInContext(CORE, sb);
+  return sb;
+}
+
+function okFetch(data) {
+  return async (url) => {
+    let body;
+    if (url.includes('bigdatacloud')) body = data.place || {};
+    else if (url.includes('geocoding-api')) body = data.geo || { results: [] };
+    else if (url.includes('air-quality')) body = data.air;
+    else if (url.includes('ensemble')) body = data.ens;
+    else if (url.includes('models=')) body = data.md;
+    else body = data.fc;
+    if (body === undefined || body === null) throw new Error('not available');
+    return { ok: true, json: async () => body };
+  };
+}
+
+let failCount = 0;
+function check(name, cond, extra) {
+  console.log((cond ? '  ok   ' : '  FAIL ') + name + (cond ? '' : ' :: ' + String(extra).slice(0, 240)));
+  if (!cond) failCount++;
+}
+function finish() {
+  console.log(failCount === 0 ? '\nAlle Checks bestanden.' : '\n' + failCount + ' Check(s) fehlgeschlagen.');
+  process.exit(failCount ? 1 : 0);
+}
+
+module.exports = { makeSandbox, okFetch, mockForecast, mockEnsemble, mockModels, mockAir, mockGeocode, check, finish, el };

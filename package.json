@@ -1,0 +1,11 @@
+{
+  "name": "wetter-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Wetter-App für den aktuellen Standort – statische Web-App ohne Build-Schritt",
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "test": "DUMP=1 node tests/smoke.js && node tests/smoke-geo.js && DUMP=1 node tests/smoke-design.js && node tests/smoke-radar.js",
+    "preview": "node tests/build-phone-preview.js index"
+  }
+}
