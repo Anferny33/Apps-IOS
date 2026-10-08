@@ -188,15 +188,44 @@ function countUpEl(el, target, opts) {
     const delay = isNum(opts.delay) ? opts.delay : 350, dur = opts.dur || 1000;
     const fmt = function (v) { return (decimals ? fmtNum(v, decimals) : String(Math.round(v))) + suffix; };
     const start = Date.now();
+    stopGlide(el);
     node.nodeValue = fmt(0);
     function step() {
         let p = Math.min(1, (Date.now() - start - delay) / dur);
         if (p < 0) p = 0;
         const eased = 1 - Math.pow(1 - p, 3);
         node.nodeValue = fmt(target * eased);
-        if (p < 1) requestAnimationFrame(step);
+        el._glide = p < 1 ? requestAnimationFrame(step) : null;
     }
-    requestAnimationFrame(step);
+    el._glide = requestAnimationFrame(step);
+}
+
+/* Laufendes Hochzählen oder Gleiten eines Elements abbrechen */
+function stopGlide(el) {
+    if (el && el._glide && typeof cancelAnimationFrame === "function") cancelAnimationFrame(el._glide);
+    if (el) el._glide = null;
+}
+
+/* Zahl vom gerade sichtbaren Wert zum Ziel gleiten lassen (0,5 s, Ease-out). Schnelle
+   Tipps setzen nur das Ziel neu; die Anzeige fällt nie auf 0. Ohne lesbaren Startwert,
+   ohne requestAnimationFrame oder bei reduzierter Bewegung wird das Ziel direkt gesetzt. */
+function glideTo(el, target, suffix) {
+    if (!el || !isNum(target)) return;
+    suffix = suffix || "";
+    const node = firstTextNode(el);
+    const set = function (v) { if (node) node.nodeValue = Math.round(v) + suffix; else el.textContent = Math.round(v) + suffix; };
+    const from = node ? parseInt(node.nodeValue, 10) : NaN;
+    stopGlide(el);
+    const reduced = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (typeof requestAnimationFrame !== "function" || isNaN(from) || from === target || reduced) { set(target); return; }
+    const start = Date.now(), dur = 500;
+    function step() {
+        const p = Math.min(1, (Date.now() - start) / dur);
+        const eased = 1 - Math.pow(1 - p, 3);
+        set(from + (target - from) * eased);
+        el._glide = p < 1 ? requestAnimationFrame(step) : null;
+    }
+    el._glide = requestAnimationFrame(step);
 }
 
 function countUp(el, target) { countUpEl(el, target, { suffix: "°" }); }
@@ -334,6 +363,71 @@ function heroHtml(f, intro) {
     return metaOpen + heroMetaHtml(f) + '</div>' +
         '<div class="main"><div class="' + tempCls + '">' + (isNum(f.temp) ? Math.round(f.temp) + '°' : '–°') + '</div>' + heroIcon(f.code, f.isDay) + '</div>' +
         '<div class="chips">' + heroChipsHtml(f, intro) + '</div>';
+}
+
+/* ---- Zeitreise: Stunde antippen, Hero folgt ---- */
+
+/* Kurzes Einblenden eines Hero-Teils nach Inhaltswechsel; Neustart über Reflow */
+function flip(el) {
+    if (!el || !el.classList) return;
+    el.classList.remove("flip");
+    void el.offsetWidth;
+    el.classList.add("flip");
+}
+
+/* Hero in place auf neue Fakten bringen: Meta und Chips tauschen, Temperatur gleitet,
+   Icon nur bei Wechsel der Wetterart ersetzen (Schleifen laufen sonst weiter).
+   Ohne echtes DOM (Harness: kein firstElementChild) wird das Hero komplett neu gebaut. */
+function updateHero(f) {
+    const hero = D("hero");
+    if (!hero) return;
+    setTheme(themeFor(f.code, f.isDay));
+    lastTemp = isNum(f.temp) ? Math.round(f.temp) : null;
+    const meta = hero.querySelector ? hero.querySelector(".meta") : null;
+    if (!meta || !hero.firstElementChild) { hero.innerHTML = heroHtml(f, false); return; }
+
+    meta.innerHTML = heroMetaHtml(f);
+    flip(meta);
+    const chips = hero.querySelector(".chips");
+    if (chips) { chips.innerHTML = heroChipsHtml(f, false); flip(chips); }
+
+    const temp = hero.querySelector(".temp");
+    if (temp) { if (lastTemp !== null) glideTo(temp, lastTemp, "°"); else temp.textContent = "–°"; }
+
+    const icon = hero.querySelector(".big-icon");
+    const kind = heroKind(f.code, f.isDay);
+    if (icon && icon.classList && !icon.classList.contains("wx-" + kind)) {
+        const wrap = document.createElement("div");
+        wrap.innerHTML = heroIcon(f.code, f.isDay);
+        const fresh = wrap.firstElementChild;
+        fresh.classList.add("swap-in");
+        icon.parentNode.replaceChild(fresh, icon);
+    }
+}
+
+/* Markierung in der Leiste: Klasse sel auf der gewählten Spalte, sonst nirgends */
+function markHour(gi) {
+    const box = D("hourly");
+    if (!box || !box.querySelectorAll) return;
+    Array.prototype.slice.call(box.querySelectorAll(".hcol.sel")).forEach(function (el) { el.classList.remove("sel"); });
+    if (gi === null || !box.querySelector) return;
+    const col = box.querySelector('.hcol[data-i="' + gi + '"]');
+    if (col && col.classList) col.classList.add("sel");
+}
+
+function selectHour(gi) {
+    const f = hourFacts(lastData, gi);
+    if (!f || gi === previewIdx) return;
+    previewIdx = gi;
+    markHour(gi);
+    updateHero(f);
+}
+
+function clearHour() {
+    if (previewIdx === null || !lastData) return;
+    previewIdx = null;
+    markHour(null);
+    updateHero(nowFacts(lastData.fc));
 }
 
 function renderHero(fc) {
@@ -992,6 +1086,14 @@ function initDesignApp() {
         document.body.addEventListener("click", function (ev) {
             const t = ev.target;
             if (!t || !t.closest) return;
+            /* Zeitreise: Jetzt-Knopf im Hero, Spalte mit Stundenindex, Spalte „Jetzt" */
+            if (t.closest("#heroNow")) { clearHour(); return; }
+            const col = t.closest(".hcol");
+            if (col) {
+                const i = col.getAttribute("data-i");
+                if (i === null) clearHour(); else selectHour(parseInt(i, 10));
+                return;
+            }
             if (t.closest("a, button, input")) return;
             const box = t.closest(".tile, .field");
             if (!box) return;
