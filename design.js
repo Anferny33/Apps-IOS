@@ -116,6 +116,56 @@ function restartAnimations(root) {
 
 let lastTemp = null;
 
+/* Zuletzt dargestellte Daten samt Ensemble-Nachschlagetabelle; Grundlage für die
+   Stundenvorschau (Zeitreise). previewIdx: gewählter Stundenindex oder null = Jetzt. */
+let lastData = null;
+let previewIdx = null;
+
+function lastRendered() { return lastData; }
+
+function prepareData(fc, ens) {
+    const members = ens ? ensembleSeries(ens.hourly) : [];
+    const ensIndex = {};
+    if (ens && ens.hourly && ens.hourly.time) ens.hourly.time.forEach(function (t, i) { ensIndex[t] = i; });
+    return { fc: fc, ens: ens, members: members, ensIndex: ensIndex };
+}
+
+/* Regenwahrscheinlichkeit einer Stunde: Ensemble-Anteil, sonst Modellwert, sonst 0.
+   Leiste und Hero nutzen dieselbe Rechnung, damit beide dieselbe Zahl zeigen. */
+function hourProb(data, gi) {
+    const h = data.fc.hourly, t = h.time[gi];
+    const stats = data.members.length && data.ensIndex[t] !== undefined ? ensembleStats(data.members, data.ensIndex[t]) : null;
+    if (stats) return stats.prob;
+    return h.precipitation_probability && isNum(h.precipitation_probability[gi]) ? h.precipitation_probability[gi] : 0;
+}
+
+function nextDay(dateStr) {
+    const d = new Date(dateStr + "T12:00:00");
+    d.setDate(d.getDate() + 1);
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+/* Fakten einer Stunde für das Hero: Beschriftung „Morgen, 17 Uhr", Beschreibung, Werte. */
+function hourFacts(data, gi) {
+    if (!data || !data.fc || !data.fc.hourly) return null;
+    const fc = data.fc, h = fc.hourly;
+    if (!Array.isArray(h.time) || !isNum(gi) || gi < 0 || gi >= h.time.length) return null;
+    const t = h.time[gi];
+    const today = dayOf(fc.current.time), d = dayOf(t);
+    const dayWord = d === today ? "Heute" : (d === nextDay(today) ? "Morgen" : longWeekday(t));
+    return {
+        now: false,
+        label: dayWord + ", " + parseInt(t.slice(11, 13), 10) + " Uhr",
+        desc: wmo(h.weather_code[gi])[1],
+        temp: h.temperature_2m[gi],
+        code: h.weather_code[gi],
+        isDay: h.is_day ? h.is_day[gi] : 1,
+        apparent: h.apparent_temperature ? h.apparent_temperature[gi] : null,
+        prob: hourProb(data, gi),
+        wind: h.wind_speed_10m ? h.wind_speed_10m[gi] : null
+    };
+}
+
 /* Erster Textknoten eines Elements: so bleiben <small>/<span> neben der Zahl stehen */
 function firstTextNode(el) {
     const kids = el.childNodes || [];
@@ -285,23 +335,21 @@ function dHourly(fc, ens) {
     const n = w.end - w.start;
     if (n < 2) { box.innerHTML = '<div class="note">Keine Stundendaten.</div>'; return; }
 
-    const members = ens ? ensembleSeries(ens.hourly) : [];
-    const ensIndex = {};
-    if (ens && ens.hourly && ens.hourly.time) ens.hourly.time.forEach(function (t, i) { ensIndex[t] = i; });
+    const data = lastData && lastData.fc === fc ? lastData : prepareData(fc, ens);
 
     let cols = "", prevDay = null;
     for (let i = 0; i < n; i++) {
         const gi = w.start + i;
         const t = h.time[gi];
         const v = h.temperature_2m[gi];
-        const stats = members.length && ensIndex[t] !== undefined ? ensembleStats(members, ensIndex[t]) : null;
-        const prob = stats ? stats.prob : (isNum(h.precipitation_probability[gi]) ? h.precipitation_probability[gi] : 0);
+        const prob = hourProb(data, gi);
         const dd = dayOf(t);
         const newDay = prevDay !== null && dd !== prevDay;
         prevDay = dd;
         const wet = i !== 0 && prob >= 25;
+        /* data-i: globaler Stundenindex für die Zeitreise; die Spalte „Jetzt" hat keins */
         cols +=
-            '<div class="hcol' + (i === 0 ? ' now' : '') + (newDay ? ' newday' : '') + (wet ? ' wet' : '') + '" style="animation-delay:' + dl(0.9 + Math.min(i, 8) * 0.06) + 's">' +
+            '<div' + (i === 0 ? '' : ' data-i="' + gi + '"') + ' class="hcol' + (i === 0 ? ' now' : '') + (newDay ? ' newday' : '') + (wet ? ' wet' : '') + '" style="animation-delay:' + dl(0.9 + Math.min(i, 8) * 0.06) + 's">' +
                 /* Regenstunden: das Blau steigt wie ein Wasserstand bis zur Wahrscheinlichkeit */
                 (wet ? '<i class="fill" data-stagger="' + (Math.min(i, 8) * 0.06).toFixed(2) + 's" style="--p:' + Math.round(prob) + '%;animation-delay:' + dl(1.15 + Math.min(i, 8) * 0.06) + 's"></i>' : '') +
                 '<div class="t">' + (i === 0 ? "Jetzt" : (newDay ? weekday(dd) : hhmm(t).slice(0, 2))) + '</div>' +
@@ -631,6 +679,8 @@ function renderWarnings(dwd, nina) {
    Kopfzeile und Daten müssen immer zum selben Ort gehören. */
 function clearRendered() {
     lastTemp = null;
+    lastData = null;
+    previewIdx = null;
     const hero = D("hero");
     unskel(hero);
     hero.innerHTML = '<div class="meta"><span></span><span>Keine Daten</span></div><div class="main"><div class="temp">–°</div></div>';
@@ -663,6 +713,8 @@ function moveTabInk() {
 }
 
 function renderAllDesign(payload) {
+    lastData = prepareData(payload.fc, payload.ens);
+    previewIdx = null;
     renderHero(payload.fc);
     renderWarnings(payload.warn, payload.nina);
     dHourly(payload.fc, payload.ens);
