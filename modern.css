@@ -272,6 +272,20 @@ body {
 .mchip { padding: 12px; background: var(--ground); border-radius: 14px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .mchip .k { font-size: 11px; font-weight: 700; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mchip .v { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; font-variant-numeric: tabular-nums; }
+.mchip.hl { background: var(--dark); color: var(--white); }
+.mchip.hl .k { color: var(--dark-muted); }
+/* Modellunsicherheit: Satz, Summenkurven je Modell, Band des ICON-D2-Ensembles */
+.agree { font-size: 14px; font-weight: 600; line-height: 1.4; margin-bottom: 10px; }
+.mchart { width: 100%; height: auto; display: block; margin-bottom: 10px; overflow: visible; }
+.mchart .base { stroke: rgba(30,27,46,0.18); stroke-width: 1; }
+.mchart .lbl { font-size: 10px; font-weight: 700; fill: var(--ink-2); }
+.mchart .end { font-size: 9px; font-weight: 700; fill: var(--ink); }
+.mchart .now { stroke: var(--ink-2); stroke-width: 1; stroke-dasharray: 2 2; }
+.mchart .band { fill: var(--rain); opacity: 0.7; animation: aFade 1.2s ease both; transition: opacity 0.4s; }
+.mchart .band.off { opacity: 0; }
+.mchart .ml { fill: none; stroke: #B9B4C8; stroke-width: 1.2; stroke-linejoin: round; stroke-linecap: round; stroke-dasharray: 1; animation: aDraw 1.6s ease-out both; transition: stroke 0.3s, stroke-width 0.3s; }
+.mchart .ml.hl { stroke: var(--dark); stroke-width: 2.2; }
+@keyframes aDraw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 
 /* ---------- Tab-Leiste ---------- */
 .tabs {

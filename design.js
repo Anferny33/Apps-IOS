@@ -1011,47 +1011,110 @@ function agreementText(dayWord, sums) {
     return lead + (share >= 0.75 ? "weitgehend einig: " : "uneinig: ") + wet + " von " + n + " rechnen mit Regen.";
 }
 
+let hlModel = "icon_d2";
+
+function fmtPt(x, y) { return x.toFixed(1) + "," + y.toFixed(1); }
+
+/* Kurvenbild: zwei Tafeln heute/morgen, gemeinsame y-Skala, Band nur am ICON-D2 */
+function modelChartSvg(models, bands, nowHour, hl) {
+    const panels = [{ key: "today", x0: 10, label: "Heute" }, { key: "tomorrow", x0: 170, label: "Morgen" }];
+    const W = 140, Y0 = 80, Y1 = 14;
+    let maxV = 1;
+    models.forEach(function (m) { maxV = Math.max(maxV, m.today, m.tomorrow); });
+    panels.forEach(function (p) { if (bands[p.key]) maxV = Math.max(maxV, bands[p.key].hi[24]); });
+    const sx = function (p, h) { return p.x0 + h / 24 * W; };
+    const sy = function (v) { return Y0 - v / maxV * (Y0 - Y1); };
+    let out = '<svg class="mchart" viewBox="0 0 320 96" aria-hidden="true">';
+    panels.forEach(function (p) {
+        out += '<line class="base" x1="' + p.x0 + '" y1="' + Y0 + '" x2="' + (p.x0 + W) + '" y2="' + Y0 + '"/>';
+        out += '<text class="lbl" x="' + p.x0 + '" y="9">' + p.label + '</text>';
+        const b = bands[p.key];
+        if (b) {
+            let pts = "";
+            for (let h = 0; h <= 24; h++) pts += fmtPt(sx(p, h), sy(b.hi[h])) + " ";
+            for (let h = 24; h >= 0; h--) pts += fmtPt(sx(p, h), sy(b.lo[h])) + " ";
+            out += '<polygon class="band' + (hl === "icon_d2" ? '' : ' off') + '" points="' + pts.trim() + '"/>';
+        }
+        if (p.key === "today" && isNum(nowHour)) {
+            const x = sx(p, nowHour).toFixed(1);
+            out += '<line class="now" x1="' + x + '" y1="' + Y1 + '" x2="' + x + '" y2="' + Y0 + '"/>';
+        }
+        models.forEach(function (m, i) {
+            const c = m.cum[p.key];
+            let d = "";
+            for (let h = 0; h <= 24; h++) d += (h ? " L" : "M") + fmtPt(sx(p, h), sy(c[h]));
+            out += '<path class="ml m-' + m.id + (m.id === hl ? ' hl' : '') + '" pathLength="1" d="' + d + '" style="animation-delay:' + dl(2.1 + i * 0.1) + 's"/>';
+        });
+        const hm = models.filter(function (m) { return m.id === hl; })[0];
+        if (hm) out += '<text class="end" x="' + (p.x0 + W + 3) + '" y="' + (sy(hm[p.key]) + 3).toFixed(1) + '">' + fmtMm(hm[p.key]) + ' mm</text>';
+    });
+    return out + '</svg>';
+}
+
+/* Hervorhebung wechseln: Klassen auf Pfaden und Chips, Band nur bei ICON-D2 sichtbar.
+   Die Endwert-Beschriftung gehört zum hervorgehobenen Modell und wird dafür neu gesetzt. */
+function highlightModel(id) {
+    hlModel = id;
+    const box = D("models");
+    if (!box || !box.querySelectorAll) return;
+    Array.prototype.slice.call(box.querySelectorAll(".ml, .mchip")).forEach(function (el) {
+        const mine = (el.classList && el.classList.contains("m-" + id)) || el.getAttribute("data-model") === id;
+        el.classList.toggle("hl", !!mine);
+    });
+    Array.prototype.slice.call(box.querySelectorAll(".band")).forEach(function (el) { el.classList.toggle("off", id !== "icon_d2"); });
+    const ends = Array.prototype.slice.call(box.querySelectorAll(".end"));
+    const chip = box.querySelector ? box.querySelector('.mchip[data-model="' + id + '"]') : null;
+    const vals = chip && chip.querySelectorAll ? Array.prototype.slice.call(chip.querySelectorAll("[data-count]")).map(function (e) { return parseFloat(e.getAttribute("data-count")); }) : [];
+    ends.forEach(function (el, i) {
+        const v = vals[i];
+        if (!isNum(v)) { el.textContent = ""; return; }
+        el.textContent = fmtMm(v) + " mm";
+        const path = box.querySelector('.ml.m-' + id);
+        if (path && el.setAttribute) {
+            /* y-Position: Endpunkt des Pfads der jeweiligen Tafel */
+            const paths = Array.prototype.slice.call(box.querySelectorAll('.ml.m-' + id));
+            const d = paths[i] && paths[i].getAttribute ? paths[i].getAttribute("d") : "";
+            const last = d ? d.slice(d.lastIndexOf("L") + 1).split(",") : null;
+            if (last && last.length === 2) el.setAttribute("y", (parseFloat(last[1]) + 3).toFixed(1));
+        }
+    });
+}
+
 function dModels(md, fc, ens) {
     const box = D("models");
     unskel(box);
-    if (!md || !md.daily) { box.innerHTML = '<div class="note">Modellvergleich derzeit nicht verfügbar.</div>'; return; }
+    const models = md ? modelSums(md) : [];
+    if (!models.length) { box.innerHTML = '<div class="note">Modellvergleich derzeit nicht verfügbar.</div>'; return; }
 
-    let chips = "";
-    const tomorrow = [];
-    MODELS.forEach(function (m) {
-        const s = md.daily["precipitation_sum_" + m.id];
-        if (!Array.isArray(s) || !isNum(s[0])) return;
-        if (isNum(s[1])) tomorrow.push(s[1]);
-        const num = function (v) { return isNum(v) ? '<span data-count="' + v + '" data-decimals="' + (v >= 0.05 && v < 10 ? 1 : 0) + '">' + fmtMm(v) + '</span>' : '–'; };
-        chips += '<div class="mchip" style="animation-delay:' + dl(2.0 + tomorrow.length * 0.07) + 's"><span class="k">' + m.name + '</span><span class="v">' + num(s[0]) + ' / ' + num(s[1]) + '</span></div>';
-    });
-    if (!chips) { box.innerHTML = '<div class="note">Modellvergleich derzeit nicht verfügbar.</div>'; return; }
+    const days = modelDays(md);
+    const nowHour = fc && fc.current && fc.current.time ? parseInt(fc.current.time.slice(11, 13), 10) + parseInt(fc.current.time.slice(14, 16), 10) / 60 : null;
+    const hl = models.some(function (m) { return m.id === hlModel; }) ? hlModel : models[0].id;
+    const bands = { today: ensembleBand(ens, days.dates[0]), tomorrow: ensembleBand(ens, days.dates[1]) };
 
-    let note = "";
-    if (tomorrow.length >= 2) {
-        const sp = Math.max.apply(null, tomorrow) - Math.min.apply(null, tomorrow);
-        const wetCount = tomorrow.filter(function (v) { return v >= 0.5; }).length;
-        if (sp >= 2) note = 'Morgen liegen die Modelle ' + fmtMm(sp) + ' mm auseinander: ' + (wetCount === tomorrow.length ? 'Regen sicher, Menge unsicher.' : 'Lage unsicher.');
-        else note = wetCount === 0 ? 'Für morgen sind sich die Modelle einig: trocken.' : 'Für morgen sind sich die Modelle weitgehend einig.';
+    /* Satz zur Übereinstimmung: morgen immer, heute nur vormittags */
+    let agree = agreementText("morgen", models.map(function (m) { return m.tomorrow; }));
+    if (isNum(nowHour) && nowHour < 12) {
+        const t = agreementText("heute", models.map(function (m) { return m.today; }));
+        if (t) agree = t + " " + agree;
     }
 
-    if (ens && ens.hourly && ens.hourly.time) {
-        const members = ensembleSeries(ens.hourly);
-        const start = firstIndexFrom(ens.hourly.time, fc.current.time.slice(0, 13));
-        if (members.length >= 3 && start >= 0) {
-            const end = Math.min(start + 24, ens.hourly.time.length);
-            const sums = members.map(function (s) {
-                let t = 0;
-                for (let i = start; i < end; i++) if (isNum(s[i])) t += s[i];
-                return t;
-            }).sort(function (a, b) { return a - b; });
-            const wet = sums.filter(function (v) { return v >= 0.1; }).length;
-            note += (note ? '<br>' : '') + 'ICON-D2-Ensemble, nächste 24 h: ' + fmtMm(sums[0]) + ' bis ' + fmtMm(sums[sums.length - 1]) + ' mm, Median ' +
-                fmtMm(quantile(sums, 0.5)) + ' mm · ' + Math.round(wet / sums.length * 100) + ' % der ' + sums.length + ' Läufe mit Regen.';
-        }
+    const num = function (v) { return isNum(v) ? '<span data-count="' + Number(v.toFixed(1)) + '" data-decimals="' + (v >= 0.05 && v < 10 ? 1 : 0) + '">' + fmtMm(v) + '</span>' : '–'; };
+    const chips = models.map(function (m, i) {
+        return '<div class="mchip' + (m.id === hl ? ' hl' : '') + '" data-model="' + m.id + '" style="animation-delay:' + dl(2.0 + i * 0.07) + 's"><span class="k">' + m.name + '</span><span class="v">' + num(m.today) + ' / ' + num(m.tomorrow) + '</span></div>';
+    }).join('');
+
+    /* Ensemble-Zeile mit Zählwerten, damit nichts wie eine Trefferwahrscheinlichkeit wirkt */
+    let ensNote = "";
+    const b = bands.tomorrow;
+    if (b && b.sums.length >= 3) {
+        const wet = b.sums.filter(function (v) { return v >= 0.1; }).length;
+        ensNote = 'ICON-D2-Ensemble, morgen: ' + fmtMm(b.sums[0]) + ' bis ' + fmtMm(b.sums[b.sums.length - 1]) + ' mm, Median ' + fmtMm(quantile(b.sums, 0.5)) + ' mm · ' + wet + ' von ' + b.sums.length + ' Läufen mit Regen.';
     }
 
-    box.innerHTML = '<div class="mchips">' + chips + '</div>' + (note ? '<div class="note">' + note + '</div>' : '');
+    box.innerHTML = (agree ? '<div class="agree">' + agree + '</div>' : '') +
+        modelChartSvg(models, bands, nowHour, hl) +
+        '<div class="mchips">' + chips + '</div>' +
+        (ensNote ? '<div class="note">' + ensNote + '</div>' : '');
 }
 
 /* ---- Amtliche Warnungen (DWD) ---- */
@@ -1411,6 +1474,8 @@ function initDesignApp() {
                 if (i === null) clearHour(); else selectHour(parseInt(i, 10));
                 return;
             }
+            const chip = t.closest(".mchip");
+            if (chip && chip.getAttribute("data-model")) { highlightModel(chip.getAttribute("data-model")); return; }
             if (t.closest("a, button, input")) return;
             const box = t.closest(".tile, .field");
             if (!box) return;

@@ -329,6 +329,18 @@ body {
 .mchip { padding: 9px 8px; background: rgba(255,255,255,0.08); border-radius: 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; text-align: center; }
 .mchip .k { font-size: 10.5px; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mchip .v { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.mchip.hl { background: rgba(255,255,255,0.22); }
+.agree { font-size: 14px; line-height: 1.4; margin-bottom: 10px; }
+.mchart { width: 100%; height: auto; display: block; margin-bottom: 10px; overflow: visible; }
+.mchart .base { stroke: rgba(255,255,255,0.2); stroke-width: 1; }
+.mchart .lbl { font-size: 10px; fill: var(--ink-3); text-transform: uppercase; letter-spacing: 0.4px; }
+.mchart .end { font-size: 9px; font-weight: 600; fill: var(--ink); }
+.mchart .now { stroke: rgba(255,255,255,0.5); stroke-width: 1; stroke-dasharray: 2 2; }
+.mchart .band { fill: rgba(143,208,255,0.25); animation: aFade 1.2s ease both; transition: opacity 0.4s; }
+.mchart .band.off { opacity: 0; }
+.mchart .ml { fill: none; stroke: rgba(255,255,255,0.35); stroke-width: 1.2; stroke-linejoin: round; stroke-linecap: round; stroke-dasharray: 1; animation: aDraw 1.6s ease-out both; transition: stroke 0.3s, stroke-width 0.3s; }
+.mchart .ml.hl { stroke: #ffffff; stroke-width: 2.2; }
+@keyframes aDraw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 
 /* ---------- Tab-Leiste ---------- */
 .tabs {
