@@ -40,22 +40,17 @@ const $ = function (id) { return document.getElementById(id); };
 function isNum(v) { return typeof v === "number" && !isNaN(v); }
 
 /* ------------------------------------------------------------------ *
- * Kartenstil: ruhige Vektorkarte in den Farben des jeweiligen Designs
+ * Kartenstil: ruhige Vektorkarte in den Farben der App
  * ------------------------------------------------------------------ */
 
-function palette(design) {
-    if (design === "classic") {
-        return { land: "#1f3a5f", green: "#24456a", park: "#27507a", urban: "#2a4466", water: "#0f2744", waterLine: "#193b63",
-                 road: "rgba(255,255,255,0.28)", roadMinor: "rgba(255,255,255,0.14)", border: "rgba(255,255,255,0.35)",
-                 text: "#ffffff", textMuted: "rgba(255,255,255,0.75)", halo: "rgba(15,30,55,0.9)", waterText: "#9fd3ff" };
-    }
+function palette() {
     return { land: "#EEF1EA", green: "#DDE8D3", park: "#D3E3C8", urban: "#E6E3EC", water: "#D4E4F7", waterLine: "#C6DAF2",
              road: "#D2CDDD", roadMinor: "#E0DCE8", border: "#B9B4C8",
              text: "#1E1B2E", textMuted: "#6B6685", halo: "rgba(255,255,255,0.9)", waterText: "#3A4A6B" };
 }
 
-function buildStyle(design) {
-    const p = palette(design);
+function buildStyle() {
+    const p = palette();
     const nameDe = ["coalesce", ["get", "name:de"], ["get", "name"]];
     const poly = ["match", ["geometry-type"], ["Polygon", "MultiPolygon"], true, false];
     const line = ["match", ["geometry-type"], ["LineString", "MultiLineString"], true, false];
@@ -350,7 +345,6 @@ function pruneQueue(viewKey) {
  * ------------------------------------------------------------------ */
 
 let map = null;
-let design = "modern";
 let frames = [];               /* { time (ms|null), isForecast } */
 let current = 0;
 let playing = false;
@@ -728,34 +722,6 @@ function moveTabInk() {
     nav.classList.add("ink-ready");
 }
 
-function applyDesign(name) {
-    const modern = name !== "classic";
-    design = modern ? "modern" : "classic";
-    const swap = function () {
-        const m = $("cssModern"), c = $("cssClassic");
-        if (m) m.disabled = !modern;
-        if (c) c.disabled = modern;
-        if (document.documentElement && document.documentElement.setAttribute) document.documentElement.setAttribute("data-design", design);
-        updateThemeColor();
-        try { localStorage.setItem("wetter:design", design); } catch (e) { /* kein Speicher */ }
-        moveTabInk();
-        if (map && map.setStyle) map.setStyle(buildStyle(design));
-    };
-    const veil = $("designVeil");
-    const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (!veil || !veil.classList || reduce || typeof requestAnimationFrame !== "function") { swap(); return; }
-    veil.style.background = modern ? "#ECEAF4" : "#2a558c";
-    veil.classList.add("on");
-    setTimeout(function () {
-        swap();
-        requestAnimationFrame(function () { requestAnimationFrame(function () { veil.classList.remove("on"); }); });
-    }, 520);
-}
-
-function currentDesign() {
-    try { return localStorage.getItem("wetter:design") === "classic" ? "classic" : "modern"; } catch (e) { return "modern"; }
-}
-
 /* ------------------------------------------------------------------ *
  * Start
  * ------------------------------------------------------------------ */
@@ -764,29 +730,47 @@ function bind(id, ev, fn) { const el = $(id); if (el && el.addEventListener) el.
 
 /* Innerer Zustand für Tests (let-Variablen sind im Sandbox-Kontext sonst nicht erreichbar) */
 function radarState() {
-    return { map: map, frames: frames, current: current, playing: playing, design: design, shownLayer: shownLayer, stagingLayer: stagingLayer, cacheSize: cache.size, queued: queue.length, active: active, loadedView: loadedView };
+    return { map: map, frames: frames, current: current, playing: playing, shownLayer: shownLayer, stagingLayer: stagingLayer, cacheSize: cache.size, queued: queue.length, active: active, loadedView: loadedView };
 }
 
 /* Nachtpalette wie auf der Startseite: Sonnenstand am aktiven Ort (−8°), beim Start und jede Minute.
    Liefert true/false, ohne Ort null. nowMs nur für Tests. */
+let radarAuto = null, radarFadeTimer = null;
 function radarNight(nowMs) {
     const pos = lastKnownPos();
     if (!pos || typeof nightByClock !== "function") return null;
     const now = new Date(isNum(nowMs) ? nowMs : Date.now());
     const dateStr = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0");
-    const on = nightByClock(pos.lat, pos.lon, dateStr, -now.getTimezoneOffset() * 60, now.getHours() * 60 + now.getMinutes());
+    radarAuto = nightByClock(pos.lat, pos.lon, dateStr, -now.getTimezoneOffset() * 60, now.getHours() * 60 + now.getMinutes());
+    const on = resolveNight(radarAuto);
     const root = document.documentElement && document.documentElement.classList ? document.documentElement : null;
-    if (root) root.classList.toggle("night", on);
+    if (root) {
+        if (root.classList.contains("night") !== on) {
+            root.classList.add("fade");
+            clearTimeout(radarFadeTimer);
+            radarFadeTimer = setTimeout(function () { root.classList.remove("fade"); }, 1000);
+        }
+        root.classList.toggle("night", on);
+    }
     try { localStorage.setItem("wetter:night", on ? "1" : "0"); } catch (e) {}
+    paintModeButton($("modeBtn"), on);
     updateThemeColor();
     return on;
+}
+
+/* Tipp auf den Schalter: Handwahl bis zum nächsten automatischen Wechsel, dann neu auflösen */
+function radarToggleMode() {
+    const root = document.documentElement && document.documentElement.classList ? document.documentElement : null;
+    const on = !(root && root.classList.contains("night"));
+    writeNightMode(on ? "night" : "day", radarAuto === null ? !on : radarAuto);
+    radarNight();
 }
 
 function updateThemeColor() {
     const metaEl = document.querySelector ? document.querySelector('meta[name="theme-color"]') : null;
     if (!metaEl) return;
     const root = document.documentElement && document.documentElement.classList ? document.documentElement : null;
-    metaEl.setAttribute("content", design === "classic" ? "#2a558c" : (root && root.classList.contains("night") ? "#14121F" : "#ECEAF4"));
+    metaEl.setAttribute("content", root && root.classList.contains("night") ? "#14121F" : "#ECEAF4");
 }
 
 function initRadar() {
@@ -794,12 +778,11 @@ function initRadar() {
         setMsg("Die Kartenbibliothek konnte nicht geladen werden. Bitte Verbindung prüfen und Seite neu laden.");
         return;
     }
-    design = currentDesign();
     radarNight();
     const pos = lastKnownPos();
     map = new maplibregl.Map({
         container: "map",
-        style: buildStyle(design),
+        style: buildStyle(),
         center: pos ? [pos.lon, pos.lat] : DEFAULT_CENTER,
         zoom: pos ? 7 : 6,
         minZoom: 4, maxZoom: 12,
@@ -830,7 +813,7 @@ function initRadar() {
     bind("recenter", "click", recenter);
     bind("zoomIn", "click", function () { if (map.zoomIn) map.zoomIn({ duration: 300 }); });
     bind("zoomOut", "click", function () { if (map.zoomOut) map.zoomOut({ duration: 300 }); });
-    bind("designBtn", "click", function () { applyDesign(design === "classic" ? "modern" : "classic"); });
+    bind("modeBtn", "click", radarToggleMode);
     bind("tlMark", "click", function () { setPlaying(false); showFrame(lastPastIndex()); });
     loadLegend();
 

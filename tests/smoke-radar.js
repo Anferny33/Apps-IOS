@@ -1,7 +1,7 @@
 // Radar-Seite (MapLibre + DWD-WMS): Metadaten (Zeitachse, REFERENCE_TIME, Abdeckung),
 // Frame-Auswahl, Ladereihenfolge, Anzeige erst nach vollständigem Laden, Überblendung A/B,
 // begrenzter Cache, Aktualisierung ohne Doppelabrufe, Pause bei Slider/Hintergrund,
-// Abdeckungs- und Ladefehler, Zentrieren, Design-Wechsel.
+// Abdeckungs- und Ladefehler, Zentrieren, Tag/Nacht-Schalter.
 const fs = require('fs');
 const vm = require('vm');
 const code = fs.readFileSync(require('path').join(__dirname, '..', 'radar.js'), 'utf8');
@@ -106,10 +106,10 @@ function run(opts) {
       getElementById: id => nodes[id] || (nodes[id] = el(id)),
       createElement: () => el('pin'),
       querySelector: () => null,
-      documentElement: { setAttribute(k, v) { this[k] = v; } },
+      documentElement: { setAttribute(k, v) { this[k] = v; }, classList: { c: new Set(), add(x){this.c.add(x)}, remove(x){this.c.delete(x)}, contains(x){return this.c.has(x)}, toggle(x, f){ if (f) this.c.add(x); else this.c.delete(x); } } },
       addEventListener(ev, fn) { docHandlers[ev] = fn; }, hidden: false
     },
-    localStorage: { store: {}, getItem(k) { if (k === 'wetter:pos') return opts.pos ? JSON.stringify(opts.pos) : null; if (k === 'wetter:active') return opts.active === undefined ? null : (typeof opts.active === 'string' ? opts.active : JSON.stringify(opts.active)); return this.store[k] || null; }, setItem(k, v) { this.store[k] = v; } }
+    localStorage: { store: {}, getItem(k) { if (k === 'wetter:pos') return opts.pos ? JSON.stringify(opts.pos) : null; if (k === 'wetter:active') return opts.active === undefined ? null : (typeof opts.active === 'string' ? opts.active : JSON.stringify(opts.active)); return this.store[k] || null; }, setItem(k, v) { this.store[k] = v; }, removeItem(k) { delete this.store[k]; } }
   };
   sb.window = sb;
   vm.createContext(sb);
@@ -205,11 +205,14 @@ const check = (n, c, x) => { console.log((c ? '  ok   ' : '  FAIL ') + n + (c ? 
   A.setBounds([9, 47, 13, 50]); await A.sb.showFrame(5); await wait(30);
   check('Zurück in der Abdeckung: Hinweis weg, Radar sichtbar', N.mapMsg.classList.contains('hidden') && map.layers.some(l => map.paint[l.id + '|raster-opacity'] === 0.72));
 
-  // Zentrieren und Design-Wechsel
+  // Zentrieren und Tag/Nacht-Schalter
   N.recenter.trigger('click');
   check('Zurückzentrieren auf den gewählten Ort', map.eased && map.eased.center[0] === 11.575 && map.eased.center[1] === 48.137, JSON.stringify(map.eased));
-  N.designBtn.trigger('click'); await wait(20);
-  check('Design-Wechsel: dunkler Kartenstil, Radarebenen neu eingefügt, Wahl gespeichert', map.style.layers.find(l => l.id === 'water').paint['fill-color'] === '#0f2744' && map.layers.length === 2 && A.sb.localStorage.store['wetter:design'] === 'classic', JSON.stringify(map.style.layers[0]));
+  const rootN = () => A.sb.document.documentElement;
+  N.modeBtn.trigger('click'); await wait(20);
+  check('Schalter: Tipp am Tag erzwingt Nacht, Wahl gespeichert, Knopf gedrückt', rootN().classList.contains('night') === true && JSON.parse(A.sb.localStorage.store['wetter:nightmode']).force === 'night' && N.modeBtn['aria-pressed'] === 'true', JSON.stringify(A.sb.localStorage.store));
+  check('Schalter: beim automatischen Wechsel verfällt die Handwahl', A.sb.radarNight(Date.parse('2026-10-08T20:30:00Z')) === true && A.sb.localStorage.store['wetter:nightmode'] === undefined);
+  check('Schalter: zurück am Tag Automatik', A.sb.radarNight(Date.parse('2026-10-08T11:07:00Z')) === false && N.modeBtn['aria-pressed'] === 'false');
 
   // ---- B: Metadaten blockiert → aktuelles Bild ohne Zeitraffer ----
   const B = run({ caps: null, pos: null });

@@ -55,3 +55,39 @@ function moonPhase(date) {
     const phase = ((((ms - MOON_REF) / 86400000) / MOON_SYNODIC) % 1 + 1) % 1;
     return { phase: phase, illum: (1 - Math.cos(2 * Math.PI * phase)) / 2, name: MOON_NAMES[Math.floor(((phase + 0.0625) % 1) * 8)] };
 }
+
+/* ---- Tag/Nacht-Schalter: Handwahl gilt, bis der Sonnenstand das nächste Mal wechselt ---- */
+const NIGHT_MODE_KEY = "wetter:nightmode";
+
+function readNightMode() {
+    try {
+        const p = JSON.parse(localStorage.getItem(NIGHT_MODE_KEY) || "null");
+        return p && (p.force === "night" || p.force === "day") && typeof p.auto === "boolean" ? p : null;
+    } catch (e) { return null; }
+}
+function writeNightMode(force, auto) {
+    try { localStorage.setItem(NIGHT_MODE_KEY, JSON.stringify({ force: force, auto: !!auto })); } catch (e) {}
+}
+function clearNightMode() {
+    try { localStorage.removeItem(NIGHT_MODE_KEY); } catch (e) {}
+}
+/* Automatik (auto) gegen die Handwahl: weicht die Automatik vom Stand beim Tippen ab, verfällt die Wahl */
+function resolveNight(auto) {
+    const m = readNightMode();
+    if (!m) return auto;
+    if (m.auto !== auto) { clearNightMode(); return auto; }
+    return m.force === "night";
+}
+
+/* Knopf: Symbol zeigt den Zustand, aria-pressed den Schalter, der Titel die Wirkung des Tipps */
+const MODE_ICON_SUN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+const MODE_ICON_MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5z"/></svg>';
+function paintModeButton(btn, night) {
+    if (!btn) return;
+    btn.innerHTML = night ? MODE_ICON_MOON : MODE_ICON_SUN;
+    if (btn.setAttribute) {
+        btn.setAttribute("aria-label", "Nachtmodus");
+        btn.setAttribute("aria-pressed", night ? "true" : "false");
+        btn.setAttribute("title", night ? "Nachtmodus ausschalten" : "Nachtmodus einschalten");
+    }
+}

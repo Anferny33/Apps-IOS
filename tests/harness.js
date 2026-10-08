@@ -22,7 +22,7 @@ function el() {
     },
     addEventListener(ev, fn) { handlers[ev] = fn; },
     trigger(ev, arg) { if (handlers[ev]) return handlers[ev].call(e, arg || {}); },
-    setAttribute() {}, getAttribute() { return null; },
+    setAttribute(k, v) { this[k] = String(v); }, getAttribute(k) { return k in this ? this[k] : null; },
     focus() { e.focused = true; }, blur() {},
     getBoundingClientRect() { return { width: 640, left: 0 }; },
     querySelector(sel) { return children[sel] || (children[sel] = el()); },

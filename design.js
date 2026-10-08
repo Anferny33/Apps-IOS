@@ -1,7 +1,7 @@
 /* Startseite der Wetter-App.
  * Nutzt die Datenschicht aus wetter-core.js (fetch*, Helfer, Cache, Ensemble)
  * und rendert das Markup aus index.html. Das Aussehen liefern modern.css (Bento,
- * Standard) oder design.css (klassisch); der Umschalter unten in dieser Datei
+ * Standard); der Tag/Nacht-Schalter oben rechts
  * wechselt zwischen beiden. Die Einblend-Animationen steuert das Stylesheet,
  * hier werden nur Klassen und Verzögerungen gesetzt.
  */
@@ -1819,7 +1819,8 @@ function renderAllDesign(payload) {
     const keepTime = sameLoc ? previewTime : null, keepTile = sameLoc ? openTile : null;
     lastData = prepareData(payload.fc, payload.ens);
     lastAir = payload.air || null;
-    applyNight(nightNowAt(payload.fc, localNowIso(payload.fc)));
+    lastAuto = nightNowAt(payload.fc, localNowIso(payload.fc));
+    applyNight(resolveNight(lastAuto));
     previewIdx = null;
     previewTime = null;
     openTile = null;
@@ -1950,9 +1951,7 @@ function nightRoot() { return document.documentElement && document.documentEleme
 
 function updateThemeColor() {
     const meta = document.querySelector ? document.querySelector('meta[name="theme-color"]') : null;
-    if (!meta) return;
-    const classic = document.documentElement && document.documentElement.getAttribute && document.documentElement.getAttribute("data-design") === "classic";
-    meta.setAttribute("content", classic ? "#2a558c" : (nightOn ? "#14121F" : "#ECEAF4"));
+    if (meta) meta.setAttribute("content", nightOn ? "#14121F" : "#ECEAF4");
 }
 
 /* Setzt die Palette; bei Wechsel blendet die Seite eine Sekunde weich über. Liefert true bei Wechsel. */
@@ -1963,6 +1962,7 @@ function applyNight(on) {
     if (root && root.classList) root.classList.toggle("night", on);
     try { localStorage.setItem("wetter:night", on ? "1" : "0"); } catch (e) {}
     updateThemeColor();
+    paintModeButton(D("modeBtn"), on);
     if (was === on) return false;
     if (root && root.classList) {
         root.classList.add("fade");
@@ -1972,13 +1972,27 @@ function applyNight(on) {
     return true;
 }
 
-/* Minütlich, beim Sichtbarwerden und in Tests mit fester Zeit: bei Wechsel die Tageszeit-Kacheln leise neu bauen */
+/* Zustand setzen; bei Wechsel die Tageszeit-Kacheln leise neu bauen */
+let lastAuto = null;   /* automatischer Zustand bei der letzten Prüfung */
+function settleNight(on) {
+    if (!applyNight(on)) return;
+    if (!lastData || !lastData.fc) return;
+    renderDetails(lastData.fc, lastAir, { swap: true });
+    if (openTile) setTileState(openTile, true);
+}
+
+/* Minütlich, beim Sichtbarwerden und in Tests mit fester Zeit: Automatik gegen die Handwahl */
 function updateNight(nowIso) {
     if (!lastData || !lastData.fc) return;
     const fc = lastData.fc;
-    if (!applyNight(nightNowAt(fc, nowIso || localNowIso(fc)))) return;
-    renderDetails(fc, lastAir, { swap: true });
-    if (openTile) setTileState(openTile, true);
+    lastAuto = nightNowAt(fc, nowIso || localNowIso(fc));
+    settleNight(resolveNight(lastAuto));
+}
+
+/* Tipp auf den Schalter: Handwahl bis zum nächsten automatischen Wechsel */
+function setNightManual(on) {
+    writeNightMode(on ? "night" : "day", lastAuto === null ? nightOn : lastAuto);
+    settleNight(on);
 }
 
 function countState() { return Object.assign({}, lastCounts); }
@@ -2217,44 +2231,13 @@ function initDesignApp() {
         moveTabInk();
     }
 
-    /* ---- Design-Umschalter: modern.css (Bento) oder design.css (klassisch), Wahl bleibt gespeichert ---- */
+    /* ---- Tag/Nacht-Schalter oben rechts ---- */
 
-    function applyDesign(name) {
-        const modern = name !== "classic";
-        const swap = function () {
-            const m = D("cssModern"), c = D("cssClassic");
-            if (m) m.disabled = !modern;
-            if (c) c.disabled = modern;
-            if (document.documentElement && document.documentElement.setAttribute) {
-                document.documentElement.setAttribute("data-design", modern ? "modern" : "classic");
-            }
-            updateThemeColor();
-            try { localStorage.setItem("wetter:design", modern ? "modern" : "classic"); } catch (e) {}
-            moveTabInk();
-        };
-        /* Kurz in die Grundfarbe des Zieldesigns überblenden statt hart umzuschalten */
-        const veil = D("designVeil");
-        const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-        if (!veil || !veil.classList || reduce || typeof requestAnimationFrame !== "function") { swap(); return; }
-        veil.style.background = modern ? "#ECEAF4" : "#2a558c";
-        veil.classList.add("on");
-        setTimeout(function () {
-            swap();
-            requestAnimationFrame(function () { requestAnimationFrame(function () { veil.classList.remove("on"); }); });
-        }, 520);
-    }
-
-    function initDesignToggle() {
-        let current = "modern";
-        try { current = localStorage.getItem("wetter:design") === "classic" ? "classic" : "modern"; } catch (e) {}
-        function toggle() {
-            current = current === "classic" ? "modern" : "classic";
-            applyDesign(current);
-        }
-        ["designBtn", "designLink"].forEach(function (id) {
-            const b = D(id);
-            if (b) b.addEventListener("click", toggle);
-        });
+    function initModeToggle() {
+        const b = D("modeBtn");
+        if (!b) return;
+        paintModeButton(b, nightOn);
+        b.addEventListener("click", function () { setNightManual(!nightOn); });
     }
 
     /* ---- Antippen: Animationen der Kachel neu starten ---- */
@@ -2366,16 +2349,6 @@ function initDesignApp() {
 
     /* ---- Hintergrund-Partikel ---- */
 
-    function initParticles() {
-        const p = D("precip");
-        if (!p) return;
-        let s = "";
-        for (let i = 0; i < 36; i++) {
-            s += '<i style="left:' + (Math.random() * 100).toFixed(1) + '%;animation-delay:-' + (Math.random() * 6).toFixed(2) + 's;animation-duration:' + (2.2 + Math.random() * 2.5).toFixed(2) + 's;opacity:' + (0.4 + Math.random() * 0.6).toFixed(2) + '"></i>';
-        }
-        p.innerHTML = s;
-    }
-
     /* ---- Start ---- */
 
     D("refresh").addEventListener("click", function () { if (!currentLoc) locate(); else load(); });
@@ -2386,8 +2359,7 @@ function initDesignApp() {
 
     initSearch();
     initTabs();
-    initParticles();
-    initDesignToggle();
+    initModeToggle();
     initReplay();
     initPreviewBar();
     initFreshness();

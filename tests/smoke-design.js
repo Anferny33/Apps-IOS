@@ -221,11 +221,19 @@ function boot(opts) {
   H.check('Platzhalter-Höhen nach dem Rendern entfernt', ['hourly','days','models'].every(id => !G(sb,id).style.height), ['hourly','days','models'].map(id => G(sb,id).style.height));
   H.check('Stand-Zeile', G(sb,'updated').textContent.startsWith('Stand '));
 
-  // Design-Umschalter: klassisch <-> modern, Wahl gespeichert
-  G(sb,'designBtn').trigger('click');
-  H.check('Umschalter: klassisches Design aktiv + gespeichert', sb._store['wetter:design'] === 'classic' && G(sb,'cssModern').disabled === true && G(sb,'cssClassic').disabled === false, sb._store['wetter:design']);
-  G(sb,'designLink').trigger('click');
-  H.check('Umschalter: zurück zu modern', sb._store['wetter:design'] === 'modern' && G(sb,'cssModern').disabled === false && G(sb,'cssClassic').disabled === true, sb._store['wetter:design']);
+  // Tag/Nacht-Schalter: Handwahl bis zum nächsten Sonnenwechsel
+  H.check('Schalter: tagsüber Sonnensymbol, nicht gedrückt', G(sb,'modeBtn').innerHTML.includes('<circle cx="12" cy="12" r="4"/>') && G(sb,'modeBtn')['aria-pressed'] === 'false' && G(sb,'modeBtn')['aria-label'] === 'Nachtmodus', G(sb,'modeBtn')['aria-pressed']);
+  G(sb,'modeBtn').trigger('click');
+  H.check('Schalter: Tipp am Tag schaltet Nacht, Kacheln folgen, Wahl gespeichert', sb.document.body.classList.contains('night') && G(sb,'details').innerHTML.includes('>UV morgen<') && JSON.parse(sb._store['wetter:nightmode']).force === 'night' && JSON.parse(sb._store['wetter:nightmode']).auto === false && G(sb,'modeBtn')['aria-pressed'] === 'true' && G(sb,'modeBtn').innerHTML.includes('M20 14.5'), sb._store['wetter:nightmode']);
+  sb.updateNight('2026-09-25T15:00');
+  H.check('Schalter: Handwahl bleibt, solange der Sonnenstand gleich bleibt', sb.document.body.classList.contains('night') && sb._store['wetter:nightmode'] !== undefined);
+  sb.updateNight('2026-09-25T21:00');
+  H.check('Schalter: beim automatischen Wechsel verfällt die Handwahl (Nacht bleibt, Speicher leer)', sb.document.body.classList.contains('night') && sb._store['wetter:nightmode'] === undefined, sb._store['wetter:nightmode']);
+  G(sb,'modeBtn').trigger('click');
+  H.check('Schalter: Tipp in der Nacht schaltet Tag', !sb.document.body.classList.contains('night') && G(sb,'details').innerHTML.includes('UV-Index') && JSON.parse(sb._store['wetter:nightmode']).force === 'day' && G(sb,'modeBtn')['aria-pressed'] === 'false', sb._store['wetter:nightmode']);
+  sb.updateNight('2026-09-26T10:00');
+  H.check('Schalter: am Morgen verfällt die Tagwahl, Automatik übernimmt', !sb.document.body.classList.contains('night') && sb._store['wetter:nightmode'] === undefined);
+  sb.updateNight('2026-09-25T14:15');
 
   // 2) Nacht + Regen -> anderes Theme, Nowcast-Karte ohne Regen ausgeblendet
   const fc2 = H.mockForecast();
@@ -524,10 +532,10 @@ function boot(opts) {
   // Shell-Markup: gleitende Tab-Pille und Design-Schleier liegen in beiden Seiten
   const idx = fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
   const rad = fs.readFileSync(require('path').join(__dirname, '..', 'radar.html'), 'utf8');
-  H.check('Shell: Tab-Pille und Design-Schleier in index.html und radar.html', [idx, rad].every(h => h.includes('<span class="tab-ink"') && h.includes('id="designVeil"')));
+  H.check('Shell: Tab-Pille in index.html und radar.html, kein klassisches Design mehr, Schalter und Service Worker', [idx, rad].every(h => h.includes('<span class="tab-ink"') && !h.includes('designVeil') && !h.includes('design.css') && !h.includes('data-design') && !h.includes('wetter:design') && !h.includes('class="sky"') && h.includes('id="modeBtn"') && h.includes('serviceWorker.register("sw.js")')) && !idx.includes('designLink') && !fs.existsSync(require('path').join(__dirname, '..', 'design.css')));
   H.check('Shell: Rausgehen-Feld in index.html', idx.includes('id="activityField"') && idx.includes('id="activity"'));
   H.check('Shell: keine klassische Ansicht mehr verlinkt oder vorhanden', !idx.includes('klassisch.html') && !fs.existsSync(require('path').join(__dirname, '..', 'klassisch.html')) && !fs.existsSync(require('path').join(__dirname, '..', 'wetter.css')));
-  H.check('Shell: Versions-Query 20261009a an allen Asset-Links', (idx.match(/\?v=20261009a"/g) || []).length === 5 && (rad.match(/\?v=20261009a"/g) || []).length === 4, (idx.match(/\?v=\w+"/g) || []).join(','));
+  H.check('Shell: Versions-Query 20261009b an allen Asset-Links', (idx.match(/\?v=20261009b"/g) || []).length === 4 && (rad.match(/\?v=20261009b"/g) || []).length === 3, (idx.match(/\?v=\w+"/g) || []).join(','));
   const css = fs.readFileSync(require('path').join(__dirname, '..', 'modern.css'), 'utf8');
   H.check('Shell: Sonnenrechnung vor den App-Skripten, Nachtklasse vor dem ersten Zeichnen', [idx, rad].every(h => h.includes('<script src="sonne.js?v=') && /wetter:night[\s\S]{0,120}classList\.add\("night"\)/.test(h) && h.indexOf('wetter:night') < h.indexOf('<link rel="stylesheet" href="modern.css')));
   H.check('Shell: Nachtpalette im Stylesheet mit Token, Hero-Farben, Fade und Kachel-Einblendung', css.includes('html.night {') && css.includes('--card:') && css.includes('--soft:') && css.includes('--wet:') && css.includes('html.night .theme-rain') && css.includes('html.fade') && css.includes('.tile.swap') && css.includes('.field.white { background: var(--card); }') && /\.tile \{[^}]*background: var\(--card\)/.test(css) && /\.hcol\.wet \{ background: var\(--wet\)/.test(css), css.match(/\.field\.white[^\n]*/));

@@ -2,12 +2,8 @@
 const fs = require('fs');
 const r = JSON.parse(fs.readFileSync(__dirname + '/render-design.json', 'utf8'));
 let h = fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
-// Vorschau wahlweise im modernen (Standard) oder klassischen Design: DESIGN=classic
-const cssFile = process.env.DESIGN === 'classic' ? 'design.css' : 'modern.css';
-const css = fs.readFileSync(require('path').join(__dirname, '..', cssFile), 'utf8');
+const css = fs.readFileSync(require('path').join(__dirname, '..', 'modern.css'), 'utf8');
 h = h.replace(/<link rel="stylesheet" href="modern\.css[^"]*" id="cssModern">/, '<style>' + css + '</style>');
-h = h.replace(/<link rel="stylesheet" href="design\.css[^"]*" id="cssClassic" disabled>/, '');
-if (process.env.DESIGN === 'classic') h = h.replace('data-design="modern"', 'data-design="classic"');
 h = h.replace(/<script[\s\S]*?<\/script>\s*/g, '');
 h = h.replace('<body class="theme-partly-day">', '<body class="' + r.theme + '">');
 
