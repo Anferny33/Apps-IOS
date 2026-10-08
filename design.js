@@ -435,7 +435,7 @@ function clearHour(quiet) {
 /* ---- Zeitreise Stufe 2: Ziehen vom Griff (markierte Spalte) ---- */
 
 const scrub = { pending: false, active: false, x0: 0, y0: 0, lastX: 0, lastY: 0, raf: null, endedAt: 0 };
-const SCRUB_EDGE = 36, SCRUB_STEP = 6;
+const SCRUB_EDGE = 36, SCRUB_STEP = 4, SCRUB_INSET = 24;
 
 function scrubActive() { return scrub.active; }
 
@@ -449,6 +449,16 @@ function columnAt(x, y) {
     if (!document.elementFromPoint) return null;
     const el = document.elementFromPoint(x, y);
     return el && el.closest ? el.closest(".hcol") : null;
+}
+
+/* Abtastpunkt ins Spalteninnere klemmen: am Leistenrand liegt der Finger im Innenabstand,
+   wo elementFromPoint keine Spalte mehr trifft */
+function sampleX(x) {
+    const strip = stripEl();
+    if (!strip || !strip.getBoundingClientRect) return x;
+    const r = strip.getBoundingClientRect();
+    if (isNum(r.left) && isNum(r.right) && r.right - r.left > 2 * SCRUB_INSET) return Math.min(Math.max(x, r.left + SCRUB_INSET), r.right - SCRUB_INSET);
+    return x;
 }
 
 function applyScrubColumn(col) {
@@ -478,7 +488,7 @@ function scrubMove(x, y) {
     }
     if (!scrub.active) return "idle";
     scrub.lastX = x; scrub.lastY = y;
-    applyScrubColumn(columnAt(x, y));
+    applyScrubColumn(columnAt(sampleX(x), y));
     return "scrub";
 }
 
@@ -491,7 +501,7 @@ function edgeScroll() {
         let dx = 0;
         if (isNum(r.right) && scrub.lastX > r.right - SCRUB_EDGE) dx = SCRUB_STEP;
         else if (isNum(r.left) && scrub.lastX < r.left + SCRUB_EDGE) dx = -SCRUB_STEP;
-        if (dx) { strip.scrollLeft += dx; applyScrubColumn(columnAt(scrub.lastX, scrub.lastY)); }
+        if (dx) { strip.scrollLeft += dx; applyScrubColumn(columnAt(sampleX(scrub.lastX), scrub.lastY)); }
     }
     scrub.raf = requestAnimationFrame(edgeScroll);
 }
@@ -1169,6 +1179,7 @@ function initDesignApp() {
         document.body.addEventListener("click", function (ev) {
             const t = ev.target;
             if (!t || !t.closest) return;
+            if (scrub.endedAt && Date.now() - scrub.endedAt < 300) return;   /* Klick nach Maus-Ziehen */
             /* Zeitreise: Jetzt-Knopf im Hero, Spalte mit Stundenindex, Spalte „Jetzt" */
             if (t.closest("#heroNow")) { clearHour(); return; }
             const col = t.closest(".hcol");
@@ -1184,6 +1195,31 @@ function initDesignApp() {
             if (box.id === "hero" && lastTemp !== null) countUp(box.querySelector(".temp"), lastTemp);
             else startCounters(box);
         });
+    }
+
+    /* Zeitreise Stufe 2: Ziehen vom Griff. Delegation am Container, die Leiste entsteht bei jedem Rendern neu. */
+    function initScrub() {
+        const box = D("hourly");
+        if (!box || !box.addEventListener) return;
+        const colOf = function (t) { return t && t.closest ? t.closest(".hcol") : null; };
+        box.addEventListener("touchstart", function (ev) {
+            const t = ev.touches && ev.touches[0];
+            if (t) scrubStart(t.clientX, t.clientY, colOf(ev.target));
+        }, { passive: true });
+        box.addEventListener("touchmove", function (ev) {
+            const t = ev.touches && ev.touches[0];
+            if (!t) return;
+            if (scrubMove(t.clientX, t.clientY) === "scrub") ev.preventDefault();
+        }, { passive: false });
+        box.addEventListener("touchend", scrubEnd);
+        box.addEventListener("touchcancel", scrubEnd);
+        box.addEventListener("mousedown", function (ev) {
+            if (scrubStart(ev.clientX, ev.clientY, colOf(ev.target))) ev.preventDefault();
+        });
+        if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+            window.addEventListener("mousemove", function (ev) { scrubMove(ev.clientX, ev.clientY); });
+            window.addEventListener("mouseup", scrubEnd);
+        }
     }
 
     /* ---- Hintergrund-Partikel ---- */
@@ -1211,6 +1247,7 @@ function initDesignApp() {
     initParticles();
     initDesignToggle();
     initReplay();
+    initScrub();
 
     const cached = window.PREVIEW_LOC || loadPos();
     if (cached) {
