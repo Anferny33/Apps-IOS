@@ -229,7 +229,7 @@ body {
 
 /* ---------- Detail-Kacheln ---------- */
 /* Reihenabstand über Kachelränder statt row-gap, damit ein geschlossenes Instrument-Feld keine Lücke lässt */
-.tiles { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; row-gap: 0; margin-bottom: -12px; }
+.tiles { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 12px; row-gap: 0; margin-bottom: -12px; }
 .tiles .tile { margin-bottom: 12px; }
 .tile { border-radius: var(--radius); padding: 18px; display: flex; flex-direction: column; gap: 6px; min-height: 150px; background: var(--white); }
 .tile.uv { background: var(--uv); } .tile.wind { background: var(--wind); } .tile.rain { background: var(--rain); } .tile.sun { background: var(--lilac); }

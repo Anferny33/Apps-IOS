@@ -120,7 +120,7 @@ function boot(opts) {
   H.check('Abendmodus: Bewölkung zum Untergang interpoliert und eingeordnet', sc && sc.text === 'Zum Untergang 51 % Wolken, tief 20 %: hohe Wolken, gute Chance auf Farbe.' && /verdeckt/.test(sb.sunsetClouds(mk(80, 70, 10), fc.daily.sunset[0]).text) && /klar, wenig Farbe/.test(sb.sunsetClouds(mk(10, 5, 5), fc.daily.sunset[0]).text) && /wechselnd/.test(sb.sunsetClouds(mk(55, 50, 10), fc.daily.sunset[0]).text), sc && sc.text);
   const sunPanel = sb.sunPanelHtml(fc);
   H.check('Abendmodus: Lichtleiste mit vier Segmenten, Zeiten, Morgen- und Bewölkungszeile im Sonnenfeld', (sunPanel.match(/<i class="seg (day|gold|blue|night)"/g) || []).length === 4 && sunPanel.includes('>18:24<') && sunPanel.includes('>19:05<') && sunPanel.includes('>19:48<') && sunPanel.includes('Morgens blaue Stunde ab 06:29, goldene Stunde 06:53 bis 07:53.') && sunPanel.includes('gute Chance auf Farbe') && sunPanel.includes('<div class="light-now day">Goldene Stunde ab 18:24</div>') && !sunPanel.includes('class="now"'), sunPanel.slice(sunPanel.indexOf('light'), sunPanel.indexOf('light') + 200));
-  H.check('Abendmodus: Kachel Sonne nennt die nächste goldene Stunde, Feld ohne Phasenklasse um 14:15', G(sb,'details').innerHTML.includes('goldene Stunde ab 18:24') && G(sb,'details').innerHTML.includes('<div class="tpanel-body">'), G(sb,'details').innerHTML.slice(G(sb,'details').innerHTML.indexOf('goldene') - 40, G(sb,'details').innerHTML.indexOf('goldene') + 40));
+  H.check('Abendmodus: Kachel Sonne nennt die nächste goldene Stunde, Feld ohne Phasenklasse um 14:15', G(sb,'details').innerHTML.includes('Aufgang 07:12<br>Goldene Stunde ab 18:24') && G(sb,'details').innerHTML.includes('<div class="tpanel-body">'), G(sb,'details').innerHTML.slice(G(sb,'details').innerHTML.indexOf('goldene') - 40, G(sb,'details').innerHTML.indexOf('goldene') + 40));
   // Stufe 2: Ziehen vom Griff. Harness ohne Touch/Layout → Zustandsmaschine direkt, columnAt als Stub
   const colStub = (i, sel) => ({ classList: { contains: c => c === 'sel' && sel }, getAttribute: a => a === 'data-i' ? i : null });
   sb.selectHour(20);
@@ -272,7 +272,7 @@ function boot(opts) {
   const rad = fs.readFileSync(require('path').join(__dirname, '..', 'radar.html'), 'utf8');
   H.check('Shell: Tab-Pille und Design-Schleier in index.html und radar.html', [idx, rad].every(h => h.includes('<span class="tab-ink"') && h.includes('id="designVeil"')));
   H.check('Shell: Rausgehen-Feld in index.html', idx.includes('id="activityField"') && idx.includes('id="activity"'));
-  H.check('Shell: Versions-Query 20261008u an allen Asset-Links', (idx.match(/\?v=20261008u"/g) || []).length === 4 && (rad.match(/\?v=20261008u"/g) || []).length === 3 && fs.readFileSync(require('path').join(__dirname, '..', 'klassisch.html'), 'utf8').includes('wetter-core.js?v=20261008u"'), (idx.match(/\?v=\w+"/g) || []).join(','));
+  H.check('Shell: Versions-Query 20261008v an allen Asset-Links', (idx.match(/\?v=20261008v"/g) || []).length === 4 && (rad.match(/\?v=20261008v"/g) || []).length === 3 && fs.readFileSync(require('path').join(__dirname, '..', 'klassisch.html'), 'utf8').includes('wetter-core.js?v=20261008v"'), (idx.match(/\?v=\w+"/g) || []).join(','));
 
   if (process.env.DUMP) {
     fs.writeFileSync(__dirname + '/render-design.json', JSON.stringify({

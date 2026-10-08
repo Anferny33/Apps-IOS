@@ -269,7 +269,7 @@ body {
 .ptext { font-size: 14px; line-height: 1.4; }
 
 /* ---------- Detail-Kacheln ---------- */
-.tiles { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; row-gap: 0; margin-bottom: -12px; }
+.tiles { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 12px; row-gap: 0; margin-bottom: -12px; }
 .tiles .tile { margin-bottom: 12px; }
 .tile {
     background: var(--glass); border: 1px solid var(--line);

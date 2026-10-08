@@ -1195,10 +1195,10 @@ function nextGoldenText(fc) {
     const lt = lightTimes(fc, 0);
     if (!lt) return "";
     const now = minutesOf(fc.current.time), e = lt.evening, m = lt.morning;
-    if (isNum(m.goldenStart) && isNum(m.goldenEnd) && now < m.goldenEnd) return "goldene Stunde " + (now >= m.goldenStart ? "bis " + fmtMin(m.goldenEnd) : "ab " + fmtMin(m.goldenStart));
-    if (isNum(e.goldenStart) && isNum(e.goldenEnd) && now < e.goldenEnd) return "goldene Stunde " + (now >= e.goldenStart ? "bis " + fmtMin(e.goldenEnd) : "ab " + fmtMin(e.goldenStart));
+    if (isNum(m.goldenStart) && isNum(m.goldenEnd) && now < m.goldenEnd) return "Goldene Stunde " + (now >= m.goldenStart ? "bis " + fmtMin(m.goldenEnd) : "ab " + fmtMin(m.goldenStart));
+    if (isNum(e.goldenStart) && isNum(e.goldenEnd) && now < e.goldenEnd) return "Goldene Stunde " + (now >= e.goldenStart ? "bis " + fmtMin(e.goldenEnd) : "ab " + fmtMin(e.goldenStart));
     const next = lightTimes(fc, 1);
-    return next && isNum(next.morning.goldenStart) ? "goldene Stunde morgen ab " + fmtMin(next.morning.goldenStart) : "";
+    return next && isNum(next.morning.goldenStart) ? "Goldene Stunde morgen ab " + fmtMin(next.morning.goldenStart) : "";
 }
 
 function setTileState(key, open) {
@@ -1250,7 +1250,7 @@ function renderDetails(fc, air) {
     const golden = nextGoldenText(fc);
     html += tile("sun", "Sonne",
         hhmm(d.sunset && d.sunset[0]),
-        'Aufgang ' + hhmm(d.sunrise && d.sunrise[0]) + ' · <span style="white-space:nowrap">' + (golden || fmtDuration(d.daylight_duration && d.daylight_duration[0])) + '</span>',
+        'Aufgang ' + hhmm(d.sunrise && d.sunrise[0]) + (golden ? '<br>' + golden : ' · <span style="white-space:nowrap">' + fmtDuration(d.daylight_duration && d.daylight_duration[0]) + '</span>'),
         { delay: next(), extra: sunArc(c, d), key: "sun" });
     html += tilePanelHtml("rain", rainPanelHtml(fc)) + tilePanelHtml("sun", sunPanelHtml(fc), lightPhaseClass(fc));
 
