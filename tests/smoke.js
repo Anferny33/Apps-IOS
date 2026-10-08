@@ -22,7 +22,8 @@ setTimeout(() => {
   H.check('Aktuell: Tagesspanne aus daily[0]', /now-range">Heute <span class="hi">↑ 18°<\/span> <span class="lo">↓ 8°<\/span>/.test(n.now.innerHTML), n.now.innerHTML.match(/now-range[^<]*<[^>]*>[^<]*/));
   H.check('Aktuell: Wind mit Richtung, Luftdruck, Bewölkung', /aus <b>SW<\/b>/.test(n.now.innerHTML) && n.now.innerHTML.includes('1018 hPa') && n.now.innerHTML.includes('55 %'), n.now.innerHTML);
 
-  H.check('Nowcast: Regenbeginn 15:00', /Regen ab ca\. 15:00/.test(n.nowcast.innerHTML), n.nowcast.innerHTML);
+  H.check('Nowcast: Regenbeginn 14:45 (Wert um 15:00 = Intervall 14:45–15:00)', /Regen ab ca\. 14:45 Uhr \(in 30 Minuten\)/.test(n.nowcast.innerHTML), n.nowcast.innerHTML.match(/Regen ab[^<]*/));
+  H.check('Nowcast: Fenster beginnt nach jetzt (erste Säule 14:15, letzte 18:00)', n.nowcast.innerHTML.includes('title="14:15 ·') && n.nowcast.innerHTML.includes('title="18:00 ·') && !n.nowcast.innerHTML.includes('title="14:00 ·'), n.nowcast.innerHTML.match(/title="[^"]*"/g).slice(0, 2));
 
   const t = n.tempchart.innerHTML;
   H.check('Temp-Chart: SVG mit beiden Linien', t.includes('<svg') && t.includes('stroke="#b8821a"') && t.includes('stroke="#3d94e0"'));
@@ -64,6 +65,35 @@ setTimeout(() => {
   H.check('Stand-Zeile gesetzt', n.updated.textContent.startsWith('Stand:'));
   H.check('Forecast mit 14 Tagen + Luftqualität abgefragt', sb._fetchLog.some(u => u.includes('forecast_days=14')) && sb._fetchLog.some(u => u.includes('air-quality')));
 
+  // Niederschlagsrate: 1 mm im 15-min-Intervall = 4 mm/h
+  const fcRate = H.mockForecast(); fcRate.current.precipitation = 1.0; fcRate.current.interval = 900;
+  const sbR = H.makeSandbox({ fetchImpl: H.okFetch(Object.assign({}, data, { fc: fcRate })),
+    geolocation: { getCurrentPosition: ok => ok({ coords: { latitude: 48.137, longitude: 11.575 } }) } });
+  sbR.initWeatherApp();
+  // Gespeicherte Position Hamburg, GPS meldet München: zweites Laden darf nicht verschluckt werden
+  const sbG = H.makeSandbox({ fetchImpl: H.okFetch(data),
+    geolocation: { getCurrentPosition: ok => ok({ coords: { latitude: 48.137, longitude: 11.575 } }) },
+    storage: { 'wetter:pos': JSON.stringify({ lat: 53.55, lon: 9.99, name: 'Hamburg' }) } });
+  sbG.initWeatherApp();
+  // Ortswechsel schlägt fehl: alte Daten dürfen nicht unter dem neuen Namen stehen bleiben
+  const geo = { results: [{ name: 'Hamburg', admin1: 'Hamburg', country: 'Deutschland', latitude: 53.55, longitude: 9.99 }] };
+  const failHH = async (url) => { if (url.includes('latitude=53.55')) throw new Error('offline'); return H.okFetch(Object.assign({}, data, { geo }))(url); };
+  const sbF = H.makeSandbox({ fetchImpl: failHH, geolocation: { getCurrentPosition: ok => ok({ coords: { latitude: 48.137, longitude: 11.575 } }) } });
+  sbF.initWeatherApp();
+  setTimeout(() => {
+    H.check('Aktuell: Niederschlagsrate aus Intervallmenge (1 mm / 15 min = 4,0 mm/h)', sbR._nodes.now.innerHTML.includes('<b>4,0 mm/h</b>'), sbR._nodes.now.innerHTML.match(/Niederschlag jetzt[^<]*<b>[^<]*/));
+    const fcUrls = sbG._fetchLog.filter(u => u.includes('api.open-meteo.com/v1/forecast') && !u.includes('models='));
+    H.check('Klassisch: Ortswechsel beim Start nachgeladen, Cache nur für den richtigen Ort', fcUrls.length === 2 && fcUrls[1].includes('latitude=48.137') && !Object.keys(sbG._store).some(k => k.includes('53.55')) && sbG._nodes.subline.textContent.includes('München'), fcUrls.map(u => u.match(/latitude=[\d.]+/)[0]) + ' ' + Object.keys(sbG._store));
+    sbF._nodes.placeSearch.value = 'Hamb'; sbF._nodes.placeSearch.trigger('input');
+    setTimeout(() => {
+      sbF._nodes.placeResults._buttons[0].trigger('click');
+      setTimeout(() => {
+        H.check('Klassisch: Fehlgeschlagener Ortswechsel leert die alten Daten', !sbF._nodes.now.innerHTML.includes('17°') && sbF._nodes.now.innerHTML.includes('keine Daten') && !sbF._nodes.error.classList.contains('hidden') && sbF._nodes.subline.textContent.includes('Hamburg'), sbF._nodes.now.innerHTML.slice(0, 120) + ' | ' + sbF._nodes.subline.textContent);
+        finish();
+      }, 300);
+    }, 500);
+  }, 300);
+  function finish() {
   if (process.env.DUMP) {
     require('fs').writeFileSync(__dirname + '/payload.json', JSON.stringify({ fc, ens: data.ens, md: data.md, air: data.air }));
     require('fs').writeFileSync(__dirname + '/render.json', JSON.stringify({
@@ -72,4 +102,5 @@ setTimeout(() => {
     }));
   }
   H.finish();
+  }
 }, 300);

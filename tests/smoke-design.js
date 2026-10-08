@@ -36,7 +36,7 @@ function boot(opts) {
   H.check('Hero: Temperatur groß', hero.includes('class="temp fade-in">17°'), hero.slice(0, 200));
   H.check('Hero: Zustand in der Kopfzeile + Gefühlt-Chip', hero.includes('<span>wolkig</span>') && hero.includes('Gefühlt 16°'), hero.slice(0, 200));
   H.check('Hero: Hoch/Tief-Chips', hero.includes('Hoch 18°') && hero.includes('Tief 8°'));
-  H.check('Hinweis-Feld: Nowcast (Regen ab 15:00) + Schirm', !G(sb,'insight').classList.contains('hidden') && G(sb,'insight').innerHTML.includes('Regen ab ca. 15:00 Uhr') && G(sb,'insight').innerHTML.includes('Schirm'), G(sb,'insight').innerHTML);
+  H.check('Hinweis-Feld: Nowcast (Regen ab 15:00) + Schirm', !G(sb,'insight').classList.contains('hidden') && G(sb,'insight').innerHTML.includes('Regen ab ca. 14:45 Uhr') && G(sb,'insight').innerHTML.includes('Schirm'), G(sb,'insight').innerHTML);
   H.check('Hero: SVG-Icon statt Emoji', hero.includes('<svg class="big-icon'));
   H.check('Hinweis bei Regen: Schirm mit Dach- und Tropfen-Ebene', G(sb,'insight').innerHTML.includes('<svg class="umb"') && G(sb,'insight').innerHTML.includes('class="umb-canopy"') && G(sb,'insight').innerHTML.includes('class="umb-drops"'));
 
@@ -134,6 +134,16 @@ function boot(opts) {
   await wait(400);
   const fcUrls = sb6._fetchLog.filter(u => u.includes('api.open-meteo.com/v1/forecast') && !u.includes('models='));
   H.check('Ortswechsel beim Start: Vorhersage für GPS-Position nachgeladen', fcUrls.length === 2 && fcUrls[1].includes('latitude=48.137') && G(sb6,'locName').textContent === 'München, Bayern', fcUrls.map(u => u.match(/latitude=[\d.]+/)[0]) + ' ' + G(sb6,'locName').textContent);
+
+  // 3c) Ortswechsel per Suche schlägt fehl: alte Daten dürfen nicht unter dem neuen Namen stehen bleiben
+  const failHH = async (url) => { if (url.includes('latitude=53.55')) throw new Error('offline'); return H.okFetch(data)(url); };
+  const sb7 = boot({ fetchImpl: failHH, geolocation: granted });
+  await wait(300);
+  H.check('Vor dem Wechsel: München gerendert', G(sb7,'hero').innerHTML.includes('17°') && !G(sb7,'warnings').classList.contains('hidden'));
+  G(sb7,'locBtn').trigger('click'); await wait(350);
+  G(sb7,'q').value = 'Hamb'; G(sb7,'q').trigger('input'); await wait(500);
+  G(sb7,'res')._buttons[0].trigger('click'); await wait(300);
+  H.check('Fehlgeschlagener Ortswechsel: Hero geleert, Warnungen weg, Fehlerbanner, Name Hamburg', !G(sb7,'hero').innerHTML.includes('17°') && G(sb7,'hero').innerHTML.includes('Keine Daten') && G(sb7,'warnings').classList.contains('hidden') && G(sb7,'banner').className.includes('err') && G(sb7,'locName').textContent.includes('Hamburg'), G(sb7,'hero').innerHTML.slice(0, 100) + ' | ' + G(sb7,'locName').textContent);
 
   // 4) Offline mit Cache
   const payload = { fc, ens: data.ens, md: data.md, air: data.air };

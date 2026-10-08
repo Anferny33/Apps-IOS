@@ -169,9 +169,10 @@ function minutesOf(t) { return t ? parseInt(t.slice(11, 13), 10) * 60 + parseInt
 function nowcastSummary(fc) {
     const m = fc.minutely_15;
     if (!m || !m.time || !m.precipitation) return null;
-    const start = firstIndexFrom(m.time, fc.current.time.slice(0, 16));
+    /* Die 16 Intervalle, die nach jetzt enden; beschriftet mit ihrem Beginn */
+    const start = nowcastStartIndex(m.time, fc.current.time);
     if (start < 0) return null;
-    const times = m.time.slice(start, start + 16);
+    const times = m.time.slice(start, start + 16).map(intervalStart);
     const vals = m.precipitation.slice(start, start + 16).map(function (v) { return isNum(v) ? v : 0; });
     const total = vals.reduce(function (a, b) { return a + b; }, 0);
     const firstWet = vals.findIndex(function (v) { return v >= 0.1; });
@@ -576,6 +577,29 @@ function renderWarnings(dwd, nina) {
     }).join('');
 }
 
+/* Inhalte des vorherigen Orts entfernen, wenn für den neuen keine Daten kommen:
+   Kopfzeile und Daten müssen immer zum selben Ort gehören. */
+function clearRendered() {
+    lastTemp = null;
+    const hero = D("hero");
+    unskel(hero);
+    hero.innerHTML = '<div class="meta"><span></span><span>Keine Daten</span></div><div class="main"><div class="temp">–°</div></div>';
+    ["warnings", "insight", "nowcastCard"].forEach(function (id) {
+        const el = D(id);
+        if (!el) return;
+        el.classList.add("hidden");
+        if (id !== "nowcastCard") el.innerHTML = "";
+    });
+    ["hourly", "days", "details", "models"].forEach(function (id) {
+        const el = D(id);
+        if (!el) return;
+        unskel(el);
+        el.innerHTML = '<div class="note">Für diesen Ort liegen noch keine Daten vor.</div>';
+    });
+    const u = D("updated");
+    if (u) u.textContent = "";
+}
+
 function renderAllDesign(payload) {
     renderHero(payload.fc);
     renderWarnings(payload.warn, payload.nina);
@@ -635,6 +659,7 @@ function initDesignApp() {
                 setUpdatedLabel(cached.savedAt);
                 showBanner("Keine Verbindung – du siehst die zuletzt gespeicherten Daten.", false);
             } else {
+                clearRendered();
                 showBanner("Die Wetterdaten konnten nicht geladen werden (" +
                     (results[0].reason && results[0].reason.message ? results[0].reason.message : "Netzwerkfehler") + ").", true, "Erneut versuchen", load);
             }

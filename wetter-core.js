@@ -235,6 +235,35 @@ async function searchPlaces(query) {
 
 /* Open-Meteo liefert Zeitstempel bereits in Ortszeit ("2026-09-25T14:00").
    Deshalb wird bewusst mit Strings gearbeitet – keine Zeitzonenfallen. */
+/* Beginn eines 15-Minuten-Intervalls: Open-Meteo stempelt jeden Wert mit dem
+   Intervall-ENDE (der Wert um 15:00 beschreibt 14:45–15:00). */
+function intervalStart(t) {
+    if (!t || t.length < 16) return t;
+    const d = new Date(t.slice(0, 10) + "T" + t.slice(11, 16) + ":00");
+    if (isNaN(d.getTime())) return t;
+    d.setMinutes(d.getMinutes() - 15);
+    const p = function (n) { return String(n).padStart(2, "0"); };
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + "T" + p(d.getHours()) + ":" + p(d.getMinutes());
+}
+
+/* Die 16 Intervalle der nächsten vier Stunden: alle, die NACH der aktuellen Zeit enden.
+   Liefert Index des ersten davon oder -1. */
+function nowcastStartIndex(times, currentTime) {
+    const now = String(currentTime || "").slice(0, 16);
+    let i = firstIndexFrom(times, now);
+    if (i < 0) return -1;
+    if (String(times[i]).slice(0, 16) === now) i++;
+    return i < times.length ? i : -1;
+}
+
+/* current.precipitation ist die Menge des Intervalls current.interval (meist 900 s),
+   keine Stundenrate; hier in mm/h umrechnen. */
+function precipRate(c) {
+    if (!c || !isNum(c.precipitation)) return null;
+    const iv = isNum(c.interval) && c.interval > 0 ? c.interval : 900;
+    return c.precipitation * 3600 / iv;
+}
+
 function firstIndexFrom(times, from) {
     for (let i = 0; i < times.length; i++) {
         if (times[i] >= from) return i;
@@ -540,7 +569,7 @@ function renderNow(fc) {
             '</div>' +
         '</div>' +
         '<div class="now-meta">' +
-            '<span class="chip">Niederschlag jetzt <b>' + fmtMm(c.precipitation) + ' mm/h</b></span>' +
+            '<span class="chip">Niederschlag jetzt <b>' + fmtMm(precipRate(c)) + ' mm/h</b></span>' +
             '<span class="chip">Wind <b>' + Math.round(c.wind_speed_10m) + ' km/h</b> aus <b>' + compass(c.wind_direction_10m) + '</b></span>' +
             '<span class="chip">Böen <b>' + Math.round(c.wind_gusts_10m) + ' km/h</b></span>' +
             '<span class="chip">Luftfeuchte <b>' + Math.round(c.relative_humidity_2m) + ' %</b></span>' +
@@ -559,13 +588,14 @@ function renderNowcast(fc) {
         return;
     }
 
-    const start = firstIndexFrom(m.time, fc.current.time.slice(0, 16));
+    const start = nowcastStartIndex(m.time, fc.current.time);
     if (start < 0) {
         box.innerHTML = '<div class="nowcast-lead">Keine aktuellen Nowcast-Daten verfügbar.</div>';
         return;
     }
 
-    const times = m.time.slice(start, start + 16);
+    /* Beschriftung mit dem Intervall-Beginn, denn der Zeitstempel ist das Intervall-Ende */
+    const times = m.time.slice(start, start + 16).map(intervalStart);
     const vals = m.precipitation.slice(start, start + 16).map(function (v) { return isNum(v) ? v : 0; });
 
     const total = vals.reduce(function (a, b) { return a + b; }, 0);
@@ -1060,6 +1090,18 @@ function renderAll(payload) {
     renderAir(payload.air);
 }
 
+/* Inhalte des vorherigen Orts entfernen, wenn für den neuen keine Daten kommen */
+function clearAll() {
+    ["now", "nowcast", "tempchart", "sun", "windchart", "hourly", "daily", "trend", "models", "air"].forEach(function (id) {
+        const el = $(id);
+        if (!el) return;
+        el.classList.remove("skeleton");
+        el.innerHTML = '<div class="note">Für diesen Ort liegen noch keine Daten vor.</div>';
+    });
+    const u = $("updated");
+    if (u) u.textContent = "";
+}
+
 function setUpdated(iso) {
     const d = new Date(iso);
     $("updated").textContent = "Stand: " + d.toLocaleString("de-DE", {
@@ -1070,6 +1112,7 @@ function setUpdated(iso) {
 function initWeatherApp() {
     let currentLoc = null;      /* { id, name, lat, lon, source: "gps" | "search" } */
     let loading = false;
+    let pending = false;        /* Ortswechsel während eines laufenden Ladens: danach erneut laden */
 
     function subline(loc) {
         /* Koordinaten als nicht umbrechender Block – auf schmalen Screens
@@ -1082,28 +1125,33 @@ function initWeatherApp() {
     }
 
     async function load() {
-        if (loading || !currentLoc) return;
+        if (!currentLoc) return;
+        if (loading) { pending = true; return; }
         loading = true;
+        pending = false;
+        const loc = currentLoc;
 
         const btn = $("reload");
         btn.classList.add("spin");
         $("error").classList.add("hidden");
         $("stale").classList.add("hidden");
-        subline(currentLoc);
+        subline(loc);
 
         const results = await Promise.allSettled([
-            fetchForecast(currentLoc),
-            fetchEnsemble(currentLoc),
-            fetchModels(currentLoc),
-            fetchAir(currentLoc)
+            fetchForecast(loc),
+            fetchEnsemble(loc),
+            fetchModels(loc),
+            fetchAir(loc)
         ]);
+        /* Inzwischen ein anderer Ort (z. B. GPS nach gespeicherter Position)? Antwort verwerfen, neu laden. */
+        if (currentLoc !== loc) { loading = false; return load(); }
         const val = function (i) { return results[i].status === "fulfilled" ? results[i].value : null; };
         const fc = val(0);
 
         if (fc) {
             const payload = { fc: fc, ens: val(1), md: val(2), air: val(3) };
             renderAll(payload);
-            saveCache(currentLoc, payload);
+            saveCache(loc, payload);
             setUpdated(new Date().toISOString());
         } else {
             const cached = loadCache(currentLoc);
@@ -1113,6 +1161,7 @@ function initWeatherApp() {
                 $("stale").textContent = "Keine Verbindung – angezeigt werden die zuletzt gespeicherten Daten.";
                 $("stale").classList.remove("hidden");
             } else {
+                clearAll();   /* sonst blieben die Daten des vorherigen Orts unter dem neuen Namen stehen */
                 $("error").textContent = "Die Wetterdaten konnten nicht geladen werden (" +
                     (results[0].reason && results[0].reason.message ? results[0].reason.message : "Netzwerkfehler") +
                     "). Bitte Verbindung prüfen und erneut laden.";
@@ -1122,6 +1171,7 @@ function initWeatherApp() {
 
         btn.classList.remove("spin");
         loading = false;
+        if (pending) load();
     }
 
     /* ---------- GPS ---------- */
