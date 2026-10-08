@@ -1,186 +1,174 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" data-design="modern">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Regenradar">
-<meta name="theme-color" content="#0b1a33">
+<meta name="theme-color" content="#ECEAF4">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=20261008d">
 <title>Regenradar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<!-- Dieselben zwei Designs wie die Startseite; die dort gespeicherte Wahl gilt auch hier. -->
+<link rel="stylesheet" href="modern.css?v=20261008f" id="cssModern">
+<link rel="stylesheet" href="design.css?v=20261008f" id="cssClassic" disabled>
+<script>
+(function () {
+    var d = null;
+    try { d = localStorage.getItem("wetter:design"); } catch (e) {}
+    if (d === "classic") {
+        document.getElementById("cssModern").disabled = true;
+        document.getElementById("cssClassic").disabled = false;
+        document.documentElement.setAttribute("data-design", "classic");
+        var m = document.querySelector('meta[name="theme-color"]');
+        if (m) m.setAttribute("content", "#2a558c");
+    }
+})();
+</script>
 <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-
-    html, body { height: 100%; }
-    body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        background: linear-gradient(160deg, #0b1a33 0%, #12233f 45%, #0f3460 100%);
-        background-attachment: fixed;
-        color: #eaf1fb;
-        display: flex; flex-direction: column;
-        padding: calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 16px);
-        -webkit-font-smoothing: antialiased;
-    }
-
-    .wrap { max-width: 620px; margin: 0 auto; width: 100%; flex: 1; display: flex; flex-direction: column; }
-
-    .header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
-    .header h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.3px; }
-    .header p { font-size: 13px; color: #9fb3d1; margin-top: 3px; }
-    .header-main { flex: 1; min-width: 0; }
-
-    .navbtn {
-        width: 42px; height: 42px; flex: none;
-        display: flex; align-items: center; justify-content: center;
-        border: 1px solid rgba(255,255,255,0.16);
-        background: rgba(255,255,255,0.07);
-        border-radius: 50%; color: #eaf1fb;
-        font-size: 18px; text-decoration: none;
-    }
-    .navbtn:active { background: rgba(255,255,255,0.16); }
-
-    /* ---------- Karte ---------- */
-    .map-card {
-        flex: 1; min-height: 320px;
-        border-radius: 20px; overflow: hidden;
-        border: 1px solid rgba(255,255,255,0.12);
-        position: relative;
-        background: #0d1b30;
-    }
-    #map { position: absolute; inset: 0; background: #0d1b30; }
+    /* ---------- Radar-spezifisch, auf den Variablen beider Designs ---------- */
+    .map-field { position: relative; padding: 0; overflow: hidden; height: 58vh; min-height: 340px; background: var(--white, #0d1b30); }
+    a.loc { text-decoration: none; }
+    .leaflet-top.leaflet-right { margin-top: 12px; margin-right: 12px; }
+    #map { position: absolute; inset: 0; background: #e9eaec; }
+    html[data-design="classic"] #map { background: #1b2a44; }
 
     .map-badge {
         position: absolute; top: 12px; left: 12px; z-index: 900;
-        background: rgba(11,26,51,0.82);
-        backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-        border: 1px solid rgba(255,255,255,0.14);
-        border-radius: 12px; padding: 8px 12px;
-        font-size: 14px; font-weight: 600;
         display: flex; align-items: center; gap: 8px;
+        padding: 8px 12px; border-radius: 999px;
+        background: var(--dark, rgba(11,26,51,0.85)); color: var(--white, #fff);
+        font-size: 13px; font-weight: 700;
+        box-shadow: 0 6px 18px rgba(30,27,46,0.2);
     }
-    .map-badge .pill {
-        font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 8px;
-        background: rgba(124,196,255,0.2); color: #7cc4ff;
-    }
-    .map-badge .pill.fc { background: rgba(255,210,138,0.2); color: #ffd28a; }
+    .map-badge .pill { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--rain, #BFD6F6); color: var(--rain-ink, #3A4A6B); }
+    .map-badge .pill.fc { background: var(--sun, #F6D35B); color: var(--ink, #1E1B2E); }
 
     .map-msg {
         position: absolute; inset: 0; z-index: 950;
         display: flex; align-items: center; justify-content: center;
         text-align: center; padding: 24px;
-        font-size: 14px; color: #9fb3d1; line-height: 1.6;
-        background: rgba(11,26,51,0.85);
+        font-size: 14px; font-weight: 500; line-height: 1.6;
+        color: var(--ink, #fff); background: var(--ground, rgba(11,26,51,0.85));
     }
     .map-msg.hidden { display: none; }
 
     .leaflet-container { font: inherit; }
-    .leaflet-control-attribution {
-        background: rgba(11,26,51,0.75) !important;
-        color: #7f95b4 !important; font-size: 9px !important;
-    }
-    .leaflet-control-attribution a { color: #8fb6e6 !important; }
-    .leaflet-control-zoom a {
-        background: rgba(11,26,51,0.85) !important;
-        color: #eaf1fb !important;
-        border-color: rgba(255,255,255,0.15) !important;
-    }
+    .leaflet-control-attribution { background: rgba(255,255,255,0.8) !important; color: #5c5a55 !important; font-size: 9px !important; }
+    .leaflet-control-attribution a { color: var(--ink, #1E1B2E) !important; }
+    .leaflet-bar { border: none !important; box-shadow: 0 6px 18px rgba(30,27,46,0.18) !important; border-radius: 14px !important; overflow: hidden; }
+    .leaflet-control-zoom a { background: var(--white, #141c30) !important; color: var(--ink, #fff) !important; border-color: var(--ground, rgba(255,255,255,0.15)) !important; width: 36px !important; height: 36px !important; line-height: 36px !important; font-weight: 600; }
+    html[data-design="classic"] .leaflet-control-attribution { background: rgba(11,26,51,0.75) !important; color: #9fb3d1 !important; }
+    html[data-design="classic"] .leaflet-control-attribution a { color: #cfe0f5 !important; }
+    html[data-design="classic"] .leaflet-control-zoom a { background: rgba(11,26,51,0.85) !important; color: #fff !important; }
 
     .site-dot { background: transparent; border: none; }
     .site-dot .pin {
         width: 16px; height: 16px; border-radius: 50%;
-        background: #7cc4ff; border: 3px solid #0b1a33;
-        box-shadow: 0 0 0 2px #7cc4ff, 0 2px 8px rgba(0,0,0,0.6);
+        background: var(--dark, #7cc4ff); border: 3px solid var(--white, #0b1a33);
+        box-shadow: 0 0 0 2px var(--dark, #7cc4ff), 0 2px 8px rgba(0,0,0,0.3);
     }
 
     /* ---------- Steuerung ---------- */
-    .controls {
-        margin-top: 14px;
-        background: rgba(255,255,255,0.06);
-        border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 20px;
-        padding: 14px 16px;
-        backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-    }
     .controls-row { display: flex; align-items: center; gap: 14px; }
-
     .play {
-        width: 46px; height: 46px; flex: none;
-        border-radius: 50%; border: none; cursor: pointer;
-        background: linear-gradient(135deg, #4a9de0, #2563b0);
-        color: #fff; font-size: 18px;
-        display: flex; align-items: center; justify-content: center;
+        width: 48px; height: 48px; flex: none; border-radius: 50%; border: none; cursor: pointer;
+        background: var(--dark, #2563b0); color: var(--white, #fff);
+        font-size: 17px; font-family: inherit; display: flex; align-items: center; justify-content: center;
     }
-    .play:active { filter: brightness(1.2); }
-
-    input[type="range"] {
-        flex: 1; -webkit-appearance: none; appearance: none;
-        height: 6px; border-radius: 3px;
-        background: rgba(255,255,255,0.14);
-        outline: none;
-    }
+    html[data-design="classic"] .play { background: var(--accent, #ffd27a); color: #0b1a33; }
+    input[type="range"] { flex: 1; -webkit-appearance: none; appearance: none; height: 8px; border-radius: 4px; background: var(--ground, rgba(255,255,255,0.14)); outline: none; }
+    html[data-design="classic"] input[type="range"] { background: rgba(255,255,255,0.18); }
     input[type="range"]::-webkit-slider-thumb {
-        -webkit-appearance: none; appearance: none;
-        width: 22px; height: 22px; border-radius: 50%;
-        background: #7cc4ff; border: 3px solid #0b1a33;
-        box-shadow: 0 1px 5px rgba(0,0,0,0.5);
+        -webkit-appearance: none; appearance: none; width: 26px; height: 26px; border-radius: 50%;
+        background: var(--dark, #7cc4ff); border: 3px solid var(--white, #0b1a33); box-shadow: 0 2px 8px rgba(30,27,46,0.25);
     }
+    html[data-design="classic"] input[type="range"]::-webkit-slider-thumb { background: var(--accent, #ffd27a); border-color: #0b1a33; }
+    .ticks { display: flex; justify-content: space-between; font-size: 11px; font-weight: 600; color: var(--ink-2, #9fb3d1); margin-top: 8px; padding-left: 62px; }
 
-    .ticks { display: flex; justify-content: space-between; font-size: 11px; color: #7f95b4; margin-top: 8px; padding: 0 0 0 60px; }
-
-    .legend { display: flex; align-items: center; gap: 10px; margin-top: 13px; font-size: 11px; color: #9fb3d1; }
-    .legend img { height: 18px; max-width: 70%; border-radius: 4px; }
-    .legend .fallback { display: none; flex: 1; height: 8px; border-radius: 4px;
-        background: linear-gradient(90deg, #8fd8ff, #3f97e0, #2455c8, #8a3fc4, #d63a6e); }
+    .legend { display: flex; align-items: center; gap: 10px; margin-top: 14px; font-size: 11px; font-weight: 600; color: var(--ink-2, #9fb3d1); }
+    .legend .chip { display: flex; align-items: center; padding: 4px 8px; border-radius: 10px; background: var(--ground, rgba(255,255,255,0.9)); flex: 1; min-width: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    .legend .chip::-webkit-scrollbar { display: none; }
+    html[data-design="classic"] .legend .chip { background: rgba(255,255,255,0.9); }
+    .legend img { height: 18px; max-width: none; display: block; }
+    .legend .fallback { display: none; width: 160px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, #8fd8ff, #3f97e0, #2455c8, #8a3fc4, #d63a6e); }
     .legend.noimg img { display: none; }
     .legend.noimg .fallback { display: block; }
-
-    .note { font-size: 12px; color: #7f95b4; line-height: 1.6; margin-top: 10px; }
-    footer { font-size: 11.5px; color: #6f86a8; line-height: 1.7; text-align: center; margin-top: 14px; }
-    footer a { color: #8fb6e6; }
 </style>
 </head>
-<body>
-<div class="wrap">
+<body class="theme-rain">
 
-    <div class="header">
-        <div class="header-main">
-            <h1>Regenradar</h1>
-            <p>DWD-Radar mit 2-Stunden-Kurzprognose – zentriert auf deinen Standort</p>
-        </div>
-        <a class="navbtn" href="index.html" aria-label="Zur Wetter-App">🏠</a>
-    </div>
+<div class="sky" aria-hidden="true">
+    <div class="orb a"></div>
+    <div class="orb b"></div>
+</div>
 
-    <div class="map-card">
-        <div id="map"></div>
-        <div class="map-badge">
-            <span id="frameTime">–:–</span>
-            <span class="pill" id="framePill">Radar</span>
-        </div>
-        <div class="map-msg" id="mapMsg">Radar wird geladen …</div>
-    </div>
+<div class="page">
 
-    <div class="controls">
-        <div class="controls-row">
-            <button class="play" id="play" aria-label="Abspielen">▶</button>
-            <input type="range" id="slider" min="0" max="0" value="0" step="1" aria-label="Zeitpunkt">
+    <header class="top">
+        <a class="loc a-left" href="index.html" aria-label="Zurück zur Wetter-App">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+            <span>Regenradar</span>
+        </a>
+        <div class="top-actions">
+            <button type="button" class="iconbtn a-pop" id="designBtn" aria-label="Design wechseln" title="Design wechseln" style="animation-delay:.05s">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.4 0 2-.9 2-1.8 0-.9-.9-1.3-.9-2.2 0-.8.7-1.5 1.6-1.5H17a4 4 0 0 0 4-4 8.5 8.5 0 0 0-9-8.5z"/><circle cx="7.5" cy="11" r="1"/><circle cx="11" cy="7.5" r="1"/><circle cx="15.5" cy="8.5" r="1"/></svg>
+            </button>
+            <button type="button" class="iconbtn a-pop" id="refresh" aria-label="Radar aktualisieren" style="animation-delay:.1s">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+            </button>
         </div>
-        <div class="ticks"><span id="tickStart">–50 min</span><span>jetzt</span><span id="tickEnd">+2 h</span></div>
-        <div class="legend" id="legend">
-            <span>mm/h</span>
-            <img id="legendImg" alt="Farbskala Niederschlagsintensität" src="https://maps.dwd.de/geoserver/dwd/wms?service=WMS&amp;version=1.3.0&amp;request=GetLegendGraphic&amp;format=image/png&amp;layer=dwd:Niederschlagsradar&amp;legend_options=fontColor:0xffffff;fontSize:9;bgColor:0x0b1a33;layout:horizontal">
-            <div class="fallback"></div>
-        </div>
-        <div class="note" id="note">Beobachtung alle 5 Minuten, Prognose (RADOLAN RV) bis zwei Stunden voraus. Abdeckung: Deutschland und Umgebung.</div>
-    </div>
+    </header>
 
-    <footer>
-        Radar: <a href="https://www.dwd.de/DE/leistungen/geodienste/geodienste.html" rel="noopener">Deutscher Wetterdienst (DWD)</a>, RADOLAN RV · CC BY 4.0 ·
-        Karte: <a href="https://carto.com/" rel="noopener">CARTO</a> /
-        <a href="https://www.openstreetmap.org/copyright" rel="noopener">OpenStreetMap</a><br>
-        blauer Punkt = dein Standort (letzte Position aus der Wetter-App)
+    <section class="sec">
+        <div class="field map-field a-pop" style="animation-delay:.15s">
+            <div id="map"></div>
+            <div class="map-badge">
+                <span id="frameTime">–:–</span>
+                <span class="pill" id="framePill">Radar</span>
+            </div>
+            <div class="map-msg" id="mapMsg">Radar wird geladen …</div>
+        </div>
+
+        <div class="field white a-up" style="animation-delay:.5s">
+            <h2>Zeitraffer <span class="r">DWD-Radar · 2-h-Kurzprognose</span></h2>
+            <div class="controls-row">
+                <button class="play" id="play" aria-label="Abspielen">▶</button>
+                <input type="range" id="slider" min="0" max="0" value="0" step="1" aria-label="Zeitpunkt">
+            </div>
+            <div class="ticks"><span id="tickStart">–50 min</span><span>jetzt</span><span id="tickEnd">+2 h</span></div>
+            <div class="legend" id="legend">
+                <span>mm/h</span>
+                <span class="chip">
+                    <img id="legendImg" alt="Farbskala Niederschlagsintensität" src="https://maps.dwd.de/geoserver/dwd/wms?service=WMS&amp;version=1.3.0&amp;request=GetLegendGraphic&amp;format=image/png&amp;transparent=true&amp;layer=dwd:Niederschlagsradar&amp;legend_options=fontColor:0x1E1B2E;fontSize:9;layout:horizontal">
+                    <span class="fallback"></span>
+                </span>
+            </div>
+            <div class="note" id="note">Beobachtung alle 5 Minuten, Prognose (RADOLAN RV) bis zwei Stunden voraus. Abdeckung: Deutschland und Umgebung. Blauer Punkt: dein Standort aus der Wetter-App.</div>
+        </div>
+    </section>
+
+    <footer class="a-up" style="animation-delay:.9s">
+        Radar: <a href="https://www.dwd.de/DE/leistungen/geodienste/geodienste.html" rel="noopener">Deutscher Wetterdienst</a>, RADOLAN RV · CC BY 4.0<br>
+        Karte: <a href="https://basemap.de/" rel="noopener">basemap.de</a> · © GeoBasis-DE / <a href="https://www.bkg.bund.de/" rel="noopener">BKG</a> 2026 · CC BY 4.0
     </footer>
+</div>
+
+<div class="tabs">
+    <nav aria-label="Bereiche" class="a-nav" style="animation-delay:.45s">
+        <a href="index.html#sec-today" aria-label="Heute">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Heute</span></a>
+        <a href="index.html#sec-details" aria-label="Details">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg><span>Details</span></a>
+        <a href="index.html#sec-days" aria-label="Tage">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span>Tage</span></a>
+        <a href="radar.html" class="on" aria-label="Radar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 3v9l6-6"/></svg><span>Radar</span></a>
+    </nav>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -190,11 +178,14 @@
 /* Radaranimation auf Basis des DWD-GeoServers (WMS, Layer dwd:Niederschlagsradar
    = RADOLAN RV: Beobachtung + Nowcast). Die verfügbaren Zeitpunkte stehen in
    der Capabilities-Antwort des Layers; daraus werden Frames für die letzten
-   ~50 Minuten und die nächsten 2 Stunden gewählt. */
+   ~50 Minuten und die nächsten 2 Stunden gewählt.
+   Grundkarte: basemap.de Web Raster (BKG, CC BY 4.0), ohne Schlüssel. */
 
 const WMS_URL = "https://maps.dwd.de/geoserver/dwd/wms";
 const WMS_LAYER = "dwd:Niederschlagsradar";
 const CAPS_URL = "https://maps.dwd.de/geoserver/dwd/Niederschlagsradar/ows?service=WMS&version=1.3.0&request=GetCapabilities";
+/* WMTS-Kachelschema: Zoom / Zeile (y) / Spalte (x) */
+const BASEMAP_URL = "https://sgx.geodatenzentrum.de/wmts_basemapde/tile/1.0.0/de_basemapde_web_raster_grau/default/GLOBAL_WEBMERCATOR/{z}/{y}/{x}.png";
 const PAST_OFFSETS = [-50, -40, -30, -20, -10, 0];        /* Minuten relativ zur letzten Beobachtung */
 const FUTURE_OFFSETS = [15, 30, 45, 60, 75, 90, 105, 120];
 const RADAR_OPACITY = 0.7;
@@ -233,15 +224,16 @@ function initMap() {
         center: pos ? [pos.lat, pos.lon] : DEFAULT_CENTER,
         zoom: pos ? 7 : 6,
         minZoom: 5,
-        maxZoom: 11,
-        zoomControl: true,
+        maxZoom: 12,
+        zoomControl: false,
         attributionControl: true
     });
+    /* Zoom-Knöpfe rechts, damit links Platz für das Zeit-Badge bleibt */
+    if (L.control && L.control.zoom) L.control.zoom({ position: "topright" }).addTo(map);
 
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-        attribution: '&copy; OpenStreetMap &copy; CARTO · Radar: DWD',
-        subdomains: "abcd",
-        maxZoom: 19
+    L.tileLayer(BASEMAP_URL, {
+        attribution: '© GeoBasis-DE / BKG 2026 CC BY 4.0 · Radar: DWD',
+        maxZoom: 12
     }).addTo(map);
 
     if (pos) {
@@ -403,12 +395,39 @@ function setPlaying(on) {
     }
 }
 
+/* ---------- Design-Umschalter (gleiche Logik wie in der App) ---------- */
+
+function applyDesign(name) {
+    const modern = name !== "classic";
+    const m = $("cssModern"), c = $("cssClassic");
+    if (m) m.disabled = !modern;
+    if (c) c.disabled = modern;
+    if (document.documentElement && document.documentElement.setAttribute) {
+        document.documentElement.setAttribute("data-design", modern ? "modern" : "classic");
+    }
+    const meta = document.querySelector ? document.querySelector('meta[name="theme-color"]') : null;
+    if (meta) meta.setAttribute("content", modern ? "#ECEAF4" : "#2a558c");
+    try { localStorage.setItem("wetter:design", modern ? "modern" : "classic"); } catch (e) {}
+}
+
+function initDesignToggle() {
+    let current = "modern";
+    try { current = localStorage.getItem("wetter:design") === "classic" ? "classic" : "modern"; } catch (e) {}
+    const b = $("designBtn");
+    if (b) b.addEventListener("click", function () {
+        current = current === "classic" ? "modern" : "classic";
+        applyDesign(current);
+        if (map && map.invalidateSize) setTimeout(function () { map.invalidateSize(); }, 50);
+    });
+}
+
 function init() {
     if (typeof L === "undefined") {
         showMsg("Die Kartenbibliothek konnte nicht geladen werden. Bitte Verbindung prüfen und Seite neu laden.");
         return;
     }
     initMap();
+    initDesignToggle();
     loadFrames(false).then(function () { if (frames.length > 1) setPlaying(true); });
 
     $("play").addEventListener("click", function () { setPlaying(!playing); });
@@ -416,6 +435,7 @@ function init() {
         setPlaying(false);
         showFrame(parseInt(this.value, 10) || 0);
     });
+    $("refresh").addEventListener("click", function () { loadFrames(true); });
 
     const img = $("legendImg");
     if (img) img.addEventListener("error", function () { $("legend").classList.add("noimg"); });
