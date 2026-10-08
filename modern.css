@@ -353,11 +353,12 @@ footer a { color: var(--ink); }
 .rain-ico line { stroke: var(--rain-ink); }
 
 .arc .track { stroke: rgba(30,27,46,0.14); }
-.arc .done  { stroke: var(--ink); stroke-dasharray: var(--p, 0) 1000; stroke-dashoffset: var(--p, 0); animation: arc 1.2s cubic-bezier(.2,.8,.2,1) 0.9s forwards; }
+/* Sonnenaufgang bewusst gemächlich: Bogen, Sonnenlauf und Farbwechsel laufen synchron über 2,4 s */
+.arc .done  { stroke: var(--ink); stroke-dasharray: var(--p, 0) 1000; stroke-dashoffset: var(--p, 0); animation: arc 2.4s cubic-bezier(.2,.8,.2,1) 0.9s forwards; }
 @keyframes arc { to { stroke-dashoffset: 0; } }
-.arc .sunpos { transform-box: view-box; transform-origin: 60px 54px; transform: rotate(var(--ang, 0deg)); animation: sunrise 1.2s cubic-bezier(.2,.8,.2,1) 0.9s both; }
+.arc .sunpos { transform-box: view-box; transform-origin: 60px 54px; transform: rotate(var(--ang, 0deg)); animation: sunrise 2.4s cubic-bezier(.2,.8,.2,1) 0.9s both; }
 @keyframes sunrise { from { transform: rotate(0deg); } to { transform: rotate(var(--ang, 0deg)); } }
-.arc .dot { stroke: var(--ink); fill: var(--c4, var(--sun)); animation: suncolor 1.2s cubic-bezier(.2,.8,.2,1) 0.9s both; }
+.arc .dot { stroke: var(--ink); fill: var(--c4, var(--sun)); animation: suncolor 2.4s cubic-bezier(.2,.8,.2,1) 0.9s both; }
 @keyframes suncolor { 0% { fill: var(--c0, var(--sun)); } 25% { fill: var(--c1, var(--sun)); } 50% { fill: var(--c2, var(--sun)); } 75% { fill: var(--c3, var(--sun)); } 100% { fill: var(--c4, var(--sun)); } }
 
 .drop-ico path { stroke: var(--ink); }
