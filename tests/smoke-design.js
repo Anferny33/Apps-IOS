@@ -86,6 +86,14 @@ function boot(opts) {
   H.check('Modelle: Temperatursatz bei Einigkeit und ohne Daten', sb.tempSpanText('morgen', [19, 19.4, 18.8]) === 'Höchstwert morgen um 19°, da sind sich die Modelle einig.' && sb.tempSpanText('morgen', [21]) === '' && sb.tempSpanText('morgen', [null, 20, 23]) === 'Höchstwert morgen 20 bis 23°, die Modelle liegen 3° auseinander.', sb.tempSpanText('morgen', [19, 19.4, 18.8]));
   sb.highlightModel('gfs_seamless');
   H.check('Modelle: Hervorhebung wechselbar ohne Fehler', true);
+  // Regenpausen (Mock: Jetzt 14:15, Regen 14:45–16:15)
+  const ncs = sb.nowcastSummary(fc);
+  const p30 = sb.pauseInfo(ncs, 30), p60 = sb.pauseInfo(ncs, 60);
+  H.check('Regenpause: 30 min beginnt jetzt, 60 min später und offen', p30.s === 0 && p30.e === 1 && !p30.open && p30.text === 'Jetzt trocken bis ca. 14:45, rund 30 Minuten.' && p60.s === 8 && p60.open && p60.text === 'Nächste trockene Phase: ab ca. 16:15, mindestens bis 18:15.', [p30.text, p60.text].join(' | '));
+  const ncMid = { vals: ncs.vals.map((v, i) => (i >= 2 && i <= 3) || i >= 9 ? 0.4 : 0), times: ncs.times };
+  const pMid = sb.pauseInfo(ncMid, 60);
+  H.check('Regenpause: geschlossene spätere Phase mit Dauer', pMid.s === 4 && pMid.e === 8 && !pMid.open && pMid.text === 'Nächste trockene Phase: ca. 15:15 bis 16:30, rund 1 h 15 min.', pMid.text);
+  H.check('Regenpause: keine Phase, mit und ohne Nachsatz', sb.pauseInfo({ vals: ncs.vals.map(() => 0.5), times: ncs.times }, 30).text === 'In den nächsten 4 Stunden keine trockene Phase von 30 Minuten.' && sb.pauseInfo({ vals: ncs.vals.map((v, i) => i === 5 ? 0 : 0.5), times: ncs.times }, 30).text === 'In den nächsten 4 Stunden keine trockene Phase von 30 Minuten, längstens rund 15 Minuten ab ca. 15:30.', sb.pauseInfo({ vals: ncs.vals.map((v, i) => i === 5 ? 0 : 0.5), times: ncs.times }, 30).text);
   // Stufe 2: Ziehen vom Griff. Harness ohne Touch/Layout → Zustandsmaschine direkt, columnAt als Stub
   const colStub = (i, sel) => ({ classList: { contains: c => c === 'sel' && sel }, getAttribute: a => a === 'data-i' ? i : null });
   sb.selectHour(20);

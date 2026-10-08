@@ -729,6 +729,63 @@ function dHourly(fc, ens) {
     box.innerHTML = '<div class="strip"><div class="strip-inner">' + cols + '</div><div class="act-track">' + cells + '</div></div>';
 }
 
+/* ---- Regenpausen: trockene Phasen in den 16 Nowcast-Intervallen ---- */
+
+function dryRuns(vals) {
+    const runs = [];
+    let run = null;
+    vals.forEach(function (v, i) {
+        if (v < 0.1) { if (run) run.e = i; else run = { s: i, e: i }; }
+        else if (run) { runs.push(run); run = null; }
+    });
+    if (run) runs.push(run);
+    return runs;
+}
+
+function addMinutes(t, min) {
+    const d = new Date(t.slice(0, 10) + "T" + t.slice(11, 16) + ":00");
+    if (isNaN(d.getTime())) return t;
+    d.setMinutes(d.getMinutes() + min);
+    const p = function (n) { return String(n).padStart(2, "0"); };
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + "T" + p(d.getHours()) + ":" + p(d.getMinutes());
+}
+
+function fmtPause(slots) {
+    const m = slots * 15;
+    if (m < 60) return "rund " + m + " Minuten";
+    if (m % 60 === 0) return "rund " + (m / 60) + (m === 60 ? " Stunde" : " Stunden");
+    return "rund " + Math.floor(m / 60) + " h " + (m % 60) + " min";
+}
+
+/* Erste trockene Phase, die für die gewünschte Dauer reicht; Zeiten als „ca.", weil 15-Minuten-Raster.
+   Reicht die Phase bis zum Ende der 4 Stunden, ist sie offen: ihr Ende ist unbekannt. */
+function pauseInfo(nc, minutes) {
+    const need = Math.max(1, Math.ceil(minutes / 15));
+    const runs = dryRuns(nc.vals);
+    const last = nc.vals.length - 1;
+    const hit = runs.filter(function (r) { return r.e - r.s + 1 >= need; })[0];
+    const endOf = function (r) { return hhmm(addMinutes(nc.times[r.e], 15)); };
+    if (hit) {
+        const open = hit.e === last, len = hit.e - hit.s + 1;
+        let text;
+        if (hit.s === 0) text = open ? "Jetzt trocken, mindestens bis " + endOf(hit) + "." : "Jetzt trocken bis ca. " + endOf(hit) + ", " + fmtPause(len) + ".";
+        else text = open ? "Nächste trockene Phase: ab ca. " + hhmm(nc.times[hit.s]) + ", mindestens bis " + endOf(hit) + "." : "Nächste trockene Phase: ca. " + hhmm(nc.times[hit.s]) + " bis " + endOf(hit) + ", " + fmtPause(len) + ".";
+        return { s: hit.s, e: hit.e, open: open, text: text };
+    }
+    let longest = null;
+    runs.forEach(function (r) { if (!longest || r.e - r.s > longest.e - longest.s) longest = r; });
+    let text = "In den nächsten 4 Stunden keine trockene Phase von " + minutes + " Minuten";
+    if (longest) text += ", längstens " + fmtPause(longest.e - longest.s + 1) + " ab ca. " + hhmm(nc.times[longest.s]);
+    return { none: true, text: text + "." };
+}
+
+/* Klassen für Balken i: p innerhalb der Phase, pe am weichen Rand */
+function pauseClasses(info, i) {
+    if (!info || info.none || i < info.s || i > info.e) return "";
+    const edge = (i === info.s && info.s > 0) || (i === info.e && !info.open);
+    return " p" + (edge ? " pe" : "");
+}
+
 function dNowcast(fc) {
     const box = D("nowcast"), card = D("nowcastCard");
     const nc = nowcastSummary(fc);
