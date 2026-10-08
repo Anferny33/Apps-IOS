@@ -258,6 +258,15 @@ body {
 @keyframes aGrowY { from { transform: scaleY(0); } to { transform: none; } }
 .nc-axis { display: flex; margin-top: 6px; font-size: 11px; color: var(--ink-3); }
 .nc-axis span { flex: 1; text-align: center; }
+.nc-bars i.p { background: rgba(143,208,143,0.7); min-height: 8px; }
+.nc-bars i.p.pe { opacity: 0.4; }
+.pause { margin-top: 12px; }
+.prow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.pl { font-size: 13px; color: var(--ink-2); }
+.pchips { display: flex; gap: 6px; }
+.pchip { padding: 5px 10px; border: 1px solid rgba(255,255,255,0.2); border-radius: 999px; background: rgba(255,255,255,0.1); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; transition: background 0.3s; }
+.pchip.on { background: rgba(255,255,255,0.28); border-color: rgba(255,255,255,0.4); font-weight: 600; }
+.ptext { font-size: 14px; line-height: 1.4; }
 
 /* ---------- Detail-Kacheln ---------- */
 .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }

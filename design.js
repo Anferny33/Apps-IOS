@@ -786,21 +786,72 @@ function pauseClasses(info, i) {
     return " p" + (edge ? " pe" : "");
 }
 
+let pauseMinutes = 30;
+let lastNc = null;
+
+function loadPause() {
+    try {
+        const v = parseInt(localStorage.getItem("wetter:pause"), 10);
+        if (v === 15 || v === 30 || v === 60) pauseMinutes = v;
+    } catch (e) { /* kein Speicher */ }
+}
+
+function pauseBlockHtml(info) {
+    const chips = [15, 30, 60].map(function (m) {
+        return '<button type="button" class="pchip' + (m === pauseMinutes ? ' on' : '') + '" data-min="' + m + '">' + m + ' min</button>';
+    }).join('');
+    return '<div class="pause"><div class="prow"><span class="pl">Trockene Phase für</span><div class="pchips">' + chips + '</div></div>' +
+        '<div class="ptext">' + info.text + '</div></div>';
+}
+
 function dNowcast(fc) {
     const box = D("nowcast"), card = D("nowcastCard");
     const nc = nowcastSummary(fc);
+    lastNc = nc;
     if (!nc || !nc.wet) { card.classList.add("hidden"); return; }
     card.classList.remove("hidden");
     const peak = Math.max.apply(null, nc.vals.concat([0.4]));
+    const info = pauseInfo(nc, pauseMinutes);
     box.innerHTML =
         '<div class="nc-lead">' + nc.text + '</div>' +
         /* Balken wachsen nacheinander von links nach rechts aus der Grundlinie; data-stagger
-           hält die Staffelung auch beim Neustart per Antippen */
+           hält die Staffelung auch beim Neustart per Antippen. p/pe: trockene Phase (Regenpause). */
         '<div class="nc-bars">' + nc.vals.map(function (v, i) {
             const stagger = (i * 0.1).toFixed(2) + 's';
-            return '<i class="' + (v > 0 ? '' : 'z') + '" data-stagger="' + stagger + '" style="height:' + (v > 0 ? Math.max(8, Math.round(v / peak * 100)) : 4) + '%;animation-delay:' + dl(1.0 + i * 0.1) + 's"></i>';
+            return '<i class="' + (v > 0 ? '' : 'z') + pauseClasses(info, i) + '" data-stagger="' + stagger + '" style="height:' + (v > 0 ? Math.max(8, Math.round(v / peak * 100)) : 4) + '%;animation-delay:' + dl(1.0 + i * 0.1) + 's"></i>';
         }).join('') + '</div>' +
-        '<div class="nc-axis">' + nc.times.map(function (t, i) { return '<span>' + (i % 4 === 0 ? hhmm(t) : '') + '</span>'; }).join('') + '</div>';
+        '<div class="nc-axis">' + nc.times.map(function (t, i) { return '<span>' + (i % 4 === 0 ? hhmm(t) : '') + '</span>'; }).join('') + '</div>' +
+        pauseBlockHtml(info);
+}
+
+/* Dauer wechseln: Balkenklassen, Chips und Satz ohne Neurendern der Balken */
+function updatePause() {
+    const box = D("nowcast");
+    if (!box || !lastNc || !lastNc.wet) return;
+    const info = pauseInfo(lastNc, pauseMinutes);
+    if (!box.querySelectorAll || !box.firstElementChild) { 
+        /* Harness ohne echtes DOM: Block komplett neu setzen */
+        const html = box.innerHTML;
+        const at = html.indexOf('<div class="pause">');
+        box.innerHTML = (at >= 0 ? html.slice(0, at) : html) + pauseBlockHtml(info);
+        return;
+    }
+    Array.prototype.slice.call(box.querySelectorAll(".nc-bars i")).forEach(function (el, i) {
+        el.classList.remove("p"); el.classList.remove("pe");
+        const c = pauseClasses(info, i);
+        if (c.indexOf(" p") === 0) el.classList.add("p");
+        if (c.indexOf("pe") > 0) el.classList.add("pe");
+    });
+    Array.prototype.slice.call(box.querySelectorAll(".pchip")).forEach(function (b) { b.classList.toggle("on", parseInt(b.getAttribute("data-min"), 10) === pauseMinutes); });
+    const txt = box.querySelector(".ptext");
+    if (txt) txt.textContent = info.text;
+}
+
+function setPause(minutes) {
+    if (minutes !== 15 && minutes !== 30 && minutes !== 60) return;
+    pauseMinutes = minutes;
+    try { localStorage.setItem("wetter:pause", String(minutes)); } catch (e) { /* kein Speicher */ }
+    updatePause();
 }
 
 function renderDays(fc) {
@@ -1566,6 +1617,18 @@ function initDesignApp() {
         });
     }
 
+    /* Regenpausen: Dauer-Chips in der Nowcast-Karte */
+    function initPause() {
+        const card = D("nowcastCard");
+        if (!card || !card.addEventListener) return;
+        card.addEventListener("click", function (ev) {
+            const t = ev.target;
+            if (!t || !t.closest) return;
+            const chip = t.closest(".pchip");
+            if (chip) setPause(parseInt(chip.getAttribute("data-min"), 10));
+        });
+    }
+
     /* Rausgehen: Chips wechseln die Aktivität, ein Fenster springt per Zeitreise auf seine Startstunde */
     function initActivity() {
         const box = D("activity");
@@ -1639,6 +1702,8 @@ function initDesignApp() {
     initReplay();
     loadActivity();
     initActivity();
+    loadPause();
+    initPause();
     initScrub();
 
     const cached = window.PREVIEW_LOC || loadPos();
