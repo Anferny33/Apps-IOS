@@ -15,11 +15,11 @@ GitHub Pages ausgeliefert: <https://anferny33.github.io/Apps-IOS/>
 | `icons/`, `manifest.webmanifest` | App-Icon im Bento-Design (`icon.svg` ist die Quelle, die PNGs sind daraus gerendert) und Web-Manifest für den Homescreen |
 | `klassisch.html` + `wetter.css` | Klassische Ansicht mit allen Karten (Nowcast, Ensemble, Trend, Luftqualität, Modellvergleich) |
 | `wetter-core.js` | Gemeinsame Datenschicht: Open-Meteo (Forecast, Ensemble, Modelle, Luftqualität, Geocoding), Cache, Standortlogik |
-| `radar.html` | Regenradar (DWD RADOLAN RV über WMS, mit 2-h-Prognose) auf Leaflet |
+| `radar.html` + `radar.js` | Regenradar: MapLibre GL JS mit eigener Vektorkarte (OpenFreeMap, OpenMapTiles-Schema, ohne Schlüssel) und DWD RADOLAN RV über WMS. Zeitachse und Grenze Beobachtung/Prognose aus den Produktmetadaten; je Zeitpunkt ein Bild des Ausschnitts mit Rand, begrenzter Cache, zwei Bildebenen mit Überblendung, Pause im Hintergrund und beim Verschieben der Zeitachse |
 | `box-breathing.html` | Atemübung (eigenständig) |
 | `design.html`, `lignano-*.html` | Nur Weiterleitungen für alte Homescreen-Icons |
 
-Datenquellen: [Open-Meteo](https://open-meteo.com/) (CC BY 4.0), [DWD Geodienste](https://www.dwd.de/DE/leistungen/geodienste/geodienste.html) (CC BY 4.0: Radar und amtliche Wetterwarnungen per WFS `dwd:Warnungen_Gemeinden`, nur für Deutschland), [NINA / warnung.bund.de](https://nina.api.bund.dev/) (Katastrophenschutz, Hochwasser, Polizei; über den eigenen Worker in `proxy/`, siehe dort), BigDataCloud (Ortsname), CARTO/OpenStreetMap (Karte).
+Datenquellen: [Open-Meteo](https://open-meteo.com/) (CC BY 4.0), [OpenFreeMap](https://openfreemap.org/) (Vektorkarte, Daten © OpenStreetMap-Mitwirkende, ODbL), [DWD Geodienste](https://www.dwd.de/DE/leistungen/geodienste/geodienste.html) (CC BY 4.0: Radar und amtliche Wetterwarnungen per WFS `dwd:Warnungen_Gemeinden`, nur für Deutschland), [NINA / warnung.bund.de](https://nina.api.bund.dev/) (Katastrophenschutz, Hochwasser, Polizei; über den eigenen Worker in `proxy/`, siehe dort), BigDataCloud (Ortsname), CARTO/OpenStreetMap (Karte).
 
 ## Lokal arbeiten (Mac)
 

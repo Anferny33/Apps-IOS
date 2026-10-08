@@ -1,89 +1,205 @@
-// Radar-Seite (DWD-WMS): Zeitachsen-Parsing, Frame-Auswahl, Fallback ohne Zeitachse,
-// Zentrierung auf gemerkte Position.
+// Radar-Seite (MapLibre + DWD-WMS): Metadaten (Zeitachse, REFERENCE_TIME, Abdeckung),
+// Frame-Auswahl, Ladereihenfolge, Anzeige erst nach vollständigem Laden, Überblendung A/B,
+// begrenzter Cache, Aktualisierung ohne Doppelabrufe, Pause bei Slider/Hintergrund,
+// Abdeckungs- und Ladefehler, Zentrieren, Design-Wechsel.
 const fs = require('fs');
 const vm = require('vm');
+const code = fs.readFileSync(require('path').join(__dirname, '..', 'radar.js'), 'utf8');
 
-const html = fs.readFileSync(require('path').join(__dirname, '..', 'radar.html'), 'utf8');
-const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
-const code = scripts[scripts.length - 1][1];
+const NOW = Date.parse('2026-10-08T11:07:00Z');
+const capsA = '<WMS_Capabilities><Layer><Name>dwd:Niederschlagsradar</Name>' +
+  '<EX_GeographicBoundingBox><westBoundLongitude>2.0</westBoundLongitude><eastBoundLongitude>18.0</eastBoundLongitude><southBoundLatitude>45.0</southBoundLatitude><northBoundLatitude>57.0</northBoundLatitude></EX_GeographicBoundingBox>' +
+  '<Dimension name="time" default="current" units="ISO8601">2026-10-08T07:00:00.000Z/2026-10-08T13:05:00.000Z/PT5M</Dimension>' +
+  '<Dimension name="REFERENCE_TIME" default="2026-10-08T11:05:00.000Z" units="ISO8601">2026-10-08T07:00:00.000Z,2026-10-08T11:05:00.000Z</Dimension>' +
+  '</Layer></WMS_Capabilities>';
+// Lauf 11:05, aber Zeitachse reicht schon über "jetzt" hinaus: 11:10 ist Prognose, nicht Beobachtung
+const capsB = capsA.replace('11:07', '11:07');
+const T = s => '2026-10-08T' + s + ':00.000Z';
+const wait = ms => new Promise(r => setTimeout(r, ms));
 
-function el() {
+function el(id) {
+  const h = {};
   return {
-    innerHTML: '', textContent: '', value: '0', max: '0', className: '',
-    classList: { c: new Set(), add(x){this.c.add(x)}, remove(x){this.c.delete(x)}, contains(x){return this.c.has(x)} },
-    addEventListener() {}
+    id, innerHTML: '', textContent: '', value: '0', max: '0', className: '', src: '', title: '', offsetWidth: 10, disabled: false,
+    style: {},
+    classList: { c: new Set(), add(x){this.c.add(x)}, remove(x){this.c.delete(x)}, contains(x){return this.c.has(x)}, toggle(x, f){ if (f) this.c.add(x); else this.c.delete(x); } },
+    addEventListener(ev, fn) { h[ev] = fn; }, trigger(ev, arg) { return h[ev] && h[ev].call(this, arg || {}); },
+    setAttribute(k, v) { this[k] = v; }, getAttribute(k) { return this[k]; }
   };
 }
 
-// Fixe "Jetzt"-Zeit: 08.10.2026 11:07 UTC; Dienst liefert 07:00 .. 13:05 UTC im 5-min-Raster
-// (Beobachtung bis 11:05, danach Prognose bis +120 min)
-const NOW = Date.parse('2026-10-08T11:07:00Z');
-const capsInterval = '<WMS_Capabilities><Layer><Name>dwd:Niederschlagsradar</Name><Dimension name="time" default="current" units="ISO8601">2026-10-08T07:00:00.000Z/2026-10-08T13:05:00.000Z/PT5M</Dimension></Layer></WMS_Capabilities>';
-const capsList = '<WMS_Capabilities><Layer><Dimension name="time" units="ISO8601">2026-10-08T10:55:00.000Z,2026-10-08T11:00:00.000Z,2026-10-08T11:05:00.000Z</Dimension></Layer></WMS_Capabilities>';
-
 function run(opts) {
+  opts = opts || {};
   const nodes = {};
-  ['map','frameTime','framePill','mapMsg','play','slider','tickStart','tickEnd','legend','legendImg','note'].forEach(i => nodes[i] = el());
-  const addedLayers = new Set();
-  const wmsOpts = [], markers = [];
-  let mapOpts = null;
-  function stubLayer() {
-    return { opacity: 0, addTo() { addedLayers.add(this); return this; }, setOpacity(o) { this.opacity = o; }, bindPopup(t) { this.popup = t; return this; } };
+  const log = { caps: 0, maps: [], revoked: 0, created: 0 };
+  let bounds = opts.bounds || [9, 47, 13, 50];   // w s e n
+  const deferred = {};                            // time -> { promise, resolve }
+  const failing = new Set(opts.failTimes || []);
+  const docHandlers = {};
+
+  class MapStub {
+    constructor(o) {
+      this.opts = o; this.style = o.style; this.sources = {}; this.layers = []; this.paint = {}; this.h = {}; this.zoom = o.zoom; this.center = o.center;
+      this.touchZoomRotate = { disableRotation() {} }; this.keyboard = { disableRotation() {} };
+      setTimeout(() => { this.emit('style.load'); this.emit('load'); }, 0);
+    }
+    on(ev, fn) { (this.h[ev] = this.h[ev] || []).push(fn); }
+    once(ev, fn) { fn.once = true; this.on(ev, fn); }
+    off(ev, fn) { if (this.h[ev]) this.h[ev] = this.h[ev].filter(f => f !== fn); }
+    emit(ev, arg) { (this.h[ev] || []).slice().forEach(fn => { fn(arg); if (fn.once) this.off(ev, fn); }); }
+    addSource(id, s) { const self = this; this.sources[id] = Object.assign({}, s, { updateImage(o) { this.url = o.url; this.coordinates = o.coordinates; setTimeout(() => self.emit('sourcedata', { sourceId: id, isSourceLoaded: true }), 0); } }); }
+    addLayer(l, before) { this.layers.push(Object.assign({ before }, l)); }
+    getSource(id) { return this.sources[id]; }
+    getLayer(id) { return this.layers.find(l => l.id === id) || (this.style.layers.find(l => l.id === id)); }
+    setPaintProperty(id, k, v) { this.paint[id + '|' + k] = v; }
+    getBounds() { const b = bounds; return { getWest: () => b[0], getSouth: () => b[1], getEast: () => b[2], getNorth: () => b[3] }; }
+    getCanvas() { return { clientWidth: 400, clientHeight: 600 }; }
+    getZoom() { return this.zoom; }
+    easeTo(o) { this.eased = o; }
+    zoomIn() { this.zoom++; } zoomOut() { this.zoom--; }
+    setStyle(s) { this.style = s; this.sources = {}; this.layers = []; this.paint = {}; setTimeout(() => this.emit('style.load'), 0); }
   }
-  const tileLayer = () => stubLayer();
-  tileLayer.wms = (url, o) => { wmsOpts.push(o); return stubLayer(); };
-  const L = {
-    map: (id, o) => (mapOpts = o, { hasLayer: l => addedLayers.has(l), removeLayer: l => addedLayers.delete(l) }),
-    tileLayer,
-    marker: (latlng) => { const m = stubLayer(); m.latlng = latlng; markers.push(m); return m; },
-    divIcon: () => ({})
-  };
+  class MarkerStub { constructor(o) { this.o = o; } setLngLat(ll) { this.ll = ll; return this; } addTo() { log.marker = this; return this; } }
+
   const sb = {
-    console, Math, Object, Array, JSON, parseInt, isNaN, String, Number,
+    console, Math, Object, Array, JSON, parseInt, parseFloat, isNaN, String, Number, Promise, Map, Set, RegExp, Error,
     Date: class extends Date { constructor(...a) { super(...(a.length ? a : [NOW])); } static now() { return NOW; } static parse(s) { return Date.parse(s); } },
-    setInterval: () => 1, clearInterval: () => {},
-    L,
-    fetch: async () => { if (opts.caps === null) throw new Error('blocked'); return { ok: true, text: async () => opts.caps }; },
-    document: { getElementById: id => nodes[id] || el(), addEventListener() {}, hidden: false },
-    localStorage: { getItem: k => (k === 'wetter:pos' && opts.pos ? JSON.stringify(opts.pos) : null), setItem() {} }
+    setTimeout, clearTimeout, setInterval: () => 1, clearInterval() {},
+    devicePixelRatio: 1,
+    maplibregl: { Map: MapStub, Marker: MarkerStub },
+    URL: { createObjectURL: () => 'blob:' + (++log.created), revokeObjectURL: () => { log.revoked++; } },
+    fetch: async (url) => {
+      if (url.indexOf('GetCapabilities') >= 0) { log.caps++; if (opts.caps === null) throw new Error('blocked'); return { ok: true, text: async () => opts.caps }; }
+      if (url.indexOf('GetMap') >= 0) {
+        const m = /time=([^&]+)/.exec(url); const time = m ? decodeURIComponent(m[1]) : null;
+        log.maps.push(time);
+        if (failing.has(time)) throw new Error('offline');
+        const resp = { ok: true, headers: { get: () => 'image/png' }, blob: async () => ({ size: 1000 }) };
+        if (deferred[time]) { await deferred[time].promise; }
+        return resp;
+      }
+      throw new Error('unexpected ' + url);
+    },
+    document: {
+      getElementById: id => nodes[id] || (nodes[id] = el(id)),
+      createElement: () => el('pin'),
+      querySelector: () => null,
+      documentElement: { setAttribute(k, v) { this[k] = v; } },
+      addEventListener(ev, fn) { docHandlers[ev] = fn; }, hidden: false
+    },
+    localStorage: { store: {}, getItem(k) { if (k === 'wetter:pos') return opts.pos ? JSON.stringify(opts.pos) : null; return this.store[k] || null; }, setItem(k, v) { this.store[k] = v; } }
   };
   sb.window = sb;
   vm.createContext(sb);
   vm.runInContext(code, sb);
-  return { nodes, addedLayers, wmsOpts, markers, get mapOpts() { return mapOpts; } };
+  return {
+    sb, nodes, log, docHandlers,
+    st: () => sb.radarState(),
+    setBounds(b) { bounds = b; },
+    defer(time) { let resolve; const promise = new Promise(r => { resolve = r; }); deferred[time] = { promise, resolve }; return () => { resolve(); delete deferred[time]; }; }
+  };
 }
 
 let fail = 0;
-const check = (n, c, x) => { console.log((c ? '  ok   ' : '  FAIL ') + n + (c ? '' : ' :: ' + x)); if (!c) fail++; };
+const check = (n, c, x) => { console.log((c ? '  ok   ' : '  FAIL ') + n + (c ? '' : ' :: ' + String(x).slice(0, 220))); if (!c) fail++; };
 
-const A = run({ caps: capsInterval, pos: { lat: 48.137, lon: 11.575, name: 'München' } });
-const B = run({ caps: null, pos: null });
-const C = run({ caps: capsList, pos: null });
+(async () => {
+  // ---- A: volle Zeitachse, Position München ----
+  const A = run({ caps: capsA, pos: { lat: 48.137, lon: 11.575, name: 'München' } });
+  await wait(120);
+  const map = A.st().map;
+  const N = A.nodes, L = A.log;
+  const frames = A.st().frames;
 
-setTimeout(() => {
-  // A: volle Zeitachse
-  const times = A.wmsOpts.map(o => o.time);
-  check('WMS-Layer mit DWD-Layername + Version 1.3.0', A.wmsOpts.length > 0 && A.wmsOpts.every(o => o.layers === 'dwd:Niederschlagsradar' && o.version === '1.3.0' && o.transparent === true));
-  check('14 Frames: 6 Beobachtung + 8 Prognose', A.wmsOpts.length === 14, A.wmsOpts.length + ' ' + times.join(','));
-  check('Letzte Beobachtung 11:05 UTC (jüngster Zeitpunkt <= jetzt)', times[5] === '2026-10-08T11:05:00.000Z', times[5]);
-  check('Beobachtung im 10-min-Raster ab -50', times.slice(0, 6).join(',') === ['10:15','10:25','10:35','10:45','10:55','11:05'].map(t => '2026-10-08T' + t + ':00.000Z').join(','), times.slice(0, 6));
-  check('Prognose im 15-min-Raster bis +120', times[13] === '2026-10-08T13:05:00.000Z' && times[6] === '2026-10-08T11:20:00.000Z', times.slice(6));
-  check('Slider-Maximum 13', A.nodes.slider.max === 13, A.nodes.slider.max);
-  check('Start beim "jetzt"-Frame', A.nodes.framePill.textContent === 'jetzt', A.nodes.framePill.textContent);
-  check('Ticks: -50 min / +2 h', A.nodes.tickStart.textContent === '–50 min' && A.nodes.tickEnd.textContent === '+2 h', A.nodes.tickStart.textContent + ' ' + A.nodes.tickEnd.textContent);
-  check('Ladehinweis ausgeblendet, Play läuft', A.nodes.mapMsg.classList.contains('hidden') && A.nodes.play.textContent === '❚❚');
-  check('Genau ein Frame sichtbar', [...A.addedLayers].filter(l => l.opacity > 0).length === 1);
-  check('Mit Position: zentriert + Marker', A.mapOpts.center[0] === 48.137 && A.markers.length === 1 && A.markers[0].popup === 'München');
+  check('Karte: MapLibre mit Position München, Zoom 7, Marker, eigener Stil ohne Schlüssel', map.opts.center[0] === 11.575 && map.opts.zoom === 7 && L.marker && L.marker.ll[1] === 48.137 && map.style.sources.omt.url === 'https://tiles.openfreemap.org/planet' && !/key=|token=/.test(JSON.stringify(map.style)), JSON.stringify(map.opts.center));
+  check('Stil: Wasser blassblau, Land zurückhaltend, nur Hauptstraßen ab Zoom 7, Nebenstraßen ab 10, Dörfer ab 10', map.style.layers.find(l => l.id === 'water').paint['fill-color'] === '#D4E4F7' && map.style.layers.find(l => l.id === 'bg').paint['background-color'] === '#EEF1EA' && map.style.layers.find(l => l.id === 'road-major').minzoom === 7 && map.style.layers.find(l => l.id === 'road-minor').minzoom === 10 && map.style.layers.find(l => l.id === 'place-village').minzoom === 10);
+  check('Radar: genau zwei Bildebenen, eingefügt vor den Ortsnamen, zunächst unsichtbar', map.layers.length === 2 && map.layers.every(l => l.type === 'raster' && l.before === 'place-city' && l.paint['raster-opacity'] === 0) && Object.keys(map.sources).length === 2, JSON.stringify(map.layers.map(l => [l.id, l.before])));
+  check('Frames: 6 Beobachtung + 8 Prognose aus Zeitachse und REFERENCE_TIME', frames.length === 14 && frames.filter(f => !f.isForecast).length === 6 && frames[5].time === Date.parse(T('11:05')) && frames[6].time === Date.parse(T('11:20')) && frames[13].time === Date.parse(T('13:05')), frames.map(f => new Date(f.time).toISOString().slice(11, 16) + (f.isForecast ? 'P' : '')).join(','));
+  check('Start beim jüngsten Beobachtungsbild: Badge 13:05 Uhr lokal? nein: Zeit + "Beobachtung", Ladehinweis weg', N.frameTime.textContent.endsWith(' Uhr') && N.framePill.textContent === 'Beobachtung' && N.mapMsg.classList.contains('hidden') && !N.badge.classList.contains('loading'), N.frameTime.textContent + ' ' + N.framePill.textContent);
+  check('Ladereihenfolge: erst das aktuelle Bild (11:05), dann die folgenden (11:20, 11:35 …), dann die früheren', L.maps[0] === T('11:05') && L.maps[1] === T('11:20') && L.maps[2] === T('11:35') && L.maps.indexOf(T('10:15')) > L.maps.indexOf(T('13:05')), L.maps.map(t => t && t.slice(11, 16)).join(','));
+  check('Alle 14 Bilder nur je einmal angefragt (Cache + Warteschlange)', L.maps.length === 14 && new Set(L.maps).size === 14, L.maps.length);
+  const shownA = map.layers.find(l => map.paint[l.id + '|raster-opacity'] === 0.72);
+  check('Genau eine Ebene sichtbar mit dem Bild von 11:05, Überblendung konfiguriert', !!shownA && map.layers.filter(l => map.paint[l.id + '|raster-opacity'] === 0.72).length === 1 && map.sources[shownA.id].url.indexOf('blob:') === 0 && map.paint[shownA.id + '|raster-opacity-transition'].duration === 280, JSON.stringify(map.paint));
+  check('Slider 0..13 auf 5, Ticks –50 min / +2 h, Wiedergabe läuft', N.slider.max === 13 && N.slider.value === 5 && N.tickStart.textContent === '–50 min' && N.tickEnd.textContent === '+2 h' && N.play.textContent === '❚❚', N.slider.value + ' ' + N.tickStart.textContent + ' ' + N.tickEnd.textContent);
+  check('WMS-Bild: EPSG:3857, Bbox mit 25 % Rand, Größe 1,5-fach aus dem Canvas, transparent', (() => { const u = A.sb.getMapUrl(frames[5].time, A.sb.viewOf(map)); return /crs=EPSG%3A3857/.test(u) && /width=600&height=900/.test(u) && /transparent=true/.test(u) && /bbox=890555\.93%2C5820502\.81%2C1558472\.87%2C6577190\.19/.test(u); })(), A.sb.getMapUrl(frames[5].time, A.sb.viewOf(map)));
 
-  // B: Capabilities blockiert -> aktuelles Bild ohne Zeitraffer
-  check('Ohne Zeitachse: ein Layer ohne TIME', B.wmsOpts.length === 1 && B.wmsOpts[0].time === undefined, JSON.stringify(B.wmsOpts));
-  check('Ohne Zeitachse: Hinweis im Notiztext, Badge "aktuell"', B.nodes.note.textContent.includes('ohne Zeitraffer') && B.nodes.frameTime.textContent === 'aktuell', B.nodes.note.textContent);
-  check('Ohne Zeitachse: Play aus, Karte sichtbar', B.nodes.play.textContent === '▶' && B.nodes.mapMsg.classList.contains('hidden'));
-  check('Ohne Position: Deutschland-Mitte, Zoom 6, kein Marker', B.mapOpts.center[0] === 51.16 && B.mapOpts.zoom === 6 && B.markers.length === 0);
+  // Kleine Verschiebung innerhalb des geladenen Rands: nichts nachladen
+  A.sb.setPlaying(false);
+  const mapsSmall = L.maps.length;
+  A.setBounds([9.5, 47.5, 13.5, 50.5]);
+  await A.sb.showFrame(5); await wait(20);
+  check('Kleine Verschiebung im Rand: keine neuen Bildabrufe, Ausschnitt bleibt', L.maps.length === mapsSmall && A.st().loadedView.lonlat[0] === 8, L.maps.length - mapsSmall);
 
-  // C: Komma-Liste ohne Prognose
-  check('Komma-Liste: nur passende Beobachtungs-Frames (2), keine Prognose', C.wmsOpts.length === 2 && C.nodes.tickEnd.textContent === 'jetzt', C.wmsOpts.map(o => o.time).join(',') + ' | ' + C.nodes.tickEnd.textContent);
+  // Anzeige erst nach vollständigem Laden: Ausschnitt deutlich wechseln, Bild für 11:05 verzögern
+  const release = A.defer(T('11:05'));
+  A.setBounds([15, 50, 19, 53]);
+  const badgeBefore = N.frameTime.textContent;
+  const p = A.sb.showFrame(5);
+  await wait(30);
+  check('Neuer Ausschnitt: altes Bild bleibt, Badge lädt, keine Umschaltung vor dem Laden', N.badge.classList.contains('loading') && map.paint[shownA.id + '|raster-opacity'] === 0.72 && L.maps.length === mapsSmall + 1, JSON.stringify(map.paint));
+  release(); await p; await wait(20);
+  const shownB = map.layers.find(l => map.paint[l.id + '|raster-opacity'] === 0.72);
+  check('Nach dem Laden: andere Ebene sichtbar (A/B getauscht), alte auf 0, Ladepunkt aus', shownB && shownB.id !== shownA.id && map.paint[shownA.id + '|raster-opacity'] === 0 && !N.badge.classList.contains('loading') && N.frameTime.textContent === badgeBefore, JSON.stringify(map.paint));
+  await wait(30);
+
+  // Cache begrenzt: weitere Ausschnitte
+  A.setBounds([8, 50, 10, 51.5]); await A.sb.showFrame(5); await wait(30);
+  A.setBounds([6, 51, 8, 52.5]); await A.sb.showFrame(5); await wait(30);
+  check('Cache bleibt begrenzt (max 36), Verdrängte werden freigegeben, angezeigte nie', A.sb.cacheSize() <= 36 && L.revoked >= 6 && L.created >= 42, A.sb.cacheSize() + ' revoked ' + L.revoked + ' created ' + L.created);
+
+  // Aktualisieren: gleiche Zeitachse → keine neuen Bildabrufe, kein Doppelabruf der Metadaten
+  const mapsBefore = L.maps.length, capsBefore = L.caps;
+  const r1 = A.sb.refresh(true), r2 = A.sb.refresh(true);
+  check('Zwei gleichzeitige Aktualisierungen teilen sich einen Abruf', r1 === r2);
+  await r1; await wait(30);
+  check('Aktualisierung: vorhandene Bilder bleiben, keine erneuten Bildabrufe, Metadaten einmal', L.caps === capsBefore + 1 && L.maps.length === mapsBefore && A.st().frames.length === 14, L.caps + ' ' + (L.maps.length - mapsBefore));
+
+  // Slider pausiert, Hintergrund pausiert, Rückkehr aktualisiert und setzt fort
+  A.sb.setPlaying(true);
+  N.slider.value = '9'; N.slider.trigger('input'); await wait(30);
+  check('Zeitachse verschieben: Wiedergabe pausiert, Frame 9 (Prognose) angezeigt', N.play.textContent === '▶' && A.st().current === 9 && N.framePill.textContent === 'Prognose' && N.framePill.className === 'pill fc', N.play.textContent + ' ' + A.st().current);
+  A.sb.setPlaying(true);
+  A.sb.document.hidden = true; A.docHandlers.visibilitychange(); 
+  check('Im Hintergrund: pausiert', N.play.textContent === '▶');
+  const capsBefore2 = L.caps;
+  A.sb.document.hidden = false; A.docHandlers.visibilitychange(); await wait(40);
+  check('Rückkehr kurz nach der letzten Aktualisierung: keine neuen Metadaten, Wiedergabe wieder an', L.caps === capsBefore2 && N.play.textContent === '❚❚', L.caps + ' ' + N.play.textContent);
+  A.sb.setPlaying(false);
+  const forced = L.caps; await A.sb.refresh(true); 
+  check('Aktualisieren-Knopf lädt die Metadaten immer', L.caps === forced + 1, L.caps);
+  A.sb.setPlaying(false);
+
+  // Abdeckung: Lissabon liegt außerhalb → Hinweis, Radar aus; zurück → Hinweis weg
+  A.setBounds([-10, 38, -8, 39]); await A.sb.showFrame(5); await wait(10);
+  check('Außerhalb der Abdeckung: Hinweis nennt Abdeckung, Radarebenen aus, kein "kein Regen"', !N.mapMsg.classList.contains('hidden') && /abdeckung/i.test(N.mapMsg.textContent) && !/kein Regen/i.test(N.mapMsg.textContent) && map.layers.every(l => map.paint[l.id + '|raster-opacity'] === 0), N.mapMsg.textContent);
+  A.setBounds([9, 47, 13, 50]); await A.sb.showFrame(5); await wait(30);
+  check('Zurück in der Abdeckung: Hinweis weg, Radar sichtbar', N.mapMsg.classList.contains('hidden') && map.layers.some(l => map.paint[l.id + '|raster-opacity'] === 0.72));
+
+  // Zentrieren und Design-Wechsel
+  N.recenter.trigger('click');
+  check('Zurückzentrieren auf den gewählten Ort', map.eased && map.eased.center[0] === 11.575 && map.eased.center[1] === 48.137, JSON.stringify(map.eased));
+  N.designBtn.trigger('click'); await wait(20);
+  check('Design-Wechsel: dunkler Kartenstil, Radarebenen neu eingefügt, Wahl gespeichert', map.style.layers.find(l => l.id === 'water').paint['fill-color'] === '#0f2744' && map.layers.length === 2 && A.sb.localStorage.store['wetter:design'] === 'classic', JSON.stringify(map.style.layers[0]));
+
+  // ---- B: Metadaten blockiert → aktuelles Bild ohne Zeitraffer ----
+  const B = run({ caps: null, pos: null });
+  await wait(80);
+  check('Ohne Metadaten: ein Bild ohne TIME, Badge "aktuell", Hinweis im Notiztext, Play aus, Deutschland-Mitte', B.log.maps.length === 1 && B.log.maps[0] === null && B.nodes.frameTime.textContent === 'aktuell' && /ohne Zeitraffer/.test(B.nodes.note.textContent) && B.nodes.play.textContent === '▶' && B.st().map.opts.center[1] === 51.16, B.nodes.note.textContent);
+
+  // ---- C: Bildabruf schlägt fehl → Status, altes Bild bleibt, nichts behauptet "kein Regen" ----
+  const C = run({ caps: capsA, pos: null, failTimes: [T('11:20')] });
+  await wait(100);
+  C.sb.setPlaying(false);
+  const before = C.nodes.frameTime.textContent;
+  await C.sb.showFrame(6); await wait(20);
+  check('Ladefehler: Status "nicht geladen", Badge bleibt beim alten Bild, Radar weiter sichtbar', !C.nodes.status.classList.contains('hidden') && /nicht geladen/.test(C.nodes.status.textContent) && C.nodes.frameTime.textContent === before && C.st().map.layers.some(l => C.st().map.paint[l.id + '|raster-opacity'] === 0.72), C.nodes.status.textContent);
+
+  // ---- D: REFERENCE_TIME entscheidet über Beobachtung/Prognose, nicht die Uhr ----
+  const capsD = capsA.replace('default="2026-10-08T11:05:00.000Z"', 'default="2026-10-08T10:55:00.000Z"');
+  const D = run({ caps: capsD, pos: null });
+  await wait(100);
+  check('Grenze aus REFERENCE_TIME: Lauf 10:55 ist letzte Beobachtung, 11:00 und 11:05 zählen als Prognose', D.st().frames[5].time === Date.parse(T('10:55')) && D.st().frames[6].isForecast && D.st().frames[6].time === Date.parse(T('11:10')), D.st().frames.map(f => new Date(f.time).toISOString().slice(11, 16) + (f.isForecast ? 'P' : '')).join(','));
 
   console.log(fail === 0 ? '\nAlle Checks bestanden.' : '\n' + fail + ' fehlgeschlagen.');
   process.exit(fail ? 1 : 0);
-}, 250);
+})().catch(e => { console.error(e); process.exit(1); });
