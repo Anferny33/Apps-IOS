@@ -8,7 +8,7 @@ GitHub Pages ausgeliefert: <https://anferny33.github.io/Apps-IOS/>
 
 | Datei | Inhalt |
 |---|---|
-| `index.html` + `design.css` + `design.js` | Startseite (Design-Variante): Hero, Stundenleiste mit Temperaturkurve, 14 Tage, Instrumente, Ortssuche |
+| `index.html` + `design.css` + `design.js` | Startseite (Bento-Design): flache Farbfelder, Hero-Feld in Wetterfarbe, Stundenfelder, Kacheln, 14 Tage, Modellvergleich, Ortssuche; Schrift Sora via Google Fonts mit System-Fallback |
 | `klassisch.html` + `wetter.css` | Klassische Ansicht mit allen Karten (Nowcast, Ensemble, Trend, Luftqualität, Modellvergleich) |
 | `wetter-core.js` | Gemeinsame Datenschicht: Open-Meteo (Forecast, Ensemble, Modelle, Luftqualität, Geocoding), Cache, Standortlogik |
 | `radar.html` | Regenradar (DWD RADOLAN RV über WMS, mit 2-h-Prognose) auf Leaflet |

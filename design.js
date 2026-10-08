@@ -69,7 +69,8 @@ const UI = {
     layers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>'
 };
 
-const STATUS = { good: "#4fd17a", warning: "#ffcb47", serious: "#ff9a62", critical: "#ff6b6b", none: "rgba(255,255,255,0.4)" };
+/* Statusfarben für helle Flächen (Wort neben dem Wert) */
+const STATUS = { good: "#2E7D4F", warning: "#B7791F", serious: "#C2410C", critical: "#B91C1C", none: "#6B6685" };
 
 /* ------------------------------------------------------------------ *
  * Helfer
@@ -107,6 +108,16 @@ function unskel(el) { el.classList.remove("skel"); el.style.height = ""; }
  * Rendering
  * ------------------------------------------------------------------ */
 
+function longWeekday(t) {
+    if (!t) return "";
+    const d = new Date(t.slice(0, 10) + "T12:00:00");
+    return isNaN(d) ? "" : d.toLocaleDateString("de-DE", { weekday: "long" });
+}
+
+function isWetCode(code) {
+    return code >= 51 && code <= 99;
+}
+
 function renderHero(fc) {
     const c = fc.current, d = fc.daily;
     const code = c.weather_code, day = c.is_day;
@@ -115,14 +126,30 @@ function renderHero(fc) {
     const nc = nowcastSummary(fc);
     const hi = d && isNum(d.temperature_2m_max[0]) ? Math.round(d.temperature_2m_max[0]) : null;
     const lo = d && isNum(d.temperature_2m_min[0]) ? Math.round(d.temperature_2m_min[0]) : null;
+    const when = c.time ? longWeekday(c.time) + ", " + hhmm(c.time) : "";
 
     const hero = D("hero");
+    unskel(hero);
     hero.innerHTML =
-        svgIcon(code, day, "big-icon fade-in") +
-        '<div class="temp fade-in">' + Math.round(c.temperature_2m) + '°</div>' +
-        '<div class="cond fade-in">' + wmo(code)[1] + ' · gefühlt ' + Math.round(c.apparent_temperature) + '°</div>' +
-        (hi !== null ? '<div class="range fade-in">H <b>' + hi + '°</b> · T <b>' + lo + '°</b></div>' : '') +
-        (nc ? '<div class="insight fade-in">' + (nc.wet ? UI.umbrella : UI.check) + '<span>' + nc.text + '</span></div>' : '');
+        '<div class="meta"><span>' + when + '</span><span>' + wmo(code)[1] + '</span></div>' +
+        '<div class="main"><div class="temp fade-in">' + Math.round(c.temperature_2m) + '°</div>' + svgIcon(code, day, "big-icon fade-in") + '</div>' +
+        '<div class="chips">' +
+            (hi !== null ? '<span>Hoch ' + hi + '°</span><span>Tief ' + lo + '°</span>' : '') +
+            '<span>Gefühlt ' + Math.round(c.apparent_temperature) + '°</span>' +
+        '</div>';
+
+    /* Hinweis-Feld: Nowcast als Satz, darunter eine Einordnung */
+    const ins = D("insight");
+    if (!nc) { ins.classList.add("hidden"); return; }
+    const p0 = d && isNum(d.precipitation_probability_max[0]) ? d.precipitation_probability_max[0] : null;
+    let sub;
+    if (nc.wet) sub = "Schirm einpacken";
+    else if (p0 !== null && p0 >= 30) sub = "Später am Tag " + p0 + " % Regenrisiko";
+    else sub = "Heute bleibt es voraussichtlich trocken";
+    ins.classList.remove("hidden");
+    ins.innerHTML =
+        '<div class="ico">' + (nc.wet ? UI.umbrella : UI.check) + '</div>' +
+        '<div class="txt"><b>' + nc.text + '</b><span>' + sub + '</span></div>';
 }
 
 function dHourly(fc, ens) {
@@ -137,49 +164,25 @@ function dHourly(fc, ens) {
     const ensIndex = {};
     if (ens && ens.hourly && ens.hourly.time) ens.hourly.time.forEach(function (t, i) { ensIndex[t] = i; });
 
-    const COL = 58, CH = 92, padT = 20, padB = 12;
-    const temps = w.slice(h.temperature_2m);
-    const valid = temps.filter(isNum);
-    const tLo = Math.min.apply(null, valid), tHi = Math.max.apply(null, valid);
-    const span = Math.max(4, tHi - tLo);
-    const x = function (i) { return i * COL + COL / 2; };
-    const y = function (v) { return padT + (tHi - v) / span * (CH - padT - padB); };
-
-    let path = "", pts = "", labels = "", cols = "", prevDay = null;
+    let cols = "", prevDay = null;
     for (let i = 0; i < n; i++) {
         const gi = w.start + i;
         const t = h.time[gi];
-        const v = temps[i];
-        if (isNum(v)) {
-            path += (path ? " L" : "M") + x(i).toFixed(1) + " " + y(v).toFixed(1);
-            pts += '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(v).toFixed(1) + '" r="3" fill="var(--accent)" stroke="var(--bg1)" stroke-width="2"/>';
-            labels += '<text x="' + x(i).toFixed(1) + '" y="' + (y(v) - 9).toFixed(1) + '" text-anchor="middle" font-size="13" font-weight="600" fill="#fff">' + Math.round(v) + '°</text>';
-        }
+        const v = h.temperature_2m[gi];
         const stats = members.length && ensIndex[t] !== undefined ? ensembleStats(members, ensIndex[t]) : null;
         const prob = stats ? stats.prob : (isNum(h.precipitation_probability[gi]) ? h.precipitation_probability[gi] : 0);
-        const mm = stats && stats.median > 0 ? Math.max(stats.median, h.precipitation[gi] || 0) : (h.precipitation[gi] || 0);
         const dd = dayOf(t);
         const newDay = prevDay !== null && dd !== prevDay;
         prevDay = dd;
         cols +=
-            '<div class="hcol' + (newDay ? ' newday' : '') + '">' +
-                '<div class="t">' + (i === 0 ? "Jetzt" : (newDay ? weekday(dd) : hhmm(t))) + '</div>' +
+            '<div class="hcol' + (i === 0 ? ' now' : '') + (newDay ? ' newday' : '') + (i !== 0 && prob >= 25 ? ' wet' : '') + '">' +
+                '<div class="t">' + (i === 0 ? "Jetzt" : (newDay ? weekday(dd) : hhmm(t).slice(0, 2))) + '</div>' +
                 svgIcon(h.weather_code[gi], h.is_day ? h.is_day[gi] : 1, "ic") +
-                '<div class="gap"></div>' +
+                '<div class="v">' + (isNum(v) ? Math.round(v) + '°' : '–') + '</div>' +
                 '<div class="p">' + Math.round(prob) + '%</div>' +
-                '<div class="mm">' + (mm >= 0.1 ? fmtMm(mm) + ' mm' : '') + '</div>' +
             '</div>';
     }
-    const W = n * COL;
-    const area = path + " L" + x(n - 1).toFixed(1) + " " + CH + " L" + x(0).toFixed(1) + " " + CH + " Z";
-    box.innerHTML =
-        '<div class="strip"><div class="strip-inner" style="width:' + W + 'px">' +
-            '<svg class="curve" width="' + W + '" height="' + CH + '" viewBox="0 0 ' + W + ' ' + CH + '" aria-hidden="true">' +
-                '<path d="' + area + '" fill="var(--accent)" fill-opacity="0.07"/>' +
-                '<path d="' + path + '" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' +
-                pts + labels +
-            '</svg>' + cols +
-        '</div></div>';
+    box.innerHTML = '<div class="strip"><div class="strip-inner">' + cols + '</div></div>';
 }
 
 function dNowcast(fc) {
@@ -204,15 +207,18 @@ function renderDays(fc) {
     const tHi = Math.max.apply(null, d.temperature_2m_max.filter(isNum));
     const span = Math.max(1, tHi - tLo);
     const cur = fc.current.temperature_2m;
+    const SHOWN = 7;
     let rows = "";
     for (let i = 0; i < n; i++) {
         const lo = d.temperature_2m_min[i], hi = d.temperature_2m_max[i];
         const prob = d.precipitation_probability_max[i];
+        const code = d.weather_code[i];
         const left = (lo - tLo) / span * 100, width = Math.max(3, (hi - lo) / span * 100);
+        const mood = isWetCode(code) || (isNum(prob) && prob >= 50) ? ' wet' : (code === 0 || code === 1 ? ' fair' : '');
         rows +=
-            '<div class="drow">' +
+            '<div class="drow' + mood + (i >= SHOWN ? ' more' : '') + '">' +
                 '<div class="n">' + (i === 0 ? "Heute" : weekday(d.time[i])) + '</div>' +
-                svgIcon(d.weather_code[i], 1, "ic") +
+                svgIcon(code, 1, "ic") +
                 '<div class="pp">' + (isNum(prob) ? Math.round(prob) + '%' : '') + '</div>' +
                 '<div class="lo">' + Math.round(lo) + '°</div>' +
                 '<div class="bar"><i style="left:' + left.toFixed(1) + '%;width:' + width.toFixed(1) + '%"></i>' +
@@ -221,82 +227,26 @@ function renderDays(fc) {
                 '<div class="hi">' + Math.round(hi) + '°</div>' +
             '</div>';
     }
+    if (n > SHOWN) {
+        rows += '<button type="button" class="days-more" id="daysMore"><span id="daysMoreLabel">Weitere ' + (n - SHOWN) + ' Tage</span>' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>';
+    }
     box.innerHTML = rows;
-}
-
-/* ---- Instrumente ---- */
-
-function arcPoint(cx, cy, r, frac) {
-    const a = Math.PI - frac * Math.PI;
-    return [cx + r * Math.cos(a), cy - r * Math.sin(a)];
-}
-
-function arcPath(cx, cy, r, f0, f1) {
-    const p0 = arcPoint(cx, cy, r, f0), p1 = arcPoint(cx, cy, r, f1);
-    return 'M' + p0[0].toFixed(1) + ' ' + p0[1].toFixed(1) + ' A' + r + ' ' + r + ' 0 0 1 ' + p1[0].toFixed(1) + ' ' + p1[1].toFixed(1);
-}
-
-function uvGauge(uv) {
-    const segs = [[0, 3, "good"], [3, 6, "warning"], [6, 8, "serious"], [8, 11, "critical"]];
-    let s = '<svg class="gauge" viewBox="0 0 100 58" aria-hidden="true">';
-    segs.forEach(function (sg) {
-        s += '<path d="' + arcPath(50, 52, 40, sg[0] / 11, Math.min(sg[1], 11) / 11 - 0.012) + '" fill="none" stroke="' + STATUS[sg[2]] + '" stroke-width="7" stroke-linecap="round" opacity="0.85"/>';
-    });
-    if (isNum(uv)) {
-        const p = arcPoint(50, 52, 40, Math.min(uv, 11) / 11);
-        s += '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="6" fill="#fff" stroke="var(--bg1)" stroke-width="2.5"/>';
+    const btn = D("daysMore");
+    if (btn && n > SHOWN) {
+        btn.addEventListener("click", function () {
+            const field = D("daysField");
+            const open = field.classList.toggle("all");
+            D("daysMoreLabel").textContent = open ? "Weniger anzeigen" : "Weitere " + (n - SHOWN) + " Tage";
+        });
     }
-    return s + '</svg>';
 }
 
-function windDial(dir, speed) {
-    const to = isNum(dir) ? (dir + 180) % 360 : 0;
-    return '<svg class="gauge" viewBox="0 0 100 100" aria-hidden="true">' +
-        '<circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="1.5"/>' +
-        '<g font-size="9" fill="rgba(255,255,255,0.7)" text-anchor="middle" font-weight="600">' +
-            '<text x="50" y="14">N</text><text x="89" y="53">O</text><text x="50" y="92">S</text><text x="11" y="53">W</text></g>' +
-        /* Pfeil nur im äußeren Ring, Mitte bleibt frei für die Zahl */
-        '<g transform="rotate(' + to + ' 50 50)">' +
-            '<path d="M50 13l6 11h-4v8h-4v-8h-4z" fill="#fff"/>' +
-            '<path d="M48 68v10h4V68z" fill="rgba(255,255,255,0.35)"/>' +
-        '</g>' +
-        '<circle cx="50" cy="50" r="17" fill="rgba(0,0,0,0.28)" stroke="rgba(255,255,255,0.18)" stroke-width="1"/>' +
-        '<text x="50" y="53" text-anchor="middle" font-size="14" font-weight="700" fill="#fff">' + (isNum(speed) ? Math.round(speed) : '–') + '</text>' +
-        '<text x="50" y="62" text-anchor="middle" font-size="6.5" fill="rgba(255,255,255,0.7)">km/h</text>' +
-        '</svg>';
-}
+/* ---- Kacheln ---- */
 
-function sunArc(sunrise, sunset, now) {
-    const r = minutesOf(sunrise), s = minutesOf(sunset), n = minutesOf(now);
-    let f = null;
-    if (r !== null && s !== null && n !== null && s > r) f = (n - r) / (s - r);
-    const daytime = f !== null && f >= 0 && f <= 1;
-    let svg = '<svg class="gauge" viewBox="0 0 100 56" aria-hidden="true">' +
-        '<path d="' + arcPath(50, 50, 38, 0, 1) + '" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="2" stroke-dasharray="3 4"/>' +
-        '<path d="M6 50h88" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>';
-    if (daytime) {
-        svg += '<path d="' + arcPath(50, 50, 38, 0, Math.max(0.01, f)) + '" fill="none" stroke="#ffd27a" stroke-width="2.5" stroke-linecap="round"/>';
-        const p = arcPoint(50, 50, 38, f);
-        svg += '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="6" fill="#ffd27a" stroke="var(--bg1)" stroke-width="2"/>';
-    }
-    return svg + '</svg>';
-}
-
-function aqiMeter(aqi) {
-    const segs = ["good", "good", "warning", "serious", "critical"];
-    let s = '<svg class="gauge" viewBox="0 0 100 14" preserveAspectRatio="none" aria-hidden="true">';
-    segs.forEach(function (st, i) {
-        s += '<rect x="' + (i * 20 + 0.6) + '" y="4" width="18.8" height="6" rx="3" fill="' + STATUS[st] + '" opacity="0.85"/>';
-    });
-    if (isNum(aqi)) {
-        const xpos = Math.max(2, Math.min(98, aqi));
-        s += '<circle cx="' + xpos + '" cy="7" r="5" fill="#fff" stroke="var(--bg1)" stroke-width="2"/>';
-    }
-    return s + '</svg>';
-}
-
-function tile(cls, title, ico, body, sub) {
-    return '<div class="tile ' + (cls || '') + '"><h3>' + ico + title + '</h3>' + body + (sub ? '<div class="sub">' + sub + '</div>' : '') + '</div>';
+function tile(cls, title, big, sub) {
+    return '<div class="tile ' + cls + '"><h3>' + title + '</h3><div class="big">' + big + '</div>' +
+        (sub ? '<div class="sub">' + sub + '</div>' : '') + '</div>';
 }
 
 function renderDetails(fc, air) {
@@ -309,50 +259,95 @@ function renderDetails(fc, air) {
     const lv = uvLevel(uvNow);
     let html = "";
 
-    html += tile("", "UV-Index", UI.sunUp,
-        '<div class="big">' + (isNum(uvNow) ? fmtNum(uvNow, 1) : '–') + (lv ? ' <small class="word" style="color:' + STATUS[lv.st] + '">' + lv.word + '</small>' : '') + '</div>' + uvGauge(uvNow),
+    html += tile("uv", "UV-Index",
+        (isNum(uvNow) ? fmtNum(uvNow, 1) : '–') + (lv ? '<span class="word">' + lv.word + '</span>' : ''),
         isNum(uvMax) ? 'Maximum heute ' + fmtNum(uvMax, 1) : null);
 
-    html += tile("", "Wind", UI.wind,
-        windDial(c.wind_direction_10m, c.wind_speed_10m),
-        'aus ' + compass(c.wind_direction_10m) + ' · Böen ' + Math.round(c.wind_gusts_10m) + ' km/h');
+    html += tile("wind", "Wind",
+        (isNum(c.wind_speed_10m) ? Math.round(c.wind_speed_10m) : '–') + '<small>km/h</small>',
+        'Aus ' + compass(c.wind_direction_10m) + ' · Böen ' + Math.round(c.wind_gusts_10m));
 
-    html += tile("", "Sonne", UI.sunUp,
-        sunArc(d.sunrise && d.sunrise[0], d.sunset && d.sunset[0], c.time) +
-        '<div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600"><span>↑ ' + hhmm(d.sunrise && d.sunrise[0]) + '</span><span>↓ ' + hhmm(d.sunset && d.sunset[0]) + '</span></div>',
-        'Tageslänge ' + fmtDuration(d.daylight_duration && d.daylight_duration[0]));
+    html += tile("rain", "Regen",
+        fmtMm(d.precipitation_sum[0]) + '<small>mm</small>',
+        (isNum(d.precipitation_probability_max[0]) ? 'Risiko ' + d.precipitation_probability_max[0] + '&nbsp;%' : '') +
+        (isNum(d.precipitation_hours && d.precipitation_hours[0]) && d.precipitation_hours[0] > 0 ? ' · ' + Math.round(d.precipitation_hours[0]) + '&nbsp;h' : '') +
+        '<br>Morgen ' + fmtMm(d.precipitation_sum[1]) + '&nbsp;mm · ' + (isNum(d.precipitation_probability_max[1]) ? d.precipitation_probability_max[1] + '&nbsp;%' : '–'));
 
-    html += tile("", "Niederschlag", UI.drop,
-        '<div class="big">' + fmtMm(d.precipitation_sum[0]) + '<small>mm heute</small></div>',
-        (isNum(d.precipitation_probability_max[0]) ? 'Risiko ' + d.precipitation_probability_max[0] + ' %' : '') +
-        (isNum(d.precipitation_hours && d.precipitation_hours[0]) && d.precipitation_hours[0] > 0 ? ' · ' + Math.round(d.precipitation_hours[0]) + ' h mit Regen' : '') +
-        '<br>Morgen ' + fmtMm(d.precipitation_sum[1]) + ' mm · ' + (isNum(d.precipitation_probability_max[1]) ? d.precipitation_probability_max[1] + ' %' : '–'));
+    html += tile("sun", "Sonne",
+        hhmm(d.sunset && d.sunset[0]),
+        'Aufgang ' + hhmm(d.sunrise && d.sunrise[0]) + ' · <span style="white-space:nowrap">' + fmtDuration(d.daylight_duration && d.daylight_duration[0]) + '</span>');
 
-    html += tile("", "Luftfeuchte", UI.drop,
-        '<div class="big">' + Math.round(c.relative_humidity_2m) + '<small>%</small></div>',
-        'Bewölkung ' + fmtNum(c.cloud_cover, 0) + ' %');
+    html += tile("plain", "Luftfeuchte",
+        Math.round(c.relative_humidity_2m) + '<small>%</small>',
+        'Bewölkung ' + fmtNum(c.cloud_cover, 0) + '&nbsp;%');
 
-    html += tile("", "Luftdruck", UI.gauge,
-        '<div class="big">' + fmtNum(c.pressure_msl, 0) + '<small>hPa</small></div>',
-        isNum(c.pressure_msl) ? (c.pressure_msl >= 1020 ? 'Hochdruck' : (c.pressure_msl <= 1005 ? 'Tiefdruck' : 'normal')) : null);
+    html += tile("plain", "Luftdruck",
+        fmtNum(c.pressure_msl, 0),
+        'hPa · ' + (isNum(c.pressure_msl) ? (c.pressure_msl >= 1020 ? 'Hochdruck' : (c.pressure_msl <= 1005 ? 'Tiefdruck' : 'normal')) : '–'));
 
     if (air && air.current) {
         const a = air.current, al = aqiLevel(a.european_aqi);
-        html += tile("wide", "Luftqualität", UI.leaf,
-            '<div style="display:flex;align-items:baseline;gap:10px"><div class="big">' + (isNum(a.european_aqi) ? Math.round(a.european_aqi) : '–') + '</div>' +
-            (al ? '<span class="word" style="color:' + STATUS[al.st] + '">' + al.ico + ' ' + al.word + '</span>' : '') + '</div>' + aqiMeter(a.european_aqi),
-            'PM2,5 ' + fmtNum(a.pm2_5, 0) + ' · PM10 ' + fmtNum(a.pm10, 0) + ' · O₃ ' + fmtNum(a.ozone, 0) + ' · NO₂ ' + fmtNum(a.nitrogen_dioxide, 0) + ' µg/m³');
+        const xpos = isNum(a.european_aqi) ? Math.max(2, Math.min(100, a.european_aqi)) : 0;
+        html += tile("plain", "Luftqualität",
+            (isNum(a.european_aqi) ? Math.round(a.european_aqi) : '–') +
+            (al ? '<span class="word" style="color:' + STATUS[al.st] + '">' + al.word + '</span>' : '') +
+            '<div class="meter"><i class="st-' + (al ? al.st : 'none') + '" style="width:' + xpos + '%"></i></div>',
+            'PM2,5 ' + fmtNum(a.pm2_5, 0) + ' · PM10 ' + fmtNum(a.pm10, 0) + ' · O₃ ' + fmtNum(a.ozone, 0) + ' µg/m³');
 
         const chips = POLLEN.map(function (p) {
             const lvp = pollenLevel(a[p.key], p.thr);
             return lvp && lvp.st !== "none" ? '<span class="pchip"><i class="st-' + lvp.st + '"></i>' + p.name + ' · ' + lvp.word + '</span>' : '';
         }).join('');
         const anyPollen = POLLEN.some(function (p) { return isNum(a[p.key]); });
-        html += tile("wide", "Pollen", UI.leaf,
+        html += tile("plain", "Pollen",
             '<div class="pollen-chips">' + (chips || '<span class="pchip"><i class="st-none"></i>' + (anyPollen ? 'Zurzeit kein nennenswerter Pollenflug' : 'Pollendaten nur in Europa') + '</span>') + '</div>', null);
     }
 
     box.innerHTML = html;
+}
+
+/* ---- Modellvergleich als Chips ---- */
+
+function dModels(md, fc, ens) {
+    const box = D("models");
+    unskel(box);
+    if (!md || !md.daily) { box.innerHTML = '<div class="note">Modellvergleich derzeit nicht verfügbar.</div>'; return; }
+
+    let chips = "";
+    const tomorrow = [];
+    MODELS.forEach(function (m) {
+        const s = md.daily["precipitation_sum_" + m.id];
+        if (!Array.isArray(s) || !isNum(s[0])) return;
+        if (isNum(s[1])) tomorrow.push(s[1]);
+        chips += '<div class="mchip"><span class="k">' + m.name + '</span><span class="v">' + fmtMm(s[0]) + ' / ' + (isNum(s[1]) ? fmtMm(s[1]) : '–') + '</span></div>';
+    });
+    if (!chips) { box.innerHTML = '<div class="note">Modellvergleich derzeit nicht verfügbar.</div>'; return; }
+
+    let note = "";
+    if (tomorrow.length >= 2) {
+        const sp = Math.max.apply(null, tomorrow) - Math.min.apply(null, tomorrow);
+        const wetCount = tomorrow.filter(function (v) { return v >= 0.5; }).length;
+        if (sp >= 2) note = 'Morgen liegen die Modelle ' + fmtMm(sp) + ' mm auseinander: ' + (wetCount === tomorrow.length ? 'Regen sicher, Menge unsicher.' : 'Lage unsicher.');
+        else note = wetCount === 0 ? 'Für morgen sind sich die Modelle einig: trocken.' : 'Für morgen sind sich die Modelle weitgehend einig.';
+    }
+
+    if (ens && ens.hourly && ens.hourly.time) {
+        const members = ensembleSeries(ens.hourly);
+        const start = firstIndexFrom(ens.hourly.time, fc.current.time.slice(0, 13));
+        if (members.length >= 3 && start >= 0) {
+            const end = Math.min(start + 24, ens.hourly.time.length);
+            const sums = members.map(function (s) {
+                let t = 0;
+                for (let i = start; i < end; i++) if (isNum(s[i])) t += s[i];
+                return t;
+            }).sort(function (a, b) { return a - b; });
+            const wet = sums.filter(function (v) { return v >= 0.1; }).length;
+            note += (note ? '<br>' : '') + 'ICON-D2-Ensemble, nächste 24 h: ' + fmtMm(sums[0]) + ' bis ' + fmtMm(sums[sums.length - 1]) + ' mm, Median ' +
+                fmtMm(quantile(sums, 0.5)) + ' mm · ' + Math.round(wet / sums.length * 100) + ' % der ' + sums.length + ' Läufe mit Regen.';
+        }
+    }
+
+    box.innerHTML = '<div class="mchips">' + chips + '</div>' + (note ? '<div class="note">' + note + '</div>' : '');
 }
 
 function renderAllDesign(payload) {
@@ -361,8 +356,7 @@ function renderAllDesign(payload) {
     dNowcast(payload.fc);
     renderDays(payload.fc);
     renderDetails(payload.fc, payload.air);
-    renderModels(payload.md, payload.fc, payload.ens);
-    unskel(D("models"));
+    dModels(payload.md, payload.fc, payload.ens);
 }
 
 /* ------------------------------------------------------------------ *

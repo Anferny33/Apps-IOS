@@ -23,11 +23,12 @@ function inject(id, html) {
   const open = m[0].replace(' skel', '').replace(/ style="[^"]*"/, '');
   h = h.slice(0, openStart) + open + html + h.slice(closeStart);
 }
-['hero','hourly','nowcast','days','details','models'].forEach(id => inject(id, r[id]));
-h = h.replace('class="card hidden" id="nowcastCard"', 'class="card" id="nowcastCard"');
+['hero','insight','hourly','nowcast','days','details','models'].forEach(id => inject(id, r[id]));
+h = h.replace('class="field white hidden" id="nowcastCard"', 'class="field white" id="nowcastCard"');
+h = h.replace('class="field dark insight hidden" id="insight"', 'class="field dark insight" id="insight"');
 h = h.replace('Standort …', 'München, Bayern');
 h = h.replace('<span id="updated"></span>', '<span id="updated">Stand 08.10., 09:15 Uhr</span>');
 const extra = process.argv[2] || '';
-h = h.replace('</style>', ' .hero{min-height:380px} ' + extra + '</style>');
+h = h.replace('</style>', ' ' + extra + '</style>');
 fs.writeFileSync(process.argv[3] || (__dirname + '/render-design.html'), h);
 console.log('ok', h.length, 'skel left:', (h.match(/skel/g) || []).length);
