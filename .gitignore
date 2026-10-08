@@ -1,0 +1,4 @@
+# Lokale Werkzeug-Caches und Betriebssystem-Dateien
+.wrangler/
+node_modules/
+.DS_Store
