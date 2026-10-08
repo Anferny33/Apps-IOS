@@ -440,6 +440,7 @@ function initDesignApp() {
     }
 
     function locate() {
+        if (window.PREVIEW_LOC) return;   /* Vorschau-Modus: fester Standort, keine Ortung */
         if (!("geolocation" in navigator)) {
             showBanner("Dein Browser unterstützt keine Standortabfrage.", true, "Ort suchen", openSheet);
             return;
@@ -551,7 +552,7 @@ function initDesignApp() {
     initTabs();
     initParticles();
 
-    const cached = loadPos();
+    const cached = window.PREVIEW_LOC || loadPos();
     if (cached) {
         currentLoc = { id: locId(cached.lat, cached.lon), name: cached.name || "Dein Standort", lat: cached.lat, lon: cached.lon, source: "gps" };
         load();
