@@ -32,8 +32,10 @@ Pollen. Nach der Kachel Wind folgt das Feld `tpanel tp-wind`, nach der Kachel So
 `tp-rain` und `tp-sun`. Jedes Feld: `<div class="tpanel tp-<key>" data-for="<key>"><div
 class="tpanel-in"><div class="tpanel-body">…</div></div></div>`, `grid-column: 1 / -1`.
 
-Geschlossen: `grid-template-rows: 0fr` und `margin-top: -12px` (gleicht den Rasterabstand aus,
-damit das leere Feld keine Lücke hinterlässt). Offen: `1fr`, `margin-top: 0`, Übergang 0,6 s.
+Geschlossen: `grid-template-rows: 0fr`, offen `1fr`, Übergang 0,6 s. Damit ein geschlossenes Feld
+keine Lücke lässt, hat das Raster `row-gap: 0`; der Reihenabstand kommt aus `margin-bottom: 12px`
+der Kacheln und des Feldinhalts. Das Feld trägt `align-self: start`, sonst streckt das Raster das
+leere Feld auf Reihenhöhe (Befund aus der Sichtprüfung: negativer Rand hob die Lücke nicht auf).
 Die Kachel trägt `open`: leicht angehoben, Ring in Tintenfarbe (klassisch: weiß).
 
 Inhalte tragen `tp-item` mit `data-stagger` und gestaffelter Einblendung; beim Öffnen und beim
