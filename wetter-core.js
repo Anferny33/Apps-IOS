@@ -109,7 +109,8 @@ function fetchModels(loc) {
         timezone: "auto",
         forecast_days: 3,
         models: MODELS.map(function (m) { return m.id; }).join(","),
-        daily: "precipitation_sum"
+        daily: "precipitation_sum",
+        hourly: "precipitation"
     }));
 }
 

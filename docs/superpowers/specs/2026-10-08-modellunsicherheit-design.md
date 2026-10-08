@@ -93,7 +93,7 @@ fehlt). Erwartungen:
 - Satz morgen: „Für morgen sind sich die Modelle weitgehend einig: Regen, aber die Menge
   schwankt zwischen 2,0 und 6,0 mm." (Spanne 4 mm > max(2, 2)).
 - Satz heute entfällt (14:15 ist nach 12 Uhr).
-- Ensemble-Zeile enthält „morgen" und „14 von 21 Läufen mit Regen".
+- Ensemble-Zeile enthält „morgen" und „15 von 21 Läufen mit Regen".
 - `agreementText` direkt: alle trocken → „einig: trocken."; 3 von 6 nass → „uneinig".
 - `highlightModel('gfs_seamless')` läuft ohne Fehler (Harness ohne Treffer).
 - Shell-Check: Versions-Query `20261008p`.

@@ -934,6 +934,83 @@ function renderDetails(fc, air) {
 
 /* ---- Modellvergleich als Chips ---- */
 
+/* ---- Modellunsicherheit: Summen, Kurven, Band, Satz ---- */
+
+/* Stundenindizes je Datum aus md.hourly.time */
+function modelDays(md) {
+    const out = { dates: [], hourIdx: {} };
+    if (!md || !md.hourly || !Array.isArray(md.hourly.time)) return out;
+    md.hourly.time.forEach(function (t, i) {
+        const d = dayOf(t);
+        if (!out.hourIdx[d]) { out.hourIdx[d] = []; out.dates.push(d); }
+        out.hourIdx[d].push(i);
+    });
+    return out;
+}
+
+/* Laufende Summe über die Stunden eines Tages: 25 Punkte von 0 Uhr bis 24 Uhr */
+function cumulative(values, idxs) {
+    const out = [0];
+    let s = 0;
+    for (let h = 0; h < 24; h++) {
+        const i = idxs[h];
+        if (i !== undefined && isNum(values[i])) s += values[i];
+        out.push(s);
+    }
+    return out;
+}
+
+/* Je Modell Tagessummen heute/morgen und Summenkurven, alles aus den Stundenwerten,
+   damit die Endpunkte der Kurven exakt den Chips entsprechen */
+function modelSums(md) {
+    const days = modelDays(md);
+    if (days.dates.length < 2) return [];
+    const today = days.dates[0], tomorrow = days.dates[1];
+    const out = [];
+    MODELS.forEach(function (m) {
+        const v = md.hourly["precipitation_" + m.id];
+        if (!Array.isArray(v) || !days.hourIdx[today].some(function (i) { return isNum(v[i]); })) return;
+        const ct = cumulative(v, days.hourIdx[today]), cm = cumulative(v, days.hourIdx[tomorrow]);
+        out.push({ id: m.id, name: m.name, sub: m.sub, today: ct[24], tomorrow: cm[24], cum: { today: ct, tomorrow: cm } });
+    });
+    return out;
+}
+
+/* ICON-D2-Ensemble: je Lauf die laufende Tagessumme; Band = 10- bis 90-Prozent-Quantil je Stunde */
+function ensembleBand(ens, date) {
+    if (!ens || !ens.hourly || !Array.isArray(ens.hourly.time)) return null;
+    const idxs = [];
+    ens.hourly.time.forEach(function (t, i) { if (dayOf(t) === date) idxs.push(i); });
+    if (idxs.length < 24) return null;
+    const members = ensembleSeries(ens.hourly);
+    if (members.length < 3) return null;
+    const cums = members.map(function (s) { return cumulative(s, idxs); });
+    const lo = [], hi = [];
+    for (let h = 0; h <= 24; h++) {
+        const col = cums.map(function (c) { return c[h]; }).sort(function (a, b) { return a - b; });
+        lo.push(quantile(col, 0.1)); hi.push(quantile(col, 0.9));
+    }
+    return { lo: lo, hi: hi, sums: cums.map(function (c) { return c[24]; }).sort(function (a, b) { return a - b; }) };
+}
+
+/* Übereinstimmung der Modelle für einen Tag; Regen ab 0,5 mm. Nie als Wahrscheinlichkeit formuliert. */
+function agreementText(dayWord, sums) {
+    const v = sums.filter(isNum);
+    const n = v.length;
+    if (n < 2) return "";
+    const wet = v.filter(function (x) { return x >= 0.5; }).length;
+    const sorted = v.slice().sort(function (a, b) { return a - b; });
+    const spread = sorted[n - 1] - sorted[0], median = quantile(sorted, 0.5);
+    const lead = "Für " + dayWord + " sind sich die Modelle ";
+    if (wet === 0) return lead + "einig: trocken.";
+    if (wet === n) {
+        if (spread <= Math.max(2, median / 2)) return lead + "einig: Regen, um " + fmtMm(median) + " mm.";
+        return lead + "weitgehend einig: Regen, aber die Menge schwankt zwischen " + fmtMm(sorted[0]) + " und " + fmtMm(sorted[n - 1]) + " mm.";
+    }
+    const share = Math.max(wet, n - wet) / n;
+    return lead + (share >= 0.75 ? "weitgehend einig: " : "uneinig: ") + wet + " von " + n + " rechnen mit Regen.";
+}
+
 function dModels(md, fc, ens) {
     const box = D("models");
     unskel(box);

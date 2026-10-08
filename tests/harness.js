@@ -113,9 +113,20 @@ function mockEnsemble(forecast) {
 }
 
 function mockModels() {
-  const md = { daily: { time: ['2026-09-25','2026-09-26','2026-09-27'] } };
+  const md = { daily: { time: ['2026-09-25','2026-09-26','2026-09-27'] }, hourly: { time: [] } };
+  for (let h = 0; h < 72; h++) {
+    const d = 25 + Math.floor(h / 24);
+    md.hourly.time.push('2026-09-' + d + 'T' + String(h % 24).padStart(2, '0') + ':00');
+  }
   ['icon_d2','icon_eu','ecmwf_ifs025','gfs_seamless','ukmo_seamless'].forEach((id, i) => {
     md.daily['precipitation_sum_' + id] = [0, 2 + i, 9 + i * 2];
+    // Stundenwerte passend zu den Tagessummen: morgen 12–15 Uhr, übermorgen 8–17 Uhr
+    md.hourly['precipitation_' + id] = md.hourly.time.map((_, h) => {
+      const day = Math.floor(h / 24), hr = h % 24;
+      if (day === 1 && hr >= 12 && hr < 16) return (2 + i) / 4;
+      if (day === 2 && hr >= 8 && hr < 18) return (9 + i * 2) / 10;
+      return 0;
+    });
   });
   return md; // ARPEGE fehlt absichtlich -> Zeile muss wegfallen
 }
