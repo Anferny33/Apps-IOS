@@ -363,12 +363,16 @@ let moveTimer = null;
 let wasPlaying = false;
 let radarVisible = true;
 
+/* Aktiver Ort der Wetter-App (Suche oder „Mein Standort“), sonst der zuletzt ermittelte GPS-Ort */
 function lastKnownPos() {
-    try {
-        const raw = localStorage.getItem("wetter:pos");
-        const p = raw ? JSON.parse(raw) : null;
-        return p && typeof p.lat === "number" && typeof p.lon === "number" ? p : null;
-    } catch (e) { return null; }
+    const read = function (key) {
+        try {
+            const raw = localStorage.getItem(key);
+            const p = raw ? JSON.parse(raw) : null;
+            return p && isNum(p.lat) && isNum(p.lon) && Math.abs(p.lat) <= 90 && Math.abs(p.lon) <= 180 ? p : null;
+        } catch (e) { return null; }
+    };
+    return read("wetter:active") || read("wetter:pos");
 }
 
 function fmtTime(ms) {

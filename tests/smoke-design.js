@@ -121,6 +121,29 @@ function boot(opts) {
   const sunPanel = sb.sunPanelHtml(fc);
   H.check('Abendmodus: Lichtleiste mit vier Segmenten, Zeiten, Morgen- und Bewölkungszeile im Sonnenfeld', (sunPanel.match(/<i class="seg (day|gold|blue|night)"/g) || []).length === 4 && sunPanel.includes('>18:24<') && sunPanel.includes('>19:05<') && sunPanel.includes('>19:48<') && sunPanel.includes('Morgens blaue Stunde ab 06:29, goldene Stunde 06:53 bis 07:53.') && sunPanel.includes('gute Chance auf Farbe') && sunPanel.includes('<div class="light-now day">Goldene Stunde ab 18:24</div>') && !sunPanel.includes('class="now"'), sunPanel.slice(sunPanel.indexOf('light'), sunPanel.indexOf('light') + 200));
   H.check('Abendmodus: Kachel Sonne nennt die nächste goldene Stunde, Feld ohne Phasenklasse um 14:15', G(sb,'details').innerHTML.includes('Aufgang 07:12<br>Goldene Stunde ab 18:24') && G(sb,'details').innerHTML.includes('<div class="tpanel-body">'), G(sb,'details').innerHTML.slice(G(sb,'details').innerHTML.indexOf('goldene') - 40, G(sb,'details').innerHTML.indexOf('goldene') + 40));
+  // Zähler: Gedächtnis statt Hochzählen von null; Tipp startet keine Zähler
+  H.check('Zähler: erster Wert zählt hoch, gleicher Wert bleibt, geänderter gleitet', sb.countMode('t:UV:0', 4.3) === 'first' && sb.countMode('t:UV:0', 4.3) === 'same' && sb.countMode('t:UV:0', 5.1) === 'glide' && sb.countMode('t:UV:0', 5.1) === 'same');
+  H.check('Zähler: Tipp-Delegat ruft keine Zähler mehr auf', !/else startCounters\(box\)/.test(DESIGN) && !/countUp\(box\.querySelector/.test(DESIGN) && /restartAnimations\(box\);\n\s*\}\);/.test(DESIGN));
+  // Regenaussicht: aus den Stundenwerten ab jetzt (+4 h Nowcast-Fenster), nicht aus dem Tagesmaximum
+  const clone = () => JSON.parse(JSON.stringify(fc));
+  const dd0 = sb.lastRendered();
+  H.check('Regen: Rest des Tages mit Tagesabschnitt und Menge', sb.rainOutlook(fc, dd0, 4).text === 'Heute Abend bis zu 71 % Regenrisiko · ca. 1,2 mm', sb.rainOutlook(fc, dd0, 4).text);
+  const fcMid = clone(); fcMid.current.time = '2026-09-25T23:30';
+  H.check('Regen: um Mitternacht springt die Aussicht auf morgen (Tageswechsel, Nachtstunden)', sb.rainOutlook(fcMid, dd0, 4).text === 'In der Nacht bis zu 71 % Regenrisiko · ca. 3,6 mm', sb.rainOutlook(fcMid, dd0, 4).text);
+  const fcNull = clone(); fcNull.hourly.precipitation_probability = fcNull.hourly.precipitation_probability.map(() => null);
+  H.check('Regen: fehlende Wahrscheinlichkeiten sind keine Trockenheit', sb.rainOutlook(fcNull, null, 4).text === 'Keine Regenprognose für die nächsten Stunden' && sb.rainOutlook(fcNull, null, 4).unknown === true, sb.rainOutlook(fcNull, null, 4).text);
+  const fcPast = clone(); fcPast.hourly.precipitation_probability = fcPast.hourly.precipitation_probability.map((v, i) => i >= 8 && i <= 10 ? 90 : 5); fcPast.hourly.precipitation = fcPast.hourly.precipitation.map(() => 0);
+  H.check('Regen: vergangener Vormittagsregen (90 %) erzeugt kein künftiges Risiko', sb.rainOutlook(fcPast, null, 4).text === 'Bis morgen Abend voraussichtlich trocken', sb.rainOutlook(fcPast, null, 4).text);
+  const fcEve = clone(); fcEve.hourly.precipitation_probability = fcEve.hourly.precipitation_probability.map((v, i) => i === 20 ? 60 : 5); fcEve.hourly.precipitation = fcEve.hourly.precipitation.map((v, i) => i === 20 ? 0.6 : 0);
+  const fcTom = clone(); fcTom.current.time = '2026-09-25T22:10'; fcTom.hourly.precipitation_probability = fcTom.hourly.precipitation_probability.map((v, i) => i === 39 ? 55 : 5); fcTom.hourly.precipitation = fcTom.hourly.precipitation.map(() => 0);
+  H.check('Regen: „Heute Abend“ und „Morgen Nachmittag“ aus den Stundenwerten', sb.rainOutlook(fcEve, null, 4).text === 'Heute Abend bis zu 60 % Regenrisiko · ca. 0,6 mm' && sb.rainOutlook(fcTom, null, 4).text === 'Morgen Nachmittag bis zu 55 % Regenrisiko', sb.rainOutlook(fcEve, null, 4).text + ' | ' + sb.rainOutlook(fcTom, null, 4).text);
+  const fcDry = clone(); fcDry.minutely_15.precipitation = fcDry.minutely_15.precipitation.map(() => 0);
+  sb.renderHero(fcDry);
+  H.check('Regen: trockener Nowcast zeigt die Aussicht statt des Tagesmaximums', G(sb,'insight').innerHTML.includes('<b>Kein Regen in den nächsten 4 Stunden</b><span>Heute Abend bis zu 71 % Regenrisiko · ca. 1,2 mm</span>') && !/Später am Tag/.test(G(sb,'insight').innerHTML), G(sb,'insight').innerHTML.slice(-160));
+  const fcNc = clone(); fcNc.minutely_15.precipitation = fcNc.minutely_15.precipitation.map(() => null);
+  sb.renderHero(fcNc);
+  H.check('Regen: fehlende 15-Minuten-Werte heißen „nicht verfügbar“, nicht „kein Regen“', G(sb,'insight').innerHTML.includes('<b>Kurzfristprognose nicht verfügbar</b>') && !/Kein Regen/.test(G(sb,'insight').innerHTML) && G(sb,'insight').innerHTML.includes('Heute Nachmittag bis zu 71 % Regenrisiko'), G(sb,'insight').innerHTML.slice(-200));
+  sb.renderHero(fc);
   // Stufe 2: Ziehen vom Griff. Harness ohne Touch/Layout → Zustandsmaschine direkt, columnAt als Stub
   const colStub = (i, sel) => ({ classList: { contains: c => c === 'sel' && sel }, getAttribute: a => a === 'data-i' ? i : null });
   sb.selectHour(20);
@@ -259,6 +282,36 @@ function boot(opts) {
   G(sb7,'res')._buttons[0].trigger('click'); await wait(300);
   H.check('Fehlgeschlagener Ortswechsel: Hero geleert, Warnungen weg, Fehlerbanner, Name Hamburg', !G(sb7,'hero').innerHTML.includes('17°') && G(sb7,'hero').innerHTML.includes('Keine Daten') && G(sb7,'warnings').classList.contains('hidden') && G(sb7,'banner').className.includes('err') && G(sb7,'locName').textContent.includes('Hamburg'), G(sb7,'hero').innerHTML.slice(0, 100) + ' | ' + G(sb7,'locName').textContent);
 
+  // 3d) Suche speichert den aktiven Ort getrennt vom GPS-Ort; „Mein Standort“ wechselt zurück
+  let gpsCalls = 0;
+  const counting = { getCurrentPosition: ok => { gpsCalls++; ok({ coords: { latitude: 48.137, longitude: 11.575 } }); } };
+  const sb8 = boot({ fetchImpl: H.okFetch(data), geolocation: counting });
+  await wait(300);
+  G(sb8,'locBtn').trigger('click'); await wait(350);
+  G(sb8,'q').value = 'Hamb'; G(sb8,'q').trigger('input'); await wait(500);
+  G(sb8,'res')._buttons[0].trigger('click'); await wait(300);
+  const act8 = JSON.parse(sb8._store['wetter:active'] || 'null'), pos8 = JSON.parse(sb8._store['wetter:pos'] || 'null');
+  H.check('Ort: Suche speichert aktiven Ort (Hamburg, search), GPS-Ort bleibt München', act8 && act8.source === 'search' && act8.lat === 53.55 && act8.name.startsWith('Hamburg') && pos8 && pos8.lat === 48.137, JSON.stringify([act8, pos8]));
+  const callsBefore = gpsCalls;
+  G(sb8,'gps').trigger('click'); await wait(300);
+  const act8b = JSON.parse(sb8._store['wetter:active'] || 'null');
+  H.check('Ort: „Mein Standort“ ortet neu und macht den GPS-Ort zum aktiven Ort', gpsCalls === callsBefore + 1 && act8b && act8b.source === 'gps' && act8b.lat === 48.137 && G(sb8,'locName').textContent === 'München, Bayern', JSON.stringify(act8b) + ' ' + G(sb8,'locName').textContent);
+
+  // 3e) Neuladen / Direktaufruf mit gesuchtem Ort: kein GPS, Vorhersage für den gesuchten Ort
+  gpsCalls = 0;
+  const sb9 = boot({ fetchImpl: H.okFetch(data), geolocation: counting,
+                     storage: { 'wetter:pos': JSON.stringify({ lat: 48.137, lon: 11.575, name: 'München' }), 'wetter:active': JSON.stringify({ lat: 53.55, lon: 9.99, name: 'Hamburg', source: 'search' }) } });
+  await wait(300);
+  const fc9 = sb9._fetchLog.filter(u => u.includes('api.open-meteo.com/v1/forecast') && !u.includes('models='));
+  H.check('Ort: Start mit gesuchtem Ort lädt Hamburg ohne Ortung, GPS-Ort bleibt gespeichert', gpsCalls === 0 && fc9.length === 1 && fc9[0].includes('latitude=53.55') && G(sb9,'locName').textContent.includes('Hamburg') && JSON.parse(sb9._store['wetter:pos']).lat === 48.137, gpsCalls + ' ' + fc9.map(u => u.match(/latitude=[\d.]+/)[0]) + ' ' + G(sb9,'locName').textContent);
+  H.check('Ort: GPS-Knopf sichtbar, wenn ein gesuchter Ort aktiv ist', !G(sb9,'gps').classList.contains('hidden'));
+
+  // 3f) Ungültiger aktiver Ort → normaler GPS-Fluss
+  gpsCalls = 0;
+  const sb10 = boot({ fetchImpl: H.okFetch(data), geolocation: counting, storage: { 'wetter:active': '{"lat":"x","source":"search"}' } });
+  await wait(300);
+  H.check('Ort: ungültiger aktiver Ort wird ignoriert, Ortung läuft', gpsCalls === 1 && G(sb10,'locName').textContent === 'München, Bayern' && JSON.parse(sb10._store['wetter:active']).source === 'gps', gpsCalls + ' ' + G(sb10,'locName').textContent);
+
   // 4) Offline mit Cache
   const payload = { fc, ens: data.ens, md: data.md, air: data.air };
   const LOC_KEY = 'wetter:loc:' + (48.137).toFixed(2) + ',' + (11.575).toFixed(2);
@@ -272,7 +325,7 @@ function boot(opts) {
   const rad = fs.readFileSync(require('path').join(__dirname, '..', 'radar.html'), 'utf8');
   H.check('Shell: Tab-Pille und Design-Schleier in index.html und radar.html', [idx, rad].every(h => h.includes('<span class="tab-ink"') && h.includes('id="designVeil"')));
   H.check('Shell: Rausgehen-Feld in index.html', idx.includes('id="activityField"') && idx.includes('id="activity"'));
-  H.check('Shell: Versions-Query 20261008v an allen Asset-Links', (idx.match(/\?v=20261008v"/g) || []).length === 4 && (rad.match(/\?v=20261008v"/g) || []).length === 3 && fs.readFileSync(require('path').join(__dirname, '..', 'klassisch.html'), 'utf8').includes('wetter-core.js?v=20261008v"'), (idx.match(/\?v=\w+"/g) || []).join(','));
+  H.check('Shell: Versions-Query 20261008x an allen Asset-Links', (idx.match(/\?v=20261008x"/g) || []).length === 4 && (rad.match(/\?v=20261008x"/g) || []).length === 3 && fs.readFileSync(require('path').join(__dirname, '..', 'klassisch.html'), 'utf8').includes('wetter-core.js?v=20261008x"'), (idx.match(/\?v=\w+"/g) || []).join(','));
 
   if (process.env.DUMP) {
     fs.writeFileSync(__dirname + '/render-design.json', JSON.stringify({

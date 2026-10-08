@@ -87,7 +87,7 @@ function run(opts) {
       documentElement: { setAttribute(k, v) { this[k] = v; } },
       addEventListener(ev, fn) { docHandlers[ev] = fn; }, hidden: false
     },
-    localStorage: { store: {}, getItem(k) { if (k === 'wetter:pos') return opts.pos ? JSON.stringify(opts.pos) : null; return this.store[k] || null; }, setItem(k, v) { this.store[k] = v; } }
+    localStorage: { store: {}, getItem(k) { if (k === 'wetter:pos') return opts.pos ? JSON.stringify(opts.pos) : null; if (k === 'wetter:active') return opts.active === undefined ? null : (typeof opts.active === 'string' ? opts.active : JSON.stringify(opts.active)); return this.store[k] || null; }, setItem(k, v) { this.store[k] = v; } }
   };
   sb.window = sb;
   vm.createContext(sb);
@@ -199,6 +199,14 @@ const check = (n, c, x) => { console.log((c ? '  ok   ' : '  FAIL ') + n + (c ? 
   const D = run({ caps: capsD, pos: null });
   await wait(100);
   check('Grenze aus REFERENCE_TIME: Lauf 10:55 ist letzte Beobachtung, 11:00 und 11:05 zählen als Prognose', D.st().frames[5].time === Date.parse(T('10:55')) && D.st().frames[6].isForecast && D.st().frames[6].time === Date.parse(T('11:10')), D.st().frames.map(f => new Date(f.time).toISOString().slice(11, 16) + (f.isForecast ? 'P' : '')).join(','));
+
+  // ---- E: aktiver Ort (Suche) hat Vorrang vor dem GPS-Ort; ungültiger aktiver Ort fällt auf GPS zurück ----
+  const E = run({ caps: capsA, pos: { lat: 48.137, lon: 11.575, name: 'München' }, active: { lat: 53.55, lon: 9.99, name: 'Hamburg', source: 'search' } });
+  await wait(80);
+  const F = run({ caps: capsA, pos: { lat: 48.137, lon: 11.575, name: 'München' }, active: '{"lat":"x"}' });
+  await wait(80);
+  check('Radar: zentriert auf den aktiven Ort Hamburg, Marker dort', E.st().map.opts.center[0] === 9.99 && E.st().map.opts.center[1] === 53.55 && E.log.marker.ll[1] === 53.55, JSON.stringify(E.st().map.opts.center));
+  check('Radar: ungültiger aktiver Ort → GPS-Ort München', F.st().map.opts.center[1] === 48.137, JSON.stringify(F.st().map.opts.center));
 
   console.log(fail === 0 ? '\nAlle Checks bestanden.' : '\n' + fail + ' fehlgeschlagen.');
   process.exit(fail ? 1 : 0);

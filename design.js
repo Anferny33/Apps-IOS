@@ -209,12 +209,13 @@ function stopGlide(el) {
 /* Zahl vom gerade sichtbaren Wert zum Ziel gleiten lassen (0,5 s, Ease-out). Schnelle
    Tipps setzen nur das Ziel neu; die Anzeige fällt nie auf 0. Ohne lesbaren Startwert,
    ohne requestAnimationFrame oder bei reduzierter Bewegung wird das Ziel direkt gesetzt. */
-function glideTo(el, target, suffix) {
+function glideTo(el, target, suffix, decimals) {
     if (!el || !isNum(target)) return;
     suffix = suffix || "";
     const node = firstTextNode(el);
-    const set = function (v) { if (node) node.nodeValue = Math.round(v) + suffix; else el.textContent = Math.round(v) + suffix; };
-    const from = node ? parseInt(node.nodeValue, 10) : NaN;
+    const fmt = function (v) { return (decimals ? fmtNum(v, decimals) : String(Math.round(v))) + suffix; };
+    const set = function (v) { if (node) node.nodeValue = fmt(v); else el.textContent = fmt(v); };
+    const from = node ? parseFloat(String(node.nodeValue).replace(",", ".")) : NaN;
     stopGlide(el);
     const reduced = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (typeof requestAnimationFrame !== "function" || isNaN(from) || from === target || reduced) { set(target); return; }
@@ -230,19 +231,45 @@ function glideTo(el, target, suffix) {
 
 function countUp(el, target) { countUpEl(el, target, { suffix: "°" }); }
 
-/* Alle Zahlen mit data-count unterhalb von root hochzählen, versetzt zur Kachel-Einblendung */
+/* Zähler merken sich ihren zuletzt gezeigten Wert: beim ersten Rendern zählen sie hoch (Erstanimation),
+   bei unverändertem Wert bleiben sie stehen, bei geändertem Wert gleiten sie vom alten zum neuen. */
+let lastCounts = {};
+
+function countMode(key, target) {
+    const prev = lastCounts[key];
+    lastCounts[key] = target;
+    lastCountsPrev = isNum(prev) ? prev : null;
+    if (!isNum(prev)) return "first";
+    return prev === target ? "same" : "glide";
+}
+
+function counterKey(root, el, idx) {
+    const holder = el.closest ? el.closest(".tile, .mchip") : null;
+    const label = holder && holder.querySelector ? (holder.querySelector("h3, .k") || {}).textContent : "";
+    return (root.id || "") + ":" + String(label || "").trim() + ":" + idx;
+}
+
 function startCounters(root) {
     if (!root || !root.querySelectorAll) return;
-    Array.prototype.slice.call(root.querySelectorAll("[data-count]")).forEach(function (el) {
+    Array.prototype.slice.call(root.querySelectorAll("[data-count]")).forEach(function (el, idx) {
         const holder = el.closest ? el.closest(".tile, .mchip") : null;
         const base = holder && holder.style && holder.style.animationDelay ? parseFloat(holder.style.animationDelay) * 1000 : 0;
-        countUpEl(el, parseFloat(el.getAttribute("data-count")), {
-            decimals: parseInt(el.getAttribute("data-decimals") || "0", 10),
-            delay: (isNaN(base) ? 0 : base) + 350,
-            dur: 1800
-        });
+        const target = parseFloat(el.getAttribute("data-count"));
+        const decimals = parseInt(el.getAttribute("data-decimals") || "0", 10);
+        const mode = countMode(counterKey(root, el, idx), target);
+        if (mode === "same") return;
+        if (mode === "glide") {
+            /* Vom bisherigen Wert aus starten: der neue steht nach dem Rendern schon im Text */
+            const node = firstTextNode(el);
+            const prev = lastCountsPrev;
+            if (node && isNum(prev)) node.nodeValue = (decimals ? fmtNum(prev, decimals) : String(Math.round(prev)));
+            glideTo(el, target, "", decimals);
+            return;
+        }
+        countUpEl(el, target, { decimals: decimals, delay: (isNaN(base) ? 0 : base) + 350, dur: 1800 });
     });
 }
+let lastCountsPrev = null;
 
 const UI = {
     pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
@@ -285,7 +312,10 @@ function nowcastSummary(fc) {
     const start = nowcastStartIndex(m.time, fc.current.time);
     if (start < 0) return null;
     const times = m.time.slice(start, start + 16).map(intervalStart);
-    const vals = m.precipitation.slice(start, start + 16).map(function (v) { return isNum(v) ? v : 0; });
+    const raw = m.precipitation.slice(start, start + 16);
+    /* Fehlende Werte dürfen nicht als „kein Regen“ gelten: unter 12 gültigen Intervallen keine Aussage */
+    if (raw.filter(isNum).length < 12) return { text: "Kurzfristprognose nicht verfügbar", wet: false, unknown: true, vals: [], times: [] };
+    const vals = raw.map(function (v) { return isNum(v) ? v : 0; });
     const total = vals.reduce(function (a, b) { return a + b; }, 0);
     const firstWet = vals.findIndex(function (v) { return v >= 0.1; });
     let text, wet = firstWet >= 0;
@@ -666,6 +696,62 @@ function scrubEnd() {
     if (was) { scrub.endedAt = Date.now(); settleHero(); }
 }
 
+/* ---- Regenaussicht: aus den Stundenwerten ab jetzt, nicht aus dem Tagesmaximum ---- */
+
+/* Wahrscheinlichkeit einer Stunde oder null, wenn weder Ensemble noch Modellwert vorliegen */
+function probAt(data, fc, i) {
+    const h = fc.hourly, t = h.time[i];
+    if (data && data.members && data.members.length && data.ensIndex && data.ensIndex[t] !== undefined) {
+        const st = ensembleStats(data.members, data.ensIndex[t]);
+        if (st) return st.prob;
+    }
+    return h.precipitation_probability && isNum(h.precipitation_probability[i]) ? h.precipitation_probability[i] : null;
+}
+
+function dayPartWord(hour) {
+    if (hour >= 5 && hour <= 10) return "Vormittag";
+    if (hour >= 11 && hour <= 13) return "Mittag";
+    if (hour >= 14 && hour <= 17) return "Nachmittag";
+    if (hour >= 18 && hour <= 22) return "Abend";
+    return "Nacht";
+}
+
+/* Satz zur Regenaussicht ab jetzt + skipHours (nach dem Nowcast-Fenster), erst Rest des Tages, dann morgen.
+   Wahrscheinlichkeit und Menge getrennt; ohne Daten keine Trockenheitsaussage. */
+function rainOutlook(fc, data, skipHours) {
+    const h = fc.hourly;
+    if (!h || !Array.isArray(h.time) || !h.time.length) return null;
+    const w = hourlyWindow(fc, 48);
+    const from = Math.min(w.end, w.start + (skipHours || 0));
+    const today = dayOf(fc.current.time), tomorrow = nextDay(today);
+    const scan = function (date) {
+        const r = { hours: 0, known: 0, max: null, maxIdx: -1, mm: 0 };
+        for (let i = from; i < w.end; i++) {
+            if (dayOf(h.time[i]) !== date) continue;
+            r.hours++;
+            const p = probAt(data, fc, i);
+            if (p !== null) { r.known++; if (r.max === null || p > r.max) { r.max = p; r.maxIdx = i; } }
+            if (h.precipitation && isNum(h.precipitation[i])) r.mm += h.precipitation[i];
+        }
+        return r;
+    };
+    const amount = function (r) { return r.mm >= 0.1 ? " · ca. " + fmtMm(r.mm) + " mm" : ""; };
+    const a = scan(today), b = scan(tomorrow);
+    if (a.known && a.max >= 30) {
+        const hr = parseInt(h.time[a.maxIdx].slice(11, 13), 10);
+        return { text: "Heute " + dayPartWord(hr) + " bis zu " + Math.round(a.max) + " % Regenrisiko" + amount(a), prob: a.max, unknown: false };
+    }
+    if (b.known && b.max >= 30) {
+        const hr = parseInt(h.time[b.maxIdx].slice(11, 13), 10);
+        const when = hr <= 4 ? "In der Nacht" : "Morgen " + dayPartWord(hr);
+        return { text: when + " bis zu " + Math.round(b.max) + " % Regenrisiko" + amount(b), prob: b.max, unknown: false };
+    }
+    if (a.hours && !a.known) return { text: "Keine Regenprognose für die nächsten Stunden", prob: null, unknown: true };
+    if (!a.hours && !b.known) return { text: "Keine Regenprognose verfügbar", prob: null, unknown: true };
+    if (b.known) return { text: "Bis morgen Abend voraussichtlich trocken", prob: Math.max(a.max || 0, b.max || 0), unknown: false };
+    return { text: "Heute voraussichtlich trocken", prob: a.max, unknown: false };
+}
+
 function renderHero(fc) {
     const d = fc.daily;
     const f = nowFacts(fc);
@@ -675,22 +761,26 @@ function renderHero(fc) {
     const hero = D("hero");
     unskel(hero);
     const first = introElapsed() < 0.3;
+    const prevTemp = lastTemp;
     lastTemp = isNum(f.temp) ? Math.round(f.temp) : null;
     hero.innerHTML = heroHtml(f, true);
     if (first && lastTemp !== null) countUp(hero.querySelector(".temp"), lastTemp);
+    else if (lastTemp !== null && isNum(prevTemp) && prevTemp !== lastTemp) {
+        const tn = firstTextNode(hero.querySelector(".temp"));
+        if (tn) { tn.nodeValue = prevTemp + "°"; glideTo(hero.querySelector(".temp"), lastTemp, "°"); }
+    }
 
     /* Hinweis-Feld: Nowcast als Satz, darunter eine Einordnung */
     const ins = D("insight");
     if (!nc) { ins.classList.add("hidden"); return; }
-    const p0 = d && isNum(d.precipitation_probability_max[0]) ? d.precipitation_probability_max[0] : null;
+    /* Einordnung aus den Stundenwerten nach dem Nowcast-Fenster (bei fehlendem Nowcast ab jetzt) */
     let sub;
     if (nc.wet) sub = "Schirm einpacken";
-    else if (p0 !== null && p0 >= 30) sub = "Später am Tag " + p0 + " % Regenrisiko";
-    else sub = "Heute bleibt es voraussichtlich trocken";
+    else { const o = rainOutlook(fc, lastData, nc.unknown ? 0 : 4); sub = o ? o.text : ""; }
     ins.classList.remove("hidden");
     ins.innerHTML =
-        '<div class="ico">' + (nc.wet ? UI.umbrellaRain : UI.check) + '</div>' +
-        '<div class="txt"><b>' + nc.text + '</b><span>' + sub + '</span></div>';
+        '<div class="ico">' + (nc.wet ? UI.umbrellaRain : (nc.unknown ? UI.alert : UI.check)) + '</div>' +
+        '<div class="txt"><b>' + nc.text + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '</div>';
 }
 
 function dHourly(fc, ens) {
@@ -1566,6 +1656,7 @@ function renderWarnings(dwd, nina) {
    Kopfzeile und Daten müssen immer zum selben Ort gehören. */
 function clearRendered() {
     lastTemp = null;
+    lastCounts = {};
     lastData = null;
     previewIdx = null;
     const hero = D("hero");
@@ -1599,7 +1690,10 @@ function moveTabInk() {
     nav.classList.add("ink-ready");
 }
 
+let lastRenderedLoc = null;
 function renderAllDesign(payload) {
+    const locKey = payload.fc ? String(payload.fc.latitude) + "," + String(payload.fc.longitude) : "";
+    if (locKey !== lastRenderedLoc) { lastCounts = {}; lastTemp = null; lastRenderedLoc = locKey; }
     lastData = prepareData(payload.fc, payload.ens);
     previewIdx = null;
     openTile = null;
@@ -1689,12 +1783,14 @@ function initDesignApp() {
         const known = cachedPos && distanceKm(lat, lon, cachedPos.lat, cachedPos.lon) < 2 ? cachedPos.name : null;
         currentLoc = { id: locId(lat, lon), name: known || "Dein Standort", lat: lat, lon: lon, source: "gps" };
         savePos({ lat: lat, lon: lon, name: currentLoc.name });
+        saveActiveLoc(currentLoc);
         if (!known) {
             fetchPlace(lat, lon).then(function (p) {
                 if (!p || !currentLoc || currentLoc.source !== "gps") return;
                 currentLoc.name = p;
                 setLocLabel(currentLoc);
                 savePos({ lat: lat, lon: lon, name: p });
+                saveActiveLoc(currentLoc);
             });
         }
         load();
@@ -1753,6 +1849,7 @@ function initDesignApp() {
                     b.addEventListener("click", function () {
                         const r = results[+b.getAttribute("data-i")];
                         currentLoc = { id: locId(r.lat, r.lon), name: r.name, lat: r.lat, lon: r.lon, source: "search" };
+                        saveActiveLoc(currentLoc);
                         closeSheet();
                         load();
                         window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1766,6 +1863,7 @@ function initDesignApp() {
             const cached = loadPos();
             if (cached) {
                 currentLoc = { id: locId(cached.lat, cached.lon), name: cached.name || "Dein Standort", lat: cached.lat, lon: cached.lon, source: "gps" };
+                saveActiveLoc(currentLoc);
                 load();
             }
             locate();
@@ -1863,9 +1961,8 @@ function initDesignApp() {
             const box = t.closest(".tile, .field");
             if (!box) return;
             if (box.getAttribute && box.getAttribute("data-tile")) toggleTile(box.getAttribute("data-tile"));
+            /* Nur Icon- und Diagramm-Animationen neu starten; Zahlen bleiben stehen (kein Hochzählen von null) */
             restartAnimations(box);
-            if (box.id === "hero" && lastTemp !== null) countUp(box.querySelector(".temp"), lastTemp);
-            else startCounters(box);
         });
     }
 
@@ -1958,6 +2055,14 @@ function initDesignApp() {
     initPause();
     initScrub();
 
+    /* Ein per Suche gewählter Ort bleibt über Radar, Neuladen und Direktaufruf erhalten;
+       ohne (gültigen) aktiven Ort gilt der GPS-Fluss wie bisher. */
+    const active = window.PREVIEW_LOC ? null : loadActiveLoc();
+    if (active && active.source === "search") {
+        currentLoc = { id: locId(active.lat, active.lon), name: active.name || "Gewählter Ort", lat: active.lat, lon: active.lon, source: "search" };
+        load();
+        return;
+    }
     const cached = window.PREVIEW_LOC || loadPos();
     if (cached) {
         currentLoc = { id: locId(cached.lat, cached.lon), name: cached.name || "Dein Standort", lat: cached.lat, lon: cached.lon, source: "gps" };

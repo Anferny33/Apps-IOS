@@ -1079,6 +1079,24 @@ function loadPos() {
     } catch (e) { return null; }
 }
 
+/* Aktiver Ort (gewählt per Suche oder „Mein Standort“), getrennt vom zuletzt ermittelten GPS-Ort:
+   eine Ortssuche überschreibt den GPS-Ort nicht, und Startseite wie Radar zeigen denselben Ort. */
+const ACTIVE_KEY = CACHE_PREFIX + "active";
+
+function saveActiveLoc(loc) {
+    if (!loc || !isNum(loc.lat) || !isNum(loc.lon)) return;
+    try { localStorage.setItem(ACTIVE_KEY, JSON.stringify({ lat: loc.lat, lon: loc.lon, name: loc.name || "", source: loc.source === "search" ? "search" : "gps" })); } catch (e) {}
+}
+
+function loadActiveLoc() {
+    try {
+        const raw = localStorage.getItem(ACTIVE_KEY);
+        const p = raw ? JSON.parse(raw) : null;
+        if (!p || !isNum(p.lat) || !isNum(p.lon) || Math.abs(p.lat) > 90 || Math.abs(p.lon) > 180) return null;
+        return { lat: p.lat, lon: p.lon, name: typeof p.name === "string" ? p.name : "", source: p.source === "search" ? "search" : "gps" };
+    } catch (e) { return null; }
+}
+
 function renderAll(payload) {
     renderNow(payload.fc);
     renderNowcast(payload.fc);

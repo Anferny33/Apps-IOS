@@ -58,7 +58,8 @@ body {
     display: inline-flex; align-items: center; gap: 8px;
     height: 46px; padding: 0 16px; border-radius: 23px; border: none;
     background: var(--dark); color: var(--white);
-    font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; max-width: 75%;
+    font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer;
+    max-width: calc(100% - 120px);   /* lässt den beiden Kopfzeilen-Knöpfen Platz, auch bei langen Ortsnamen */
 }
 .loc span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iconbtn {
