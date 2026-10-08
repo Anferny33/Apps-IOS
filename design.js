@@ -550,6 +550,7 @@ function renderAllDesign(payload) {
 function initDesignApp() {
     let currentLoc = null;
     let loading = false;
+    let pending = false;   /* Ortswechsel während eines laufenden Ladens: danach erneut laden */
 
     function setLocLabel(loc) {
         D("locName").textContent = (loc.source === "search" ? "🔍 " : "") + loc.name;
@@ -562,8 +563,10 @@ function initDesignApp() {
     }
 
     async function load() {
-        if (loading || !currentLoc) return;
+        if (!currentLoc) return;
+        if (loading) { pending = true; return; }
         loading = true;
+        pending = false;
         const loc = currentLoc;
         D("refresh").classList.add("spin");
         D("banner").classList.add("hidden");
@@ -572,6 +575,8 @@ function initDesignApp() {
         const results = await Promise.allSettled([
             fetchForecast(loc), fetchEnsemble(loc), fetchModels(loc), fetchAir(loc), fetchWarnings(loc)
         ]);
+        /* Inzwischen ein anderer Ort (z. B. GPS nach gespeicherter Position)? Dann diese Antwort verwerfen. */
+        if (currentLoc !== loc) { loading = false; return load(); }
         const val = function (i) { return results[i].status === "fulfilled" ? results[i].value : null; };
         const fc = val(0);
 
@@ -593,6 +598,7 @@ function initDesignApp() {
         }
         D("refresh").classList.remove("spin");
         loading = false;
+        if (pending) load();
     }
 
     function showBanner(text, isError, btnLabel, btnFn) {
