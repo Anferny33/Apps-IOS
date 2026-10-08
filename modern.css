@@ -276,6 +276,7 @@ body {
 .mchip.hl .k { color: var(--dark-muted); }
 /* Modellunsicherheit: Satz, Summenkurven je Modell, Band des ICON-D2-Ensembles */
 .agree { font-size: 14px; font-weight: 600; line-height: 1.4; margin-bottom: 10px; }
+.agree .tspan { font-weight: 500; color: var(--ink-2); }
 .mchart { width: 100%; height: auto; display: block; margin-bottom: 10px; overflow: visible; }
 .mchart .base { stroke: rgba(30,27,46,0.18); stroke-width: 1; }
 .mchart .lbl { font-size: 10px; font-weight: 700; fill: var(--ink-2); }

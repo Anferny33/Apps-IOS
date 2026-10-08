@@ -1011,6 +1011,27 @@ function agreementText(dayWord, sums) {
     return lead + (share >= 0.75 ? "weitgehend einig: " : "uneinig: ") + wet + " von " + n + " rechnen mit Regen.";
 }
 
+/* Spanne der Tageshöchstwerte über die Modelle; wie beim Regen als Einigkeit formuliert */
+function tempSpanText(dayWord, maxes) {
+    const v = maxes.filter(isNum).map(function (x) { return Math.round(x); });
+    if (v.length < 2) return "";
+    const lo = Math.min.apply(null, v), hi = Math.max.apply(null, v);
+    if (hi - lo <= 1) {
+        const sorted = v.slice().sort(function (a, b) { return a - b; });
+        return "Höchstwert " + dayWord + " um " + Math.round(quantile(sorted, 0.5)) + "°, da sind sich die Modelle einig.";
+    }
+    return "Höchstwert " + dayWord + " " + lo + " bis " + hi + "°, die Modelle liegen " + (hi - lo) + "° auseinander.";
+}
+
+/* Tageshöchstwerte je Modell aus den Tageswerten der Modellabfrage (Index 1 = morgen) */
+function modelMaxTemps(md, dayIndex) {
+    if (!md || !md.daily) return [];
+    return MODELS.map(function (m) {
+        const s = md.daily["temperature_2m_max_" + m.id];
+        return Array.isArray(s) && isNum(s[dayIndex]) ? s[dayIndex] : null;
+    });
+}
+
 let hlModel = "icon_d2";
 
 function fmtPt(x, y) { return x.toFixed(1) + "," + y.toFixed(1); }
@@ -1098,6 +1119,8 @@ function dModels(md, fc, ens) {
         const t = agreementText("heute", models.map(function (m) { return m.today; }));
         if (t) agree = t + " " + agree;
     }
+    const tspan = tempSpanText("morgen", modelMaxTemps(md, 1));
+    if (tspan) agree += (agree ? " " : "") + '<span class="tspan">' + tspan + '</span>';
 
     const num = function (v) { return isNum(v) ? '<span data-count="' + Number(v.toFixed(1)) + '" data-decimals="' + (v >= 0.05 && v < 10 ? 1 : 0) + '">' + fmtMm(v) + '</span>' : '–'; };
     const chips = models.map(function (m, i) {

@@ -12,7 +12,7 @@ einig / uneinig", nie als Trefferwahrscheinlichkeit formuliert.
 
 ## Nicht Teil dieser Stufe
 
-- Temperaturspanne der Modelle, weitere Größen als Regen.
+- Weitere Größen als Regen und Tageshöchstwert.
 - Ensemble-Bänder anderer Modelle (nur ICON-D2-EPS ist geladen).
 - Die klassische Seite `klassisch.html` bleibt unverändert (nutzt weiter die Tagessummen).
 
@@ -60,6 +60,12 @@ Tagessummen der Modelle, Regen ab 0,5 mm:
 | sonst | „Für morgen sind sich die Modelle uneinig: N von M rechnen mit Regen." |
 
 Weniger als zwei Modelle: kein Satz.
+
+**Temperatursatz** (Ergänzung vom 8. Oktober, auf Wunsch des Users): Die Modellabfrage lädt
+zusätzlich `daily: temperature_2m_max`. Aus den gerundeten Höchstwerten für morgen entsteht ein
+zweiter Satz im Übereinstimmungsblock, leichter gesetzt (`span.tspan`): Spanne bis 1° →
+„Höchstwert morgen um 19°, da sind sich die Modelle einig."; sonst „Höchstwert morgen 17 bis
+21°, die Modelle liegen 4° auseinander." Weniger als zwei Werte: kein Satz.
 
 **Ensemble-Zeile**: „ICON-D2-Ensemble, morgen: A bis B mm, Median M mm · N von K Läufen mit
 Regen." Zählwerte statt Prozent, damit nichts wie eine Trefferwahrscheinlichkeit wirkt.

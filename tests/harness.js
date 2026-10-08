@@ -120,6 +120,7 @@ function mockModels() {
   }
   ['icon_d2','icon_eu','ecmwf_ifs025','gfs_seamless','ukmo_seamless'].forEach((id, i) => {
     md.daily['precipitation_sum_' + id] = [0, 2 + i, 9 + i * 2];
+    md.daily['temperature_2m_max_' + id] = [18 + i, 17 + i, 20];
     // Stundenwerte passend zu den Tagessummen: morgen 12–15 Uhr, übermorgen 8–17 Uhr
     md.hourly['precipitation_' + id] = md.hourly.time.map((_, h) => {
       const day = Math.floor(h / 24), hr = h % 24;

@@ -331,6 +331,7 @@ body {
 .mchip .v { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .mchip.hl { background: rgba(255,255,255,0.22); }
 .agree { font-size: 14px; line-height: 1.4; margin-bottom: 10px; }
+.agree .tspan { color: var(--ink-2); }
 .mchart { width: 100%; height: auto; display: block; margin-bottom: 10px; overflow: visible; }
 .mchart .base { stroke: rgba(255,255,255,0.2); stroke-width: 1; }
 .mchart .lbl { font-size: 10px; fill: var(--ink-3); text-transform: uppercase; letter-spacing: 0.4px; }
