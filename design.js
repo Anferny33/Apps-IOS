@@ -353,16 +353,28 @@ const MINI = {
 };
 
 /* Sonnenbogen: Anteil des Tages, der schon vorbei ist, als Bogen plus Sonnenpunkt */
+/* Sonnenfarbe nach Höhe über dem Horizont: Morgen- und Abendrot am Rand, Gelb oben.
+   p = Anteil des Tagbogens (0 Aufgang, 1 Untergang). */
+function sunColor(p) {
+    const elev = Math.sin(Math.PI * Math.max(0, Math.min(1, p)));
+    const t = Math.pow(Math.max(0, Math.min(1, elev / 0.6)), 0.8);   /* gelb ab etwa einem Fünftel des Tagbogens */
+    const red = [232, 121, 74], yellow = [246, 211, 91];
+    return 'rgb(' + red.map(function (v, i) { return Math.round(v + (yellow[i] - v) * t); }).join(',') + ')';
+}
+
+/* Sonnenbogen: der Bogen zeichnet sich bis zum aktuellen Stand, die Sonne wandert von
+   Anfang an mit (Drehung um den Bogenmittelpunkt) und färbt sich dabei vom Morgenrot
+   ins Gelb. Die fünf Farbstützen gelten für diese Teilstrecke. */
 function sunArc(c, d) {
     const now = minutesOf(c.time), rise = minutesOf(d.sunrise && d.sunrise[0]), set = minutesOf(d.sunset && d.sunset[0]);
     if (now === null || rise === null || set === null || set <= rise) return '';
     const p = Math.max(0, Math.min(1, (now - rise) / (set - rise)));
-    const a = Math.PI * (1 - p), cx = 60 + 52 * Math.cos(a), cy = 54 - 52 * Math.sin(a);
     const path = 'M8 54 A52 52 0 0 1 112 54';
-    return '<svg class="arc" viewBox="0 0 120 60" aria-hidden="true" style="--p:' + Math.round(p * 100) + '">' +
+    const stops = [0, 0.25, 0.5, 0.75, 1].map(function (k, i) { return '--c' + i + ':' + sunColor(p * k); }).join(';');
+    return '<svg class="arc" viewBox="0 0 120 60" aria-hidden="true" style="--p:' + Math.round(p * 100) + ';--ang:' + Math.round(p * 180) + 'deg;' + stops + '">' +
         '<path class="track" d="' + path + '" fill="none" stroke-width="4" stroke-linecap="round"/>' +
-        '<path class="done" pathLength="100" d="' + path + '" fill="none" stroke-width="4" stroke-linecap="round"/>' +
-        (p > 0 && p < 1 ? '<circle class="dot" cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="6" stroke-width="2.4"/>' : '') +
+        (p > 0 ? '<path class="done" pathLength="100" d="' + path + '" fill="none" stroke-width="4" stroke-linecap="round"/>' : '') +
+        (p > 0 && p < 1 ? '<g class="sunpos"><circle class="dot" cx="8" cy="54" r="6" stroke-width="2.4"/></g>' : '') +
         '</svg>';
 }
 
@@ -370,9 +382,11 @@ function sunArc(c, d) {
 function dropIcon(humidity) {
     const y = isNum(humidity) ? 2 + (1 - Math.max(0, Math.min(100, humidity)) / 100) * 26 : 30;
     const shape = 'M12 2c5 7 9 12 9 17a9 9 0 0 1-18 0c0-5 4-10 9-17z';
+    /* Die Maske liegt auf einer ruhenden Gruppe; nur das Rechteck darin steigt. Läge die
+       Maske auf dem Rechteck selbst, würde sie mitwandern und das Wasser aus dem Tropfen laufen. */
     return '<svg class="drop-ico" viewBox="0 0 24 30" width="20" height="26" fill="none" stroke-width="2" stroke-linejoin="round" aria-hidden="true">' +
         '<clipPath id="dropclip"><path d="' + shape + '"/></clipPath>' +
-        '<rect clip-path="url(#dropclip)" x="0" y="' + y.toFixed(1) + '" width="24" height="30" stroke="none"/>' +
+        '<g clip-path="url(#dropclip)"><rect x="0" y="' + y.toFixed(1) + '" width="24" height="30" stroke="none"/></g>' +
         '<path d="' + shape + '"/></svg>';
 }
 
