@@ -36,7 +36,7 @@ function boot(opts) {
   H.check('Hero: Temperatur groß', hero.includes('class="temp fade-in">17°'), hero.slice(0, 200));
   H.check('Hero: Zustand in der Kopfzeile + Gefühlt-Chip', hero.includes('<span>wolkig</span>') && hero.includes('Gefühlt 16°'), hero.slice(0, 200));
   H.check('Hero: Hoch/Tief-Chips', hero.includes('Hoch 18°') && hero.includes('Tief 8°'));
-  H.check('Hero-Bauer: Vorschau-Markup ohne Staffelung, mit Jetzt-Knopf und drei Chips', (() => { const html = sb.heroHtml(sb.hourFacts(sb.lastRendered(), 42), false); return html.startsWith('<div class="meta"><span>Morgen, 18 Uhr</span><span>') && html.includes('<div class="temp">10°</div>') && html.includes('<button type="button" class="now-btn" id="heroNow">Jetzt</button><span>Gefühlt 9°</span><span>Regen 71 %</span><span>Wind 18 km/h</span>') && !html.includes('a-up'); })(), sb.heroHtml(sb.hourFacts(sb.lastRendered(), 42), false).slice(0, 220));
+  H.check('Hero-Bauer: Vorschau-Markup ohne Staffelung, mit Jetzt-Knopf und drei Chips', (() => { const html = sb.heroHtml(sb.hourFacts(sb.lastRendered(), 42), false); return html.startsWith('<div class="meta"><span>Morgen, 18 Uhr</span><span>') && html.includes('<div class="temp">10°</div>') && html.includes('</span><button type="button" class="now-btn" id="heroNow">Jetzt</button></div><div class="main">') && html.includes('<div class="chips preview"><span>Gefühlt 9°</span><span>Regen 71 %</span><span>Wind 18 km/h</span></div>') && !html.includes('a-up'); })(), sb.heroHtml(sb.hourFacts(sb.lastRendered(), 42), false).slice(0, 220));
   H.check('Hero-Bauer: Jetzt-Markup entspricht dem gerenderten Hero', sb.heroHtml(sb.nowFacts(fc), true).replace(/animation-delay:[\d.]+s/g, 'D') === hero.replace(/animation-delay:[\d.]+s/g, 'D'), sb.heroHtml(sb.nowFacts(fc), true).slice(0, 160));
   // Zeitreise: Stunde wählen, Hero folgt; Jetzt stellt wieder her. Im Harness fehlt firstElementChild,
   // deshalb baut updateHero das Hero komplett neu und innerHTML ist prüfbar.
@@ -191,6 +191,7 @@ function boot(opts) {
   const idx = fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
   const rad = fs.readFileSync(require('path').join(__dirname, '..', 'radar.html'), 'utf8');
   H.check('Shell: Tab-Pille und Design-Schleier in index.html und radar.html', [idx, rad].every(h => h.includes('<span class="tab-ink"') && h.includes('id="designVeil"')));
+  H.check('Shell: Versions-Query 20261008m an allen Asset-Links', (idx.match(/\?v=20261008m"/g) || []).length === 4 && (rad.match(/\?v=20261008m"/g) || []).length === 2 && fs.readFileSync(require('path').join(__dirname, '..', 'klassisch.html'), 'utf8').includes('wetter-core.js?v=20261008m"'), (idx.match(/\?v=\w+"/g) || []).join(','));
 
   if (process.env.DUMP) {
     fs.writeFileSync(__dirname + '/render-design.json', JSON.stringify({

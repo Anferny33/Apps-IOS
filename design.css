@@ -165,7 +165,8 @@ body {
 .hero-field .chips span { font-size: 15px; color: var(--ink-2); }
 .hero-field .chips span::after { content: "·"; margin-left: 8px; color: var(--ink-3); }
 .hero-field .chips span:last-child::after { content: none; }
-.hero-field .chips .now-btn { padding: 6px 12px; background: rgba(255,255,255,0.18); color: var(--ink); border: 1px solid rgba(255,255,255,0.35); border-radius: 999px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+/* Zeitreise: Jetzt-Knopf unter der Beschriftung (column-reverse: order -1 liegt unten) */
+.hero-field .meta .now-btn { order: -1; margin-top: 6px; padding: 5px 14px; background: rgba(255,255,255,0.18); color: var(--ink); border: 1px solid rgba(255,255,255,0.35); border-radius: 999px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
 .hero-field .flip { animation: aFade 0.25s ease both; }
 .hero-field .big-icon.swap-in { animation: aFade 0.2s ease both; }
 

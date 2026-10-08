@@ -335,8 +335,11 @@ function nowFacts(fc) {
     };
 }
 
+/* In der Vorschau sitzt der Jetzt-Knopf in der Meta-Zeile, damit die Chip-Reihe einzeilig
+   bleibt und das Hero in beiden Zuständen gleich hoch ist */
 function heroMetaHtml(f) {
-    return '<span>' + f.label + '</span><span>' + f.desc + '</span>';
+    return '<span>' + f.label + '</span><span>' + f.desc + '</span>' +
+        (f.now ? '' : '<button type="button" class="now-btn" id="heroNow">Jetzt</button>');
 }
 
 /* intro: gestaffeltes Einblenden beim Laden; in der Vorschau (false) ohne Verzögerungen */
@@ -349,7 +352,6 @@ function heroChipsHtml(f, intro) {
         if (f.hi !== null) out += chip("Hoch " + f.hi + "°", 0.5) + chip("Tief " + f.lo + "°", 0.58);
         out += chip("Gefühlt " + Math.round(f.apparent) + "°", 0.66);
     } else {
-        out += '<button type="button" class="now-btn" id="heroNow">Jetzt</button>';
         if (isNum(f.apparent)) out += chip("Gefühlt " + Math.round(f.apparent) + "°", 0);
         if (isNum(f.prob)) out += chip("Regen " + Math.round(f.prob) + " %", 0);
         if (isNum(f.wind)) out += chip("Wind " + Math.round(f.wind) + " km/h", 0);
@@ -362,7 +364,7 @@ function heroHtml(f, intro) {
     const tempCls = intro ? 'temp fade-in' : 'temp';
     return metaOpen + heroMetaHtml(f) + '</div>' +
         '<div class="main"><div class="' + tempCls + '">' + (isNum(f.temp) ? Math.round(f.temp) + '°' : '–°') + '</div>' + heroIcon(f.code, f.isDay) + '</div>' +
-        '<div class="chips">' + heroChipsHtml(f, intro) + '</div>';
+        '<div class="chips' + (f.now ? '' : ' preview') + '">' + heroChipsHtml(f, intro) + '</div>';
 }
 
 /* ---- Zeitreise: Stunde antippen, Hero folgt ---- */
@@ -389,7 +391,7 @@ function updateHero(f) {
     meta.innerHTML = heroMetaHtml(f);
     flip(meta);
     const chips = hero.querySelector(".chips");
-    if (chips) { chips.innerHTML = heroChipsHtml(f, false); flip(chips); }
+    if (chips) { chips.innerHTML = heroChipsHtml(f, false); chips.classList.toggle("preview", !f.now); flip(chips); }
 
     const temp = hero.querySelector(".temp");
     if (temp) { if (lastTemp !== null) glideTo(temp, lastTemp, "°"); else temp.textContent = "–°"; }

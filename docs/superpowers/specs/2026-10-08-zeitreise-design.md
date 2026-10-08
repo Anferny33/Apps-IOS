@@ -48,10 +48,10 @@ und der Text-Knoten der Temperatur erhalten bleiben.
 | Element | Jetzt (wie heute) | Vorschau |
 |---|---|---|
 | Meta links | „Donnerstag, 17:05" | „Heute, 20 Uhr" / „Morgen, 17 Uhr" / „Samstag, 9 Uhr" |
-| Meta rechts | Beschreibung aktueller Wettercode | Beschreibung Wettercode der Stunde (`wmo(code)[1]`) |
+| Meta rechts | Beschreibung aktueller Wettercode | Beschreibung Wettercode der Stunde (`wmo(code)[1]`), daneben der Knopf „Jetzt" |
 | Temperatur | `current.temperature_2m` | `hourly.temperature_2m[i]` |
 | Icon | `heroIcon(current.weather_code, current.is_day)` | `heroIcon(hourly.weather_code[i], hourly.is_day[i])` |
-| Chips | Hoch, Tief, Gefühlt | Knopf „Jetzt", „Gefühlt 14°", „Regen 60 %", „Wind 23 km/h" |
+| Chips | Hoch, Tief, Gefühlt | „Gefühlt 14°", „Regen 60 %", „Wind 23 km/h" (kompakter: 12 px, gleiche Zeilenhöhe) |
 | Theme | `themeFor(current)` | `themeFor(hourly[i])` |
 
 Regeln:
@@ -63,8 +63,14 @@ Regeln:
 - Fehlt ein Wert (`null`), entfällt der betreffende Chip; die Temperatur zeigt „–" ohne
   Gleiten.
 - Der Knopf „Jetzt" ist ein echtes `<button>` mit `id="heroNow"`, optisch ein dunkler Chip
-  (`--dark` Hintergrund, weiße Schrift) am Anfang der Chip-Reihe. Als `<button>` wird er vom
-  Tipp-Delegaten für Felder ignoriert (der überspringt `a, button, input`).
+  (`--dark` Hintergrund, weiße Schrift) **in der Meta-Zeile rechts neben der Beschreibung**.
+  Bei der Sichtprüfung zeigte sich: als vierter Chip in der Chip-Reihe bricht die Reihe auf
+  dem iPhone um, das Hero wird höher und die Stundenleiste rutscht unter dem Finger weg.
+  Deshalb sitzt er in der Meta-Zeile (`min-height: 24px`, Knopf 24 px hoch), die Chip-Reihe
+  bleibt einzeilig: in der Vorschau 12 px Schrift bei gleicher Zeilenhöhe, auf schmalen
+  Geräten wischbar statt umbrechend. Das Hero ist so in beiden Zuständen gleich hoch.
+  Im klassischen Design steht der Knopf unter der Beschriftung (`order: -1` in der
+  `column-reverse`-Meta).
 
 ## Markierung in der Leiste
 
