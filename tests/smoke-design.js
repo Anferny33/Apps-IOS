@@ -159,6 +159,11 @@ function boot(opts) {
   await wait(300);
   H.check('Offline: Cache gerendert + Hinweis', G(sb5,'hero').innerHTML.includes('17°') && G(sb5,'banner').innerHTML.includes('zuletzt gespeicherten'), G(sb5,'banner').innerHTML);
 
+  // Shell-Markup: gleitende Tab-Pille und Design-Schleier liegen in beiden Seiten
+  const idx = fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
+  const rad = fs.readFileSync(require('path').join(__dirname, '..', 'radar.html'), 'utf8');
+  H.check('Shell: Tab-Pille und Design-Schleier in index.html und radar.html', [idx, rad].every(h => h.includes('<span class="tab-ink"') && h.includes('id="designVeil"')));
+
   if (process.env.DUMP) {
     fs.writeFileSync(__dirname + '/render-design.json', JSON.stringify({
       theme: [...body.classList.c].join(' '), hero: G(sb,'hero').innerHTML, warnings: G(sb,'warnings').innerHTML, insight: G(sb,'insight').innerHTML, hourly: G(sb,'hourly').innerHTML, nowcast: G(sb,'nowcast').innerHTML,

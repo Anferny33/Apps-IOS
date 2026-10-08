@@ -107,6 +107,8 @@
     <div class="orb b"></div>
 </div>
 
+<div class="design-veil" id="designVeil" aria-hidden="true"></div>
+
 <div class="page">
 
     <header class="top">
@@ -160,6 +162,7 @@
 
 <div class="tabs">
     <nav aria-label="Bereiche" class="a-nav" style="animation-delay:.45s">
+        <span class="tab-ink" aria-hidden="true"></span>
         <a href="index.html#sec-today" aria-label="Heute">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Heute</span></a>
         <a href="index.html#sec-details" aria-label="Details">
@@ -397,17 +400,39 @@ function setPlaying(on) {
 
 /* ---------- Design-Umschalter (gleiche Logik wie in der App) ---------- */
 
+function moveTabInk() {
+    const nav = document.querySelector ? document.querySelector(".tabs nav") : null;
+    if (!nav || !nav.querySelector) return;
+    const ink = nav.querySelector(".tab-ink"), on = nav.querySelector("a.on");
+    if (!ink || !on || typeof on.offsetLeft !== "number" || !on.offsetWidth) return;
+    ink.style.left = on.offsetLeft + "px";
+    ink.style.width = on.offsetWidth + "px";
+    nav.classList.add("ink-ready");
+}
+
 function applyDesign(name) {
     const modern = name !== "classic";
-    const m = $("cssModern"), c = $("cssClassic");
-    if (m) m.disabled = !modern;
-    if (c) c.disabled = modern;
-    if (document.documentElement && document.documentElement.setAttribute) {
-        document.documentElement.setAttribute("data-design", modern ? "modern" : "classic");
-    }
-    const meta = document.querySelector ? document.querySelector('meta[name="theme-color"]') : null;
-    if (meta) meta.setAttribute("content", modern ? "#ECEAF4" : "#2a558c");
-    try { localStorage.setItem("wetter:design", modern ? "modern" : "classic"); } catch (e) {}
+    const swap = function () {
+        const m = $("cssModern"), c = $("cssClassic");
+        if (m) m.disabled = !modern;
+        if (c) c.disabled = modern;
+        if (document.documentElement && document.documentElement.setAttribute) {
+            document.documentElement.setAttribute("data-design", modern ? "modern" : "classic");
+        }
+        const meta = document.querySelector ? document.querySelector('meta[name="theme-color"]') : null;
+        if (meta) meta.setAttribute("content", modern ? "#ECEAF4" : "#2a558c");
+        try { localStorage.setItem("wetter:design", modern ? "modern" : "classic"); } catch (e) {}
+        moveTabInk();
+    };
+    const veil = $("designVeil");
+    const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!veil || !veil.classList || reduce || typeof requestAnimationFrame !== "function") { swap(); return; }
+    veil.style.background = modern ? "#ECEAF4" : "#2a558c";
+    veil.classList.add("on");
+    setTimeout(function () {
+        swap();
+        requestAnimationFrame(function () { requestAnimationFrame(function () { veil.classList.remove("on"); }); });
+    }, 260);
 }
 
 function initDesignToggle() {
@@ -428,6 +453,8 @@ function init() {
     }
     initMap();
     initDesignToggle();
+    moveTabInk();
+    if (typeof window !== "undefined" && window.addEventListener) window.addEventListener("resize", moveTabInk);
     loadFrames(false).then(function () { if (frames.length > 1) setPlaying(true); });
 
     $("play").addEventListener("click", function () { setPlaying(!playing); });

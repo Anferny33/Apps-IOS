@@ -350,7 +350,7 @@ function renderDays(fc) {
         /* Weitere Tage blenden erst beim Aufklappen ein (Staffelung im Stylesheet), ihre Spannen wachsen dann */
         const delay = more ? null : dl(1.4 + Math.min(i, SHOWN) * 0.05);
         const row =
-            '<div class="drow' + mood + (more ? ' more' : '') + '"' + (more ? '' : ' style="animation-delay:' + delay + 's"') + '>' +
+            '<div class="drow' + (i === 0 ? ' today' : '') + mood + (more ? ' more' : '') + '"' + (more ? '' : ' style="animation-delay:' + delay + 's"') + '>' +
                 '<div class="n">' + (i === 0 ? "Heute" : weekday(d.time[i])) + '</div>' +
                 svgIcon(code, 1, "ic") +
                 '<div class="pp">' + (isNum(prob) ? Math.round(prob) + '%' : '') + '</div>' +
@@ -650,6 +650,18 @@ function clearRendered() {
     if (u) u.textContent = "";
 }
 
+/* Gleitende Tab-Markierung: die Pille hinter dem aktiven Tab bekommt dessen Position und Breite,
+   der Wechsel läuft dann als Übergang im Stylesheet. Ohne Layout-Werte (Tests) passiert nichts. */
+function moveTabInk() {
+    const nav = document.querySelector ? document.querySelector(".tabs nav") : null;
+    if (!nav || !nav.querySelector) return;
+    const ink = nav.querySelector(".tab-ink"), on = nav.querySelector("a.on");
+    if (!ink || !on || typeof on.offsetLeft !== "number" || !on.offsetWidth) return;
+    ink.style.left = on.offsetLeft + "px";
+    ink.style.width = on.offsetWidth + "px";
+    nav.classList.add("ink-ready");
+}
+
 function renderAllDesign(payload) {
     renderHero(payload.fc);
     renderWarnings(payload.warn, payload.nina);
@@ -660,6 +672,7 @@ function renderAllDesign(payload) {
     dModels(payload.md, payload.fc, payload.ens);
     startCounters(D("details"));
     startCounters(D("models"));
+    moveTabInk();
 }
 
 /* ------------------------------------------------------------------ *
@@ -827,27 +840,48 @@ function initDesignApp() {
             entries.forEach(function (e) {
                 if (!e.isIntersecting) return;
                 links.forEach(function (l) { l.classList.toggle("on", l.getAttribute("data-target") === e.target.id); });
+                moveTabInk();
             });
         }, { rootMargin: "-40% 0px -50% 0px" });
         links.forEach(function (l) {
             const sec = D(l.getAttribute("data-target"));
             if (sec) io.observe(sec);
+            /* Beim Antippen sofort markieren, die Pille gleitet dann vor dem Scrollen los */
+            l.addEventListener("click", function () {
+                links.forEach(function (x) { x.classList.toggle("on", x === l); });
+                moveTabInk();
+            });
         });
+        if (typeof window !== "undefined" && window.addEventListener) window.addEventListener("resize", moveTabInk);
+        moveTabInk();
     }
 
     /* ---- Design-Umschalter: modern.css (Bento) oder design.css (klassisch), Wahl bleibt gespeichert ---- */
 
     function applyDesign(name) {
         const modern = name !== "classic";
-        const m = D("cssModern"), c = D("cssClassic");
-        if (m) m.disabled = !modern;
-        if (c) c.disabled = modern;
-        if (document.documentElement && document.documentElement.setAttribute) {
-            document.documentElement.setAttribute("data-design", modern ? "modern" : "classic");
-        }
-        const meta = document.querySelector ? document.querySelector('meta[name="theme-color"]') : null;
-        if (meta) meta.setAttribute("content", modern ? "#ECEAF4" : "#2a558c");
-        try { localStorage.setItem("wetter:design", modern ? "modern" : "classic"); } catch (e) {}
+        const swap = function () {
+            const m = D("cssModern"), c = D("cssClassic");
+            if (m) m.disabled = !modern;
+            if (c) c.disabled = modern;
+            if (document.documentElement && document.documentElement.setAttribute) {
+                document.documentElement.setAttribute("data-design", modern ? "modern" : "classic");
+            }
+            const meta = document.querySelector ? document.querySelector('meta[name="theme-color"]') : null;
+            if (meta) meta.setAttribute("content", modern ? "#ECEAF4" : "#2a558c");
+            try { localStorage.setItem("wetter:design", modern ? "modern" : "classic"); } catch (e) {}
+            moveTabInk();
+        };
+        /* Kurz in die Grundfarbe des Zieldesigns überblenden statt hart umzuschalten */
+        const veil = D("designVeil");
+        const reduce = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+        if (!veil || !veil.classList || reduce || typeof requestAnimationFrame !== "function") { swap(); return; }
+        veil.style.background = modern ? "#ECEAF4" : "#2a558c";
+        veil.classList.add("on");
+        setTimeout(function () {
+            swap();
+            requestAnimationFrame(function () { requestAnimationFrame(function () { veil.classList.remove("on"); }); });
+        }, 260);
     }
 
     function initDesignToggle() {

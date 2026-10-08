@@ -215,7 +215,7 @@ body {
 .days-field { padding-bottom: 10px; }
 .drow { display: flex; align-items: center; gap: 10px; height: 48px; border-bottom: 1px solid rgba(255,255,255,0.12); }
 .drow .n { width: 44px; font-size: 14px; font-weight: 500; }
-.drow:first-child .n { font-weight: 700; }
+.drow.today .n { font-weight: 700; }
 .drow .ic { width: 22px; height: 22px; flex: none; }
 .drow .pp { width: 40px; font-size: 12px; font-weight: 600; color: var(--dark-muted); text-align: center; }
 .drow.wet .pp { color: var(--dark-blue); }
@@ -261,10 +261,19 @@ body {
     border-radius: 28px; color: var(--dark-muted); text-decoration: none; font-size: 12px; font-weight: 700;
 }
 .tabs a svg { width: 22px; height: 22px; flex: none; }
-.tabs a span { display: none; }
 .tabs a.on { background: var(--hero); color: var(--ink); }
 .tabs a.on svg { width: 20px; height: 20px; }
-.tabs a.on span { display: inline; }
+
+/* ---------- Gleitende Tab-Markierung + Design-Schleier ---------- */
+.tabs nav { position: relative; }
+.tabs nav .tab-ink { position: absolute; top: 6px; bottom: 6px; left: 6px; width: 0; border-radius: 28px; background: var(--hero); opacity: 0; pointer-events: none; transition: left 0.35s cubic-bezier(.2,.8,.2,1), width 0.35s cubic-bezier(.2,.8,.2,1), opacity 0.2s; }
+.tabs nav.ink-ready .tab-ink { opacity: 1; }
+.tabs nav.ink-ready a.on { background: transparent; }
+.tabs a { position: relative; z-index: 1; transition: color 0.25s; }
+.tabs a span { display: inline-block; max-width: 0; opacity: 0; overflow: hidden; white-space: nowrap; transition: max-width 0.35s cubic-bezier(.2,.8,.2,1), opacity 0.25s; }
+.tabs a.on span { max-width: 90px; opacity: 1; }
+.design-veil { position: fixed; inset: 0; z-index: 90; pointer-events: none; opacity: 0; background: var(--ground); transition: opacity 0.25s ease; }
+.design-veil.on { opacity: 1; }
 
 /* ---------- Bottom-Sheet Ortssuche ---------- */
 .sheet-bg { position: fixed; inset: 0; z-index: 50; background: rgba(30,27,46,0.4); opacity: 0; pointer-events: none; transition: opacity 0.25s; }
