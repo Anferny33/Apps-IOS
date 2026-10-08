@@ -1356,6 +1356,8 @@ function initDesignApp() {
             if (!win) return;
             const gi = parseInt(win.getAttribute("data-i"), 10);
             selectHour(gi);
+            /* Hero und Leiste gemeinsam ins Bild holen, dann die Spalte in die Leistenmitte */
+            if (typeof window !== "undefined" && typeof window.scrollTo === "function") window.scrollTo({ top: 0, behavior: "smooth" });
             const hourly = D("hourly");
             const col = hourly && hourly.querySelector ? hourly.querySelector('.hcol[data-i="' + gi + '"]') : null;
             if (col && col.scrollIntoView) col.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
