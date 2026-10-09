@@ -210,8 +210,8 @@ body {
 .act-track i.on:not(.first) { border-top-left-radius: 0; border-bottom-left-radius: 0; }
 /* Rausgehen: eine Zeile mit vier gleich breiten Feldern, Symbol über dem Namen, gleitende Pille hinter dem gewählten */
 .act-chips { position: relative; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 4px; margin-bottom: 12px; background: var(--soft); border-radius: 18px; }
-.act-chip { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; padding: 8px 2px 7px; border: 0; border-radius: 14px; background: transparent; color: var(--ink-2); font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; transition: color 0.35s; -webkit-tap-highlight-color: transparent; }
-.act-chip .act-ico { width: 22px; height: 22px; display: block; }
+.act-chip { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; padding: 8px 2px 7px; border: 0; border-radius: 14px; background: transparent; color: var(--ink-2); font: inherit; font-size: 10.5px; font-weight: 700; letter-spacing: -0.1px; cursor: pointer; transition: color 0.35s; -webkit-tap-highlight-color: transparent; }
+.act-chip .act-ico { width: 26px; height: 26px; display: block; }
 .act-chip .act-lbl { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .act-chip.on { color: var(--white); }
 .act-chip:focus-visible { outline: 3px solid var(--ink); outline-offset: -3px; }
