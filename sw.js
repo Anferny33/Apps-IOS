@@ -3,7 +3,7 @@
  * SW_VERSION muss der Versions-Query der Seiten entsprechen und wird mit ihr erhöht. */
 "use strict";
 
-const SW_VERSION = "20261009m";
+const SW_VERSION = "20261009n";
 const CACHE = "wetter-shell-" + SW_VERSION;
 const SHELL = [
     "./", "index.html", "radar.html", "manifest.webmanifest",

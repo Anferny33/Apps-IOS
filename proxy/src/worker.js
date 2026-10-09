@@ -16,6 +16,7 @@ import { sendWebPush } from "./webpush.js";
  *   GET /health                       Lebenszeichen
  *   POST /push/subscribe              Push-Abonnement mit Ort anlegen oder aktualisieren (KV SUBS)
  *   POST /push/unsubscribe            Push-Abonnement löschen
+ *   POST /push/test                   Probenachricht an ein Abonnement (höchstens alle fünf Minuten)
  *   Cron alle 15 Minuten              Regen-Alarm: Vorhersage je Abonnement prüfen, Nachricht senden
  *
  * Meldungen werden 2 Minuten, die Kreiszuordnung eines Punkts 1 Tag am Edge gecacht.
@@ -48,6 +49,7 @@ const PROVIDER_LABEL = {
 const PUSH_PREFIX = "sub:";
 const PUSH_QUIET_MS = 3 * 3600000;          /* Sperrfrist zwischen zwei Nachrichten je Abonnement */
 const PUSH_HORIZON = 4;                     /* Viertelstunden nach der aktuellen: Regen innerhalb einer Stunde */
+const PUSH_TEST_GAP_MS = 5 * 60000;         /* Abstand zwischen zwei Probenachrichten je Abonnement */
 
 export default {
     async scheduled(event, env, ctx) { ctx.waitUntil(checkRain(env)); },
@@ -59,6 +61,10 @@ export default {
         if (url.pathname === "/push/subscribe" || url.pathname === "/push/unsubscribe") {
             if (request.method !== "POST") return json({ error: "Nur POST" }, 405, cors);
             return pushRoute(url.pathname, request, env, cors);
+        }
+        if (url.pathname === "/push/test") {
+            if (request.method !== "POST") return json({ error: "Nur POST" }, 405, cors);
+            return pushTest(request, env, cors);
         }
         if (request.method !== "GET") return json({ error: "Nur GET" }, 405, cors);
 
@@ -245,6 +251,41 @@ async function pushRoute(pathname, request, env, cors) {
     };
     await env.SUBS.put(id, JSON.stringify(entry));
     return json({ ok: true }, 200, cors);
+}
+
+/* Probenachricht: zeigt, dass Abonnement, Schlüssel und Zustellung zusammenpassen. Der Aufrufer
+   nennt seinen Endpunkt (nur die App kennt ihn); je Abonnement höchstens alle fünf Minuten. */
+async function pushTest(request, env, cors) {
+    if (!env.SUBS) return json({ error: "Kein KV-Speicher gebunden" }, 500, cors);
+    if (!env.VAPID_PRIVATE_KEY || !env.VAPID_PUBLIC_KEY) return json({ error: "VAPID-Schlüssel fehlen im Worker" }, 500, cors);
+    let body;
+    try { body = await request.json(); } catch (e) { return json({ error: "JSON erwartet" }, 400, cors); }
+    if (!body || typeof body.endpoint !== "string") return json({ error: "endpoint fehlt" }, 400, cors);
+    const id = await subId(body.endpoint);
+    let sub = null;
+    try { sub = JSON.parse(await env.SUBS.get(id)); } catch (e) { sub = null; }
+    if (!sub) return json({ error: "Abonnement unbekannt. Bitte den Regen-Alarm aus- und wieder einschalten." }, 404, cors);
+    const now = Date.now();
+    if (sub.lastTest && now - sub.lastTest < PUSH_TEST_GAP_MS) return json({ error: "Bitte kurz warten, die letzte Probenachricht ist keine fünf Minuten her." }, 429, cors);
+    const payload = JSON.stringify({
+        title: "Probenachricht",
+        body: (sub.name ? sub.name + ": " : "") + "Der Regen-Alarm ist eingerichtet. So sieht eine Warnung aus.",
+        url: "./"
+    });
+    let status;
+    try {
+        status = await sendWebPush({ endpoint: sub.endpoint, keys: sub.keys }, payload, {
+            publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY, subject: env.VAPID_SUBJECT || "mailto:wetter@example.org", ttl: 600, fetch: env.__fetch
+        });
+    } catch (e) { return json({ error: "Versand fehlgeschlagen: " + (e && e.message ? e.message : String(e)) }, 502, cors); }
+    if (status === 404 || status === 410) {
+        await env.SUBS.delete(id);
+        return json({ error: "Der Push-Dienst kennt das Abonnement nicht mehr. Bitte den Regen-Alarm aus- und wieder einschalten." }, 410, cors);
+    }
+    sub.lastTest = now;
+    await env.SUBS.put(id, JSON.stringify(sub));
+    const ok = status >= 200 && status < 300;
+    return json(ok ? { ok: true, status: status } : { error: "Der Push-Dienst hat abgelehnt (HTTP " + status + ")." }, ok ? 200 : 502, cors);
 }
 
 /* Regel: jetzt trocken, in den nächsten vier Viertelstunden beginnt Regen (mindestens 0,1 mm).

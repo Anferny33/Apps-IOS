@@ -93,6 +93,24 @@ const te = new TextEncoder(), td = new TextDecoder();
   const res3 = await worker.checkRain(env, { fetch: fakeFetch, now: utcNow });
   check('Worker: nach der Sperrfrist wird erneut gesendet; Antwort 410 löscht das Abonnement, zählt nicht als Erfolg', res3.sent === 0 && res3.removed === 1 && sent.length === 2 && kv.size === 0, JSON.stringify(res3) + ' ' + kv.size);
 
+  // Probenachricht: unbekanntes Abonnement, Versand, Sperrfrist, verschwundenes Abonnement
+  const t1 = await worker.default.fetch(req('/push/test', { endpoint: 'https://web.push.apple.com/unbekannt' }), env, ctx);
+  check('Probenachricht: unbekannter Endpunkt wird mit 404 abgewiesen', t1.status === 404, t1.status);
+  await worker.default.fetch(req('/push/subscribe', { subscription: sub, lat: 45.69, lon: 13.12, name: 'Lignano' }), env, ctx);
+  const testSent = [];
+  env.__fetch = async (url, init) => { testSent.push({ url: String(url), init }); return { status: 201 }; };
+  const t2 = await worker.default.fetch(req('/push/test', { endpoint: sub.endpoint }), env, ctx);
+  const j2 = await t2.json();
+  const afterTest = JSON.parse([...kv.values()][0]);
+  check('Probenachricht: verschlüsselt mit VAPID-Kopf an den Endpunkt, Antwort ok, Zeitpunkt gemerkt', t2.status === 200 && j2.ok === true && testSent.length === 1 && testSent[0].url === sub.endpoint && testSent[0].init.headers['Content-Encoding'] === 'aes128gcm' && /^vapid t=/.test(testSent[0].init.headers.Authorization) && typeof afterTest.lastTest === 'number', JSON.stringify(j2));
+  const t3 = await worker.default.fetch(req('/push/test', { endpoint: sub.endpoint }), env, ctx);
+  check('Probenachricht: innerhalb von fünf Minuten keine zweite', t3.status === 429 && testSent.length === 1, t3.status);
+  afterTest.lastTest = 0; kv.set([...kv.keys()][0], JSON.stringify(afterTest));
+  env.__fetch = async (url, init) => ({ status: 410 });
+  const t4 = await worker.default.fetch(req('/push/test', { endpoint: sub.endpoint }), env, ctx);
+  check('Probenachricht: 410 vom Push-Dienst löscht das Abonnement und sagt es', t4.status === 410 && kv.size === 0, t4.status + ' ' + kv.size);
+  delete env.__fetch;
+
   console.log(fail === 0 ? '\nAlle Checks bestanden.' : '\n' + fail + ' Check(s) fehlgeschlagen.');
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

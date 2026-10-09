@@ -16,7 +16,7 @@ und neue Ideen aus der Arbeit. Nach jeder Änderung wird die Liste nachgezogen u
 - [x] Woher kommt das? (1): Herkunftsblatt aus Aktualitätszeile und Instrument-Feldern – `99a5e13`
 - [x] Highlights der nächsten Tage (9): Feld „Nächste Tage“ mit bis zu drei Regel-Highlights – `dbd3723`
 
-## Erledigt am 9. Oktober 2026 (eigenständiger Durchgang, noch nicht committet)
+## Erledigt am 9. Oktober 2026 (eigenständiger Durchgang, Commit `3b77f9c`)
 
 - [x] Eigenes Dashboard (3): Startseite anpassen in den Einstellungen
 - [x] Tagesfilm (4): Zeichenfläche, Begrüßung, Aufnahme und Teilen auf dem Gerät
@@ -48,6 +48,7 @@ und neue Ideen aus der Arbeit. Nach jeder Änderung wird die Liste nachgezogen u
 
 - [ ] Füllungen im Stundenstreifen (Regen, Böen, Sonne) liegen unter 3:1 zum Grund. Geprüft am 09.10.2026: 3:1 verlangt dunkle Füllungen, auf denen die farbigen Stundentexte ihren Kontrast verlieren. Bleibt eine Designfrage für den User.
 - [ ] VoiceOver-Durchlauf auf einem echten iPhone; der Simulator hat kein VoiceOver. Klein.
-- [ ] Regen-Alarm in Betrieb nehmen: KV-Namespace anlegen, privaten VAPID-Schlüssel als Geheimnis setzen, Worker deployen (`proxy/README.md`); erst dann lässt sich der Alarm auf dem iPhone end-to-end prüfen.
+- [x] Regen-Alarm in Betrieb genommen (09.10.2026): KV-Namespace SUBS, Geheimnis VAPID_PRIVATE_KEY, Worker deployt mit Cron */15 und Testroute `/push/test`
+- [ ] Regen-Alarm auf dem iPhone als Homescreen-App einschalten und „Probenachricht senden“ prüfen (Knopf ist erst nach dem nächsten Push der App auf GitHub Pages da)
 - [ ] Aufnahme des Tagesfilms auf dem echten iPhone als Homescreen-App prüfen (im Simulator-Safari geht das Teilen-Blatt nicht auf).
 - [x] Vortagswerte im Feld „Woher kommt das?“ als Modellwerte kennzeichnen – mit Punkt 1 erledigt

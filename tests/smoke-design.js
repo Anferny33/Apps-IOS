@@ -796,7 +796,7 @@ function boot(opts) {
   H.check('Shell: Rausgehen-Feld in index.html', idx.includes('id="activityField"') && idx.includes('id="activity"'));
   H.check('Shell: Ansicht nach Frage in index.html und Stylesheet mit Nacht-Token', idx.includes('id="views"') && idx.includes('id="viewAnswer"') && idx.includes('id="hourlyNote"') && idx.includes('id="daysHint"') && css.includes('.view-chip') && css.includes('--wfill: #BFE0C4') && css.includes('--wfill: #2F5A3A') && css.includes('.hcol.tc4:not(.now)') && css.includes('.days-field.v-light .drow .bar i') && css.includes('.vis24 i.fog') && css.includes('html.night .vis24 i.fog'));
   H.check('Shell: keine klassische Ansicht mehr verlinkt oder vorhanden', !idx.includes('klassisch.html') && !fs.existsSync(require('path').join(__dirname, '..', 'klassisch.html')) && !fs.existsSync(require('path').join(__dirname, '..', 'wetter.css')));
-  H.check('Shell: Versions-Query 20261009m an allen Asset-Links', (idx.match(/\?v=20261009m"/g) || []).length === 4 && (rad.match(/\?v=20261009m"/g) || []).length === 3, (idx.match(/\?v=\w+"/g) || []).join(','));
+  H.check('Shell: Versions-Query 20261009n an allen Asset-Links', (idx.match(/\?v=20261009n"/g) || []).length === 4 && (rad.match(/\?v=20261009n"/g) || []).length === 3, (idx.match(/\?v=\w+"/g) || []).join(','));
   H.check('Shell: Sonnenrechnung vor den App-Skripten, Nachtklasse vor dem ersten Zeichnen', [idx, rad].every(h => h.includes('<script src="sonne.js?v=') && /wetter:night[\s\S]{0,120}classList\.add\("night"\)/.test(h) && h.indexOf('wetter:night') < h.indexOf('<link rel="stylesheet" href="modern.css')));
   H.check('Shell: Nachtpalette im Stylesheet mit Token, Hero-Farben, Fade und Kachel-Einblendung', css.includes('html.night {') && css.includes('--card:') && css.includes('--soft:') && css.includes('--wet:') && css.includes('html.night .theme-rain') && css.includes('html.fade') && css.includes('.tile.swap') && css.includes('.field.white { background: var(--card); }') && /\.tile \{[^}]*background: var\(--card\)/.test(css) && /\.hcol\.wet \{ background: var\(--wet\)/.test(css), css.match(/\.field\.white[^\n]*/));
 
@@ -865,6 +865,12 @@ function boot(opts) {
   const setP = G(sb,'settingsBody').innerHTML;
   H.check('Regen-Alarm: Abschnitt mit Hinweis, ohne Push-Unterstützung im Harness nur die Erklärung', setP.includes('<h3>Regen-Alarm</h3>') && !sb.pushSupported() && setP.includes('Dein Browser unterstützt keine Push-Nachrichten.') && setP.includes('Prüft alle 15 Minuten'), setP.slice(setP.indexOf('Regen-Alarm'), setP.indexOf('Regen-Alarm') + 200));
   sb.closeSettings();
+  sb.setSetting('push', true);
+  sb.openSettings();
+  H.check('Regen-Alarm: mit eingeschaltetem Alarm gibt es den Knopf für die Probenachricht', G(sb,'settingsBody').innerHTML.includes('id="pushTest">Probenachricht senden</button>') && G(sb,'settingsBody').innerHTML.includes('id="pushTestMsg"'));
+  H.check('Regen-Alarm: Probenachricht ohne Push-Unterstützung meldet das statt zu scheitern', (await sb.testPush()) === false && G(sb,'live').textContent === 'Hier nicht möglich, bitte in der Homescreen-App.', G(sb,'live').textContent);
+  sb.closeSettings();
+  sb.setSetting('push', false);
   H.check('Regen-Alarm: Nutzlast für den Worker und Schlüsselumwandlung', JSON.stringify(sb.pushBody({ endpoint: 'https://x', keys: { p256dh: 'a', auth: 'b' } }, { lat: 45.69, lon: 13.12, name: 'Lignano' })) === '{"subscription":{"endpoint":"https://x","keys":{"p256dh":"a","auth":"b"}},"lat":45.69,"lon":13.12,"name":"Lignano"}' && sb.urlBase64ToUint8Array(sb.pushPublicKey()).length === 65 && sb.urlBase64ToUint8Array(sb.pushPublicKey())[0] === 4, sb.pushPublicKey());
   H.check('Regen-Alarm: öffentlicher Schlüssel in App und Worker-Konfiguration identisch', fs.readFileSync(require('path').join(__dirname, '..', 'proxy', 'wrangler.toml'), 'utf8').includes('VAPID_PUBLIC_KEY = "' + sb.pushPublicKey() + '"') && /crons = \["\*\/15 \* \* \* \*"\]/.test(fs.readFileSync(require('path').join(__dirname, '..', 'proxy', 'wrangler.toml'), 'utf8')));
 

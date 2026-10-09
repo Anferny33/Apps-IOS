@@ -12,7 +12,7 @@ crons = ["*/15 * * * *"]
 # Abonnements liegen in einem KV-Namespace: `npx wrangler kv namespace create SUBS` und die ID hier eintragen
 [[kv_namespaces]]
 binding = "SUBS"
-id = "KV-ID-HIER-EINTRAGEN"
+id = "6f24ae22af8c4484becf56b2a4a4ae7e"
 
 [vars]
 VAPID_PUBLIC_KEY = "BLlIrCr2ZhfskoTzqOPMPkQTD5BKRVZ4idoQga8jMXCYHKln2VHfi7j6KJuDxggh_nYNaQaQHnCoYd9KKuO_-SM"

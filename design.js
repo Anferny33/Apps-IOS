@@ -2801,6 +2801,15 @@ function urlBase64ToUint8Array(b64) {
 
 function pushBody(sub, loc) { return { subscription: sub, lat: loc.lat, lon: loc.lon, name: loc.name || "" }; }
 
+/* Warten mit Frist: ohne aktiven Service Worker löst „ready“ nie auf, dann soll eine Meldung kommen */
+function withTimeout(promise, ms, what) {
+    return new Promise(function (resolve, reject) {
+        const t = setTimeout(function () { reject(new Error(what || "Zeitüberschreitung")); }, ms);
+        promise.then(function (v) { clearTimeout(t); resolve(v); }, function (e) { clearTimeout(t); reject(e); });
+    });
+}
+function swReady(ms) { return withTimeout(navigator.serviceWorker.ready, ms || 6000, "kein Service Worker"); }
+
 async function pushPost(path, body) {
     const res = await fetch(NINA_PROXY + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     if (!res.ok) throw new Error("HTTP " + res.status);
@@ -2814,7 +2823,7 @@ async function enablePush() {
     try {
         const perm = await Notification.requestPermission();
         if (perm !== "granted") { announce("Benachrichtigungen nicht erlaubt."); return false; }
-        const reg = await navigator.serviceWorker.ready;
+        const reg = await swReady();
         let sub = await reg.pushManager.getSubscription();
         if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(PUSH_PUBLIC_KEY) });
         const loc = lastLoc && isNum(lastLoc.lat) ? lastLoc : null;
@@ -2825,7 +2834,7 @@ async function enablePush() {
         announce("Regen-Alarm eingeschaltet.");
         return true;
     } catch (e) {
-        announce("Regen-Alarm konnte nicht eingeschaltet werden.");
+        announce("Regen-Alarm konnte nicht eingeschaltet werden" + (e && e.message === "kein Service Worker" ? ": kein Service Worker aktiv, bitte die App neu öffnen." : "."));
         return false;
     } finally { pushBusy = false; renderSettings(); }
 }
@@ -2835,7 +2844,7 @@ async function disablePush() {
     pushBusy = true;
     try {
         if (pushSupported()) {
-            const reg = await navigator.serviceWorker.ready;
+            const reg = await swReady();
             const sub = await reg.pushManager.getSubscription();
             if (sub) { try { await pushPost("/push/unsubscribe", { endpoint: sub.endpoint }); } catch (e) {} await sub.unsubscribe(); }
         }
@@ -2854,7 +2863,7 @@ async function syncPush() {
     const pl = settings.pushLoc;
     if (pl && Math.abs(pl.lat - lastLoc.lat) < 0.01 && Math.abs(pl.lon - lastLoc.lon) < 0.01) return;
     try {
-        const reg = await navigator.serviceWorker.ready;
+        const reg = await swReady();
         const sub = await reg.pushManager.getSubscription();
         if (!sub) return;
         await pushPost("/push/subscribe", pushBody(sub.toJSON(), lastLoc));
@@ -2863,15 +2872,36 @@ async function syncPush() {
     } catch (e) {}
 }
 
+/* Probenachricht: der Worker schickt sofort eine Testmeldung an dieses Abonnement */
+let pushTestMsg = "";
+async function testPush() {
+    const say = function (t) { pushTestMsg = t; const el = D("pushTestMsg"); if (el) el.textContent = t; announce(t); };
+    if (!settings.push) return false;
+    if (!pushSupported()) { say("Hier nicht möglich, bitte in der Homescreen-App."); return false; }
+    try {
+        let reg;
+        try { reg = await swReady(); } catch (e) { say("Kein Service Worker aktiv. Bitte die App schließen und neu öffnen."); return false; }
+        const sub = await reg.pushManager.getSubscription();
+        if (!sub) { say("Kein Abonnement gefunden. Bitte den Regen-Alarm aus- und wieder einschalten."); return false; }
+        say("Probenachricht wird gesendet …");
+        const res = await fetch(NINA_PROXY + "/push/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint: sub.endpoint }) });
+        let j = {};
+        try { j = await res.json(); } catch (e) { j = {}; }
+        say(res.ok ? "Probenachricht unterwegs, sie erscheint gleich als Mitteilung." : (j.error || "Versand fehlgeschlagen (HTTP " + res.status + ")."));
+        return res.ok;
+    } catch (e) { say("Versand fehlgeschlagen, keine Verbindung zum Worker."); return false; }
+}
+
 function pushSettingsHtml() {
     const note = '<div class="set-note">Prüft alle 15 Minuten die Vorhersage für deinen Ort und meldet Regen, der in der nächsten Stunde beginnt. Läuft über den eigenen Worker, kostenlos.</div>';
+    const test = settings.push ? '<div class="set-row"><button type="button" class="set-btn" id="pushTest">Probenachricht senden</button></div><div class="set-note" id="pushTestMsg">' + pushTestMsg + '</div>' : '';
     if (!pushSupported()) {
         const why = isIos() && !pushStandalone() ? "Auf dem iPhone geht das nur als Homescreen-App: Teilen, „Zum Home-Bildschirm“, dann hier einschalten." : "Dein Browser unterstützt keine Push-Nachrichten.";
-        return '<div class="set-row"><span class="set-lbl">' + why + '</span></div>' + note;
+        return '<div class="set-row"><span class="set-lbl">' + why + '</span></div>' + note + test;
     }
     return '<div class="set-row"><span class="set-lbl">Benachrichtigung</span><div class="seg" role="group" aria-label="Regen-Alarm">' +
         '<button type="button" class="set-chip" data-key="push" data-val="0" aria-pressed="' + (settings.push ? 'false' : 'true') + '">Aus</button>' +
-        '<button type="button" class="set-chip" data-key="push" data-val="1" aria-pressed="' + (settings.push ? 'true' : 'false') + '">An</button></div></div>' + note;
+        '<button type="button" class="set-chip" data-key="push" data-val="1" aria-pressed="' + (settings.push ? 'true' : 'false') + '">An</button></div></div>' + note + test;
 }
 
 function moreSettingsHtml() {
@@ -3158,6 +3188,7 @@ function initSettings() {
         if (q("#tripDel")) { setSetting("trip", null); renderTrip(); announce("Reise gelöscht."); return; }
         if (q("#tripPick")) { closeSettings(); if (typeof window.openTripSearch === "function") window.openTripSearch(); return; }
         if (q("#filmPlay")) { closeSettings(); if (!openFilm()) announce("Tagesfilm hier nicht möglich."); return; }
+        if (q("#pushTest")) { testPush(); return; }
         const t = q(".set-chip");
         if (!t) return;
         const key = t.getAttribute("data-key");

@@ -39,7 +39,12 @@ ohne Bibliothek, mit WebCrypto. Kostenlos im freien Tarif (Cron, KV, wenige Anfr
 ```
 POST /push/subscribe     { subscription, lat, lon, name }   Abonnement anlegen oder aktualisieren
 POST /push/unsubscribe   { endpoint }                        Abonnement löschen
+POST /push/test          { endpoint }                        Probenachricht sofort senden (alle fünf Minuten)
 ```
+
+Probenachricht: in der App unter Einstellungen, Regen-Alarm, „Probenachricht senden“. Die App
+schickt ihren Endpunkt, der Worker verschlüsselt eine Testmeldung und liefert sie über den
+Push-Dienst aus; innerhalb weniger Sekunden erscheint sie als Mitteilung.
 
 Einrichten (einmalig):
 
