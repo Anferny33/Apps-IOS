@@ -42,6 +42,8 @@ const te = new TextEncoder(), td = new TextDecoder();
   const okSig = parts.length === 3 && await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, vk.publicKey, wp.fromB64url(parts[2]), te.encode(parts[0] + '.' + parts[1]));
   check('VAPID: Kopf mit JWT, Zielherkunft, Absender, Ablauf und gültiger ES256-Signatur', okSig && m[2] === vPub && claims.aud === 'https://web.push.apple.com' && claims.sub === 'mailto:test@example.org' && claims.exp === 1800000000, hdr.slice(0, 80));
   check('VAPID: base64url ohne Füllzeichen, Rückweg identisch', !/[+/=]/.test(vPub) && wp.b64url(wp.fromB64url(vPub)) === vPub);
+  const hdrNl = await wp.vapidAuth(sub.endpoint, vPub + '\n', vD + '\n', 'mailto:test@example.org', 1800000000);
+  check('VAPID: Zeilenumbruch am Schlüssel (vom Hochladen) stört nicht', hdrNl.endsWith(', k=' + vPub) && hdrNl.split('.').length === 3, hdrNl.slice(-50));
 
   // Alarmregel auf 15-Minuten-Werten: Regen in der nächsten Stunde, jetzt trocken
   /* Zeitstempel der Vorhersage sind Ortszeit ohne Zone; der Vergleichswert „jetzt“ wird genauso gelesen (als UTC) */

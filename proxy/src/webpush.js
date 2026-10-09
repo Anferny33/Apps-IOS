@@ -63,11 +63,12 @@ export async function vapidAuth(endpoint, publicKeyB64, privateD, subject, exp) 
     const aud = new URL(endpoint).origin;
     const header = b64url(te.encode(JSON.stringify({ typ: "JWT", alg: "ES256" })));
     const claims = b64url(te.encode(JSON.stringify({ aud: aud, exp: exp || Math.floor(Date.now() / 1000) + 12 * 3600, sub: subject })));
-    const pub = fromB64url(publicKeyB64);
-    const jwk = { kty: "EC", crv: "P-256", x: b64url(pub.slice(1, 33)), y: b64url(pub.slice(33, 65)), d: privateD };
+    /* Schlüssel aus Geheimnis und Konfiguration: Zeilenumbrüche und Leerzeichen vom Hochladen abschneiden */
+    const pub = fromB64url(String(publicKeyB64).trim());
+    const jwk = { kty: "EC", crv: "P-256", x: b64url(pub.slice(1, 33)), y: b64url(pub.slice(33, 65)), d: String(privateD).trim() };
     const key = await crypto.subtle.importKey("jwk", jwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
     const sig = new Uint8Array(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, te.encode(header + "." + claims)));
-    return "vapid t=" + header + "." + claims + "." + b64url(sig) + ", k=" + publicKeyB64;
+    return "vapid t=" + header + "." + claims + "." + b64url(sig) + ", k=" + String(publicKeyB64).trim();
 }
 
 /* Nachricht senden; liefert den HTTP-Status des Push-Dienstes (404/410: Abonnement ist weg) */
