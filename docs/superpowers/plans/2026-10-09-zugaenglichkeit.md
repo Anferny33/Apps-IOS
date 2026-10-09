@@ -15,16 +15,16 @@
 
 ### Stufe 2: Stundenspalten (`design.js`, `modern.css`, Tests)
 
-- [ ] Spalten als `<button>` mit `aria-label`, Pfeiltasten im Streifen, Fokusring, Zeitreise per Tastatur.
+- [x] Spalten als `<button>` mit `aria-label`, Pfeiltasten im Streifen, Fokusring, Zeitreise per Tastatur.
 
 ### Stufe 3: Textalternative je Diagramm (`design.js`, Tests)
 
-- [ ] Beschreibender Satz je Grafik als `aria-label` oder verborgener Text, Grafiken `aria-hidden`.
+- [x] Beschreibender Satz je Grafik als `aria-label` oder verborgener Text, Grafiken `aria-hidden`.
 
 ### Stufe 4: Kontrast (`modern.css`, Tests)
 
-- [ ] Kontrast der getönten Flächen messen, Token nachziehen, Checks auf die Werte.
+- [x] Kontrast der getönten Flächen messen, Token nachziehen, Checks auf die Werte.
 
 ### Stufe 5: Rückmeldungen (`index.html`, `design.js`, Tests)
 
-- [ ] Live-Region, Ansagen bei Laden, Aktualisieren, Fehler, Ansichtswechsel.
+- [x] Live-Region, Ansagen bei Laden, Aktualisieren, Fehler, Ansichtswechsel.

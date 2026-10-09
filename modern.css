@@ -23,7 +23,7 @@
     --wet: #DCE9F9;
     --good-bg: #E4F1E8;
     /* Ansicht nach Frage: Füllungen und Tönungen des Stundenstreifens */
-    --wfill: #BFE0C4; --windy-ink: #2E7D4F; --lfill: #F6E7A6; --nightcol: #DAD6E6;
+    --wfill: #BFE0C4; --windy-ink: #1F6B3C; --lfill: #F6E7A6; --nightcol: #DAD6E6;
     --tc1: #D9E8F7; --tc2: #DCEBF6; --tc4: #FBE4C8; --tc5: #F9CDB8;
     --radius: 22px;
     --tab-h: 68px;
@@ -186,9 +186,11 @@ body {
 .strip-inner { display: flex; gap: 6px; }
 .hcol {
     flex: 0 0 3.18rem; display: flex; flex-direction: column; align-items: center; gap: 7px;
-    padding: 12px 0 10px; border-radius: 16px; background: var(--soft); color: var(--ink);
+    padding: 12px 0 10px; border: 0; border-radius: 16px; background: var(--soft); color: var(--ink);
+    font: inherit; text-align: center; cursor: pointer; -webkit-appearance: none; appearance: none;
     position: relative; overflow: hidden;
 }
+.hcol:focus-visible { outline: 3px solid var(--ink); outline-offset: -3px; }
 .hcol > :not(.fill) { position: relative; z-index: 1; }
 /* Regenstunden: Wasserstand bis zur Regenwahrscheinlichkeit, wächst aus der Grundlinie */
 .hcol .fill { position: absolute; left: 0; right: 0; bottom: 0; height: var(--p, 0%); background: var(--rain); transform-origin: center bottom; animation: aGrowY 1.8s cubic-bezier(.2,.8,.2,1) both; }
@@ -256,6 +258,9 @@ body {
 .tiles .tile { margin-bottom: 12px; }
 .tile { border-radius: var(--radius); padding: 18px; display: flex; flex-direction: column; gap: 6px; min-height: 150px; background: var(--card); }
 .tile.uv { background: var(--uv); } .tile.wind { background: var(--wind); } .tile.rain { background: var(--rain); } .tile.sun { background: var(--lilac); }
+/* Nebentexte auf getönten Flächen: eigenes Grau, damit 4,5:1 erreicht wird (Tag dunkler, Nacht heller) */
+.tile.uv, .tile.wind, .tile.rain, .tile.sun, .tp-wind, .tp-rain, .tp-sun { --ink-2: #514C68; }
+html.night .tile.uv, html.night .tile.wind, html.night .tile.rain, html.night .tile.sun, html.night .tp-wind, html.night .tp-rain, html.night .tp-sun { --ink-2: #CFCAE0; }
 /* Kacheln entfalten: Feld klappt unter der Reihe auf (0fr → 1fr); align-self: start, sonst streckt das Raster das leere Feld */
 .tile { position: relative; }
 .tile[data-tile] { transition: transform 0.3s ease, box-shadow 0.3s ease; }
@@ -523,6 +528,8 @@ body.src-open #src { transform: none; }
     background: var(--dark); color: var(--white); font-family: inherit; font-size: 0.824rem; font-weight: 700; cursor: pointer;
 }
 .hidden { display: none !important; }
+/* Nur für Vorleser: Sätze zu Diagrammen und die Live-Region */
+.vh { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
 
 .skel { position: relative; overflow: hidden; background: rgba(30,27,46,0.06); border-radius: 16px; color: transparent !important; }
 .skel::after {
@@ -682,8 +689,8 @@ html.night {
     --ground: #14121F; --card: #221F33; --soft: #2E2A45; --line: #3A3553;
     --ink: #F1EFF8; --ink-2: #A9A3C4;
     --uv: #5A3A2E; --wind: #27392B; --rain: #34496E; --wet: #243048; --rain-ink: #BFD6F6; --lilac: #3A2F57;
-    --dark: #3A3553; --dark-muted: #8E88AE; --good-bg: #243A2C;
-    --wfill: #2F5A3A; --windy-ink: #7FD69A; --lfill: #5A4E24; --nightcol: #191626;
+    --dark: #3A3553; --dark-muted: #B2ADCB; --good-bg: #243A2C;
+    --wfill: #2F5A3A; --windy-ink: #8FE0A8; --lfill: #5A4E24; --nightcol: #191626;
     --tc1: #24364E; --tc2: #243048; --tc4: #4A3A28; --tc5: #5A2F2A;
 }
 html.night .view-chip.on { background: var(--ink); color: var(--ground); }
@@ -715,7 +722,7 @@ html.night .tabs nav { box-shadow: 0 10px 30px rgba(0,0,0,0.45); }
 html.night .sheet-bg { background: rgba(0,0,0,0.55); }
 html.night .src-sec.target { background: var(--soft); }
 /* Wortfarben der Luftqualität: tags kräftig, nachts hell */
-.wc-good { color: #2E7D4F; } .wc-warning { color: #B7791F; } .wc-serious { color: #C2410C; } .wc-critical { color: #B91C1C; } .wc-none { color: var(--ink-2); }
+.wc-good { color: #2E7D4F; } .wc-warning { color: #8A5A0E; } .wc-serious { color: #C2410C; } .wc-critical { color: #B91C1C; } .wc-none { color: var(--ink-2); }
 html.night .wc-good { color: #7FD69A; } html.night .wc-warning { color: #F6D35B; } html.night .wc-serious { color: #F2A06B; } html.night .wc-critical { color: #E86A6A; }
 /* Weiches Überblenden beim Wechsel: die Klasse fade liegt nur eine Sekunde an */
 html.fade body, html.fade .field, html.fade .tile, html.fade .hcol, html.fade .loc, html.fade .iconbtn, html.fade .tabs nav,

@@ -196,6 +196,56 @@ function hourFacts(data, gi) {
     };
 }
 
+/* Satz je Stundenspalte für Vorleser: „Jetzt“ aus den aktuellen Werten, sonst aus den Stundenwerten */
+function hourAlt(data, gi, nowIdx) {
+    const fc = data.fc;
+    const f = gi === null
+        ? Object.assign(nowFacts(fc), { label: "Jetzt", prob: hourProb(data, nowIdx), wind: fc.current.wind_speed_10m })
+        : hourFacts(data, gi);
+    if (!f) return "";
+    const parts = [f.desc];
+    if (isNum(f.temp)) parts.push(Math.round(f.temp) + " Grad");
+    if (isNum(f.apparent)) parts.push("gefühlt " + Math.round(f.apparent));
+    if (isNum(f.prob)) parts.push("Regenrisiko " + Math.round(f.prob) + " %");
+    if (isNum(f.wind)) parts.push("Wind " + Math.round(f.wind) + " km/h");
+    return f.label + ": " + parts.join(", ");
+}
+
+/* Pfeiltasten im Stundenstreifen: Zielindex, null für andere Tasten */
+function hourKeyIndex(key, cur, n) {
+    if (key === "Home") return 0;
+    if (key === "End") return n - 1;
+    if (key === "ArrowRight") return Math.min(n - 1, cur + 1);
+    if (key === "ArrowLeft") return Math.max(0, cur - 1);
+    return null;
+}
+
+/* Tastatur im Streifen: Pfeile wandern durch die Spalten und wählen die Stunde, Pos1 geht auf „Jetzt“ */
+function initHourKeys() {
+    const box = D("hourly");
+    if (!box || !box.addEventListener) return;
+    box.addEventListener("keydown", function (ev) {
+        const cols = box.querySelectorAll ? Array.prototype.slice.call(box.querySelectorAll(".hcol")) : [];
+        const curEl = ev.target && ev.target.closest ? ev.target.closest(".hcol") : null;
+        const cur = cols.indexOf(curEl);
+        if (cur < 0) return;
+        const next = hourKeyIndex(ev.key, cur, cols.length);
+        if (next === null) return;
+        if (ev.preventDefault) ev.preventDefault();
+        const col = cols[next];
+        const i = col.getAttribute("data-i");
+        if (i === null) clearHour(); else selectHour(parseInt(i, 10));
+        cols.forEach(function (c) { c.setAttribute("tabindex", c === col ? "0" : "-1"); });
+        if (col.focus) col.focus();
+    });
+}
+
+/* Ansage für Vorleser (Live-Region in index.html) */
+function announce(text) {
+    const el = D("live");
+    if (el) el.textContent = text;
+}
+
 /* Erster Textknoten eines Elements: so bleiben <small>/<span> neben der Zahl stehen */
 function firstTextNode(el) {
     const kids = el.childNodes || [];
@@ -473,10 +523,15 @@ function updateHero(f, quiet) {
 function markHour(gi) {
     const box = D("hourly");
     if (!box || !box.querySelectorAll) return;
-    Array.prototype.slice.call(box.querySelectorAll(".hcol.sel")).forEach(function (el) { el.classList.remove("sel"); });
-    if (gi === null || !box.querySelector) return;
-    const col = box.querySelector('.hcol[data-i="' + gi + '"]');
-    if (col && col.classList) col.classList.add("sel");
+    Array.prototype.slice.call(box.querySelectorAll(".hcol.sel")).forEach(function (el) { el.classList.remove("sel"); if (el.setAttribute) el.setAttribute("aria-pressed", "false"); });
+    const col = gi !== null && box.querySelector ? box.querySelector('.hcol[data-i="' + gi + '"]') : null;
+    if (col && col.classList) { col.classList.add("sel"); if (col.setAttribute) col.setAttribute("aria-pressed", "true"); }
+    /* Tastatur: genau eine Spalte liegt im Tab-Weg, die gewählte oder „Jetzt“ */
+    Array.prototype.slice.call(box.querySelectorAll(".hcol")).forEach(function (c) {
+        if (!c.setAttribute || !c.getAttribute) return;
+        const mine = gi === null ? c.getAttribute("data-i") === null : c.getAttribute("data-i") === String(gi);
+        c.setAttribute("tabindex", mine ? "0" : "-1");
+    });
 }
 
 function selectHour(gi, quiet) {
@@ -487,6 +542,7 @@ function selectHour(gi, quiet) {
     markHour(gi);
     updateHero(f, quiet);
     updatePreviewBar();
+    announce("Vorschau " + f.label + ".");
 }
 
 function clearHour(quiet) {
@@ -496,6 +552,7 @@ function clearHour(quiet) {
     markHour(null);
     updateHero(nowFacts(lastData.fc), quiet);
     updatePreviewBar();
+    announce("Zurück zum aktuellen Wetter.");
 }
 
 /* Feste Vorschauleiste: sichtbar, solange eine Stunde gewählt ist und der Hero nicht im Bild ist */
@@ -943,6 +1000,7 @@ function setView(id) {
     view = next;
     saveView();
     renderViews();
+    announce("Ansicht " + VIEWS.filter(function (v) { return v.id === view; })[0].label + ".");
     if (!lastData || !lastData.fc) return;
     dHourly(lastData.fc, null, { quiet: true });
     renderDays(lastData.fc, { quiet: true });
@@ -1141,16 +1199,18 @@ function dHourly(fc, ens, opts) {
             sub = Math.round(prob) + '%';
         }
         /* data-i: globaler Stundenindex für die Zeitreise; die Spalte „Jetzt" hat keins */
+        /* Schaltfläche mit Satz je Stunde; nur „Jetzt“ liegt im Tab-Weg, die Pfeiltasten wandern weiter */
         cols +=
-            '<div' + (i === 0 ? '' : ' data-i="' + gi + '"') + ' class="hcol' + (i === 0 ? ' now' : '') + (newDay ? ' newday' : '') + cls + '" style="' + (quiet ? 'animation:none' : 'animation-delay:' + dl(0.9 + Math.min(i, 8) * 0.06) + 's') + '">' +
+            '<button type="button" aria-label="' + hourAlt(data, i === 0 ? null : gi, w.start) + '" tabindex="' + (i === 0 ? '0' : '-1') + '"' +
+                (i === 0 ? '' : ' data-i="' + gi + '"') + ' class="hcol' + (i === 0 ? ' now' : '') + (newDay ? ' newday' : '') + cls + '" style="' + (quiet ? 'animation:none' : 'animation-delay:' + dl(0.9 + Math.min(i, 8) * 0.06) + 's') + '">' +
                 fill +
-                '<div class="t">' + (i === 0 ? "Jetzt" : (newDay ? weekday(dd) : hhmm(t).slice(0, 2))) + '</div>' +
+                '<span class="t">' + (i === 0 ? "Jetzt" : (newDay ? weekday(dd) : hhmm(t).slice(0, 2))) + '</span>' +
                 ic +
-                '<div class="v">' + val + '</div>' +
-                '<div class="p">' + sub + '</div>' +
-            '</div>';
+                '<span class="v">' + val + '</span>' +
+                '<span class="p">' + sub + '</span>' +
+            '</button>';
     }
-    box.innerHTML = '<div class="strip"><div class="strip-inner">' + cols + '</div><div class="act-track">' + cells + '</div></div>';
+    box.innerHTML = '<div class="strip"><div class="strip-inner">' + cols + '</div><div class="act-track" aria-hidden="true">' + cells + '</div></div>';
 }
 
 /* ---- Regenpausen: trockene Phasen in den 16 Nowcast-Intervallen ---- */
@@ -1236,15 +1296,18 @@ function dNowcast(fc) {
     card.classList.remove("hidden");
     const peak = Math.max.apply(null, nc.vals.concat([0.4]));
     const info = pauseInfo(nc, pauseMinutes);
+    const peakI = nc.vals.indexOf(Math.max.apply(null, nc.vals));
+    const total = nc.vals.reduce(function (a, b) { return a + b; }, 0);
     box.innerHTML =
         '<div class="nc-lead">' + nc.text + '</div>' +
+        '<div class="vh">Regen je Viertelstunde der nächsten 4 Stunden: stärkste Viertelstunde um ' + hhmm(nc.times[peakI]) + ' Uhr mit ' + fmtMm(nc.vals[peakI]) + ' mm, insgesamt ' + fmtMm(total) + ' mm.</div>' +
         /* Balken wachsen nacheinander von links nach rechts aus der Grundlinie; data-stagger
            hält die Staffelung auch beim Neustart per Antippen. p/pe: trockene Phase (Regenpause). */
-        '<div class="nc-bars">' + nc.vals.map(function (v, i) {
+        '<div class="nc-bars" aria-hidden="true">' + nc.vals.map(function (v, i) {
             const stagger = (i * 0.1).toFixed(2) + 's';
             return '<i class="' + (v > 0 ? '' : 'z') + pauseClasses(info, i) + '" data-stagger="' + stagger + '" style="height:' + (v > 0 ? Math.max(8, Math.round(v / peak * 100)) : 4) + '%;animation-delay:' + dl(1.0 + i * 0.1) + 's"></i>';
         }).join('') + '</div>' +
-        '<div class="nc-axis">' + nc.times.map(function (t, i) { return '<span>' + (i % 4 === 0 ? hhmm(t) : '') + '</span>'; }).join('') + '</div>' +
+        '<div class="nc-axis" aria-hidden="true">' + nc.times.map(function (t, i) { return '<span>' + (i % 4 === 0 ? hhmm(t) : '') + '</span>'; }).join('') + '</div>' +
         pauseBlockHtml(info);
 }
 
@@ -1351,6 +1414,17 @@ function dayHighlights(fc) {
     return out;
 }
 
+/* Satz je Tageszeile für Vorleser: Wetter, Risiko, Spanne, Menge, Böen */
+function dayAlt(fc, i) {
+    const d = fc.daily;
+    const parts = [wmo(d.weather_code[i])[1]];
+    if (d.precipitation_probability_max && isNum(d.precipitation_probability_max[i])) parts.push("Regenrisiko " + Math.round(d.precipitation_probability_max[i]) + " %");
+    if (isNum(d.temperature_2m_min[i]) && isNum(d.temperature_2m_max[i])) parts.push(Math.round(d.temperature_2m_min[i]) + " bis " + Math.round(d.temperature_2m_max[i]) + " Grad");
+    if (d.precipitation_sum && isNum(d.precipitation_sum[i]) && d.precipitation_sum[i] >= 0.1) parts.push(fmtMm(d.precipitation_sum[i]) + " mm");
+    if (d.wind_gusts_10m_max && isNum(d.wind_gusts_10m_max[i])) parts.push("Böen bis " + Math.round(d.wind_gusts_10m_max[i]) + " km/h");
+    return (i === 0 ? "Heute" : longWeekday(d.time[i])) + ": " + parts.join(", ");
+}
+
 /* Pro Tag der wichtigste Kandidat (Zeiträume zählen getrennt), dann die wichtigsten max, nach Tagen sortiert */
 function pickHighlights(list, max) {
     const byDay = {}, ranges = [];
@@ -1450,7 +1524,7 @@ function renderDays(fc, opts) {
         }
         const barAnim = quiet ? 'animation:none' : 'animation-delay:' + (more ? '0.5' : (+delay + 0.2).toFixed(2)) + 's';
         const row =
-            '<div class="drow' + (i === 0 ? ' today' : '') + mood + (more ? ' more' : '') + '" data-day="' + i + '"' + (quiet ? ' style="animation:none"' : (more ? '' : ' style="animation-delay:' + delay + 's"')) + '>' +
+            '<div class="drow' + (i === 0 ? ' today' : '') + mood + (more ? ' more' : '') + '" data-day="' + i + '" role="img" aria-label="' + dayAlt(fc, i) + '"' + (quiet ? ' style="animation:none"' : (more ? '' : ' style="animation-delay:' + delay + 's"')) + '>' +
                 '<div class="n">' + (i === 0 ? "Heute" : weekday(d.time[i])) + '</div>' +
                 ic +
                 '<div class="pp">' + first + '</div>' +
@@ -1609,7 +1683,7 @@ function windPanelHtml(fc) {
     return tpItem(0, '<div class="wind-wrap">' + compassSvg +
             '<div class="wind-now"><div class="big">' + (isNum(c.wind_speed_10m) ? Math.round(c.wind_speed_10m) : '–') + '<small>km/h</small></div>' +
             '<div class="sub">Böen ' + (isNum(c.wind_gusts_10m) ? Math.round(c.wind_gusts_10m) : '–') + ' km/h<br>aus ' + compass(dir) + '</div></div></div>') +
-        tpItem(1, '<div class="gusts">' + bars + '</div><div class="gust-axis">' + labels + '</div>') +
+        tpItem(1, '<div class="gusts" role="img" aria-label="Wind und Böen der nächsten 12 Stunden: ' + sentence + '.">' + bars + '</div><div class="gust-axis" aria-hidden="true">' + labels + '</div>') +
         tpItem(2, '<div class="tp-note">' + sentence + ' · hell Wind, dunkel Böen</div>');
 }
 
@@ -1617,10 +1691,12 @@ function windPanelHtml(fc) {
 function rainPanelHtml(fc) {
     const h = fc.hourly, d = fc.daily;
     const w = hourlyWindow(fc, 24);
-    let maxV = 1, bars = "", labels = "";
+    let maxV = 1, bars = "", labels = "", tot = 0, pk = null;
     for (let i = w.start; i < w.end; i++) if (h.precipitation && isNum(h.precipitation[i])) maxV = Math.max(maxV, h.precipitation[i]);
     for (let i = w.start; i < w.end; i++) {
         const v = h.precipitation && isNum(h.precipitation[i]) ? h.precipitation[i] : 0;
+        tot += v;
+        if (v > 0 && (!pk || v > pk.v)) pk = { v: v, t: h.time[i] };
         bars += '<i class="' + (v > 0 ? '' : 'z ') + 'rb" style="height:' + (v > 0 ? Math.max(6, Math.round(v / maxV * 100)) : 3) + '%"></i>';
         if ((i - w.start) % 3 === 0) {
             const prob = lastData ? hourProb(lastData, i) : (h.precipitation_probability && isNum(h.precipitation_probability[i]) ? h.precipitation_probability[i] : 0);
@@ -1632,7 +1708,8 @@ function rainPanelHtml(fc) {
     const tomorrow = d && isNum(d.precipitation_sum[1]) ? d.precipitation_sum[1] : null;
     const sentence = (today === null ? 'Heute –' : (today < 0.05 ? 'Heute trocken' : 'Heute ' + fmtMm(today) + ' mm' + (hours > 0 ? ' in ' + hours + ' Regenstunde' + (hours === 1 ? '' : 'n') : ''))) +
         ' · Morgen ' + (tomorrow === null ? '–' : fmtMm(tomorrow) + ' mm');
-    return tpItem(0, '<div class="rain24">' + bars + '</div><div class="rain-axis">' + labels + '</div>') +
+    const alt = pk ? 'Regen der nächsten 24 Stunden: insgesamt ' + fmtMm(tot) + ' mm, am meisten um ' + parseInt(pk.t.slice(11, 13), 10) + ' Uhr mit ' + fmtMm(pk.v) + ' mm.' : 'Regen der nächsten 24 Stunden: trocken.';
+    return tpItem(0, '<div class="rain24" role="img" aria-label="' + alt + '">' + bars + '</div><div class="rain-axis" aria-hidden="true">' + labels + '</div>') +
         tpItem(1, '<div class="tp-note">' + sentence + '</div>');
 }
 
@@ -1751,7 +1828,8 @@ function sunPanelHtml(fc) {
             (function () { const cl = sunsetClouds(fc, set); return cl ? '<div class="light-line">' + cl.text + '</div>' : ''; })() +
             '</div>';
     }
-    return tpItem(0, svg) +
+    const alt = '<div class="vh">Tageslichtbogen: Aufgang ' + hhmm(rise) + ', Untergang ' + hhmm(set) + ', ' + Math.round(p * 100) + ' % des Tages vergangen.</div>';
+    return tpItem(0, svg + alt) +
         tpItem(1, '<div class="facts">' + fact('Tageslänge', fmtDuration(dl0)) + fact('Sonnenschein', fmtDuration(sun0)) + fact('Vergleich', cmp) + '</div>') +
         (light ? tpItem(2, light) : '');
 }
@@ -1896,7 +1974,7 @@ function sichtPanelHtml(fc) {
         const parts = (visLow ? ["Sicht unter 1 km"] : []).concat(why);
         sentence = "Nebelrisiko hoch " + day + " von " + parseInt(h.time[first].slice(11, 13), 10) + " bis " + endH + " Uhr" + (parts.length ? ": " + parts.join(", ") : "") + ".";
     }
-    return tpItem(0, '<div class="vis24">' + bars + '</div><div class="rain-axis">' + labels + '</div>') +
+    return tpItem(0, '<div class="vis24" role="img" aria-label="Sichtverlauf der nächsten 24 Stunden: ' + sentence + '">' + bars + '</div><div class="rain-axis" aria-hidden="true">' + labels + '</div>') +
         tpItem(1, '<div class="tp-note">' + sentence + '</div>');
 }
 
@@ -2207,7 +2285,14 @@ function dModels(md, fc, ens) {
         ensNote = 'ICON-D2-Ensemble, morgen: ' + fmtMm(b.sums[0]) + ' bis ' + fmtMm(b.sums[b.sums.length - 1]) + ' mm, Median ' + fmtMm(quantile(b.sums, 0.5)) + ' mm · ' + wet + ' von ' + b.sums.length + ' Läufen mit Regen.';
     }
 
-    box.innerHTML = (agree ? '<div class="agree">' + agree + '</div>' : '') +
+    const span = function (arr) {
+        const v = arr.filter(isNum);
+        if (!v.length) return '–';
+        const lo = Math.min.apply(null, v), hi = Math.max.apply(null, v);
+        return lo === hi ? fmtMm(lo) + ' mm' : fmtMm(lo) + ' bis ' + fmtMm(hi) + ' mm';
+    };
+    const alt = '<div class="vh">Regensummen je Modell als Kurven: heute ' + span(models.map(function (m) { return m.today; })) + ', morgen ' + span(models.map(function (m) { return m.tomorrow; })) + '.</div>';
+    box.innerHTML = (agree ? '<div class="agree">' + agree + '</div>' : '') + alt +
         modelChartSvg(models, bands, nowHour, hl) +
         '<div class="mchips">' + chips + '</div>' +
         (ensNote ? '<div class="note">' + ensNote + '</div>' : '');
@@ -2677,6 +2762,7 @@ function initDesignApp() {
             saveCache(currentLoc, payload);
             setUpdatedLabel(at);
             setLoaded(at, false, loc.id, fc.timezone);
+            announce("Wetter für " + (loc.name || "deinen Standort") + " aktualisiert.");
         } else {
             const cached = loadCache(currentLoc);
             if (cached) {
@@ -2700,6 +2786,7 @@ function initDesignApp() {
     }
 
     function showBanner(text, isError, btnLabel, btnFn) {
+        announce(text);
         const b = D("banner");
         b.className = "banner" + (isError ? " err" : "");
         b.innerHTML = text + (btnLabel ? '<button type="button" id="bannerBtn">' + btnLabel + '</button>' : '');
@@ -2882,7 +2969,7 @@ function initDesignApp() {
         const b = D("modeBtn");
         if (!b) return;
         paintModeButton(b, nightOn);
-        b.addEventListener("click", function () { setNightManual(!nightOn); });
+        b.addEventListener("click", function () { setNightManual(!nightOn); announce(nightOn ? "Nachtmodus an." : "Nachtmodus aus."); });
     }
 
     /* ---- Antippen: Animationen der Kachel neu starten ---- */
@@ -3008,6 +3095,7 @@ function initDesignApp() {
 
     initSearch();
     initSource();
+    initHourKeys();
     initTabs();
     initModeToggle();
     initViews();

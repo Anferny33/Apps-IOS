@@ -31,17 +31,19 @@ und neue Ideen aus der Arbeit. Nach jeder Änderung wird die Liste nachgezogen u
 
 ## Offen, Grundlagen
 
-- [ ] Zugänglichkeit (15), in fünf Stufen. Mittel.
-  - [x] Stufe 1: Schrift folgt der Systemgröße (rem, Dynamic Type, Deckel 1,6-fach, große Zahlen begrenzt) – 09.10.2026
-  - [ ] Stufe 2: Stundenspalten als Schaltflächen mit Satz je Stunde, Pfeiltasten, Zeitreise per Tastatur
-  - [ ] Stufe 3: Textalternative je Diagramm (Regenbalken, Stundenstreifen, Sichtverlauf, Kompass, Sonnenbogen, Modellkurven)
-  - [ ] Stufe 4: Kontrastprüfung der getönten Kacheln, Chips im Hero, gedämpftes Grau nachts, Balkenfarben (3:1)
-  - [ ] Stufe 5: Live-Region für Laden, Aktualisieren, Fehler und Ansichtswechsel
+- [x] Zugänglichkeit (15), in fünf Stufen.
+  - [x] Stufe 1: Schrift folgt der Systemgröße (rem, Dynamic Type, Deckel 1,6-fach, große Zahlen begrenzt) – `6c47c99`
+  - [x] Stufe 2: Stundenspalten als Schaltflächen mit Satz je Stunde, Pfeiltasten, Zeitreise per Tastatur – 09.10.2026
+  - [x] Stufe 3: Textalternative je Diagramm (Regenbalken, Böen, Regen- und Sichtverlauf, Sonnenbogen, Modellkurven, Tageszeilen) – 09.10.2026
+  - [x] Stufe 4: Kontrast der Nebentexte auf getönten Flächen, nachts in dunklen Feldern, windig-Grün, Warnwort; Checks rechnen aus den Token – 09.10.2026
+  - [x] Stufe 5: Live-Region für Laden, Fehler, Ansichtswechsel, Zeitreise, Nachtmodus – 09.10.2026
 - [ ] Zwei Spalten ab 760 px (16) für iPad und Mac; bisher kein Breakpoint, Seite bleibt bei 640 px einspaltig. Mittel.
 - [ ] Einstellungen (17): Einheiten, Rausgehen-Schwellen, Bewegung, Standardansicht. Mittel.
 
 ## Neu aufgenommen
 
+- [ ] Füllungen im Stundenstreifen (Regen, Böen, Sonne) liegen unter 3:1 zum Grund; die Zahl trägt die Information, eine kräftigere Füllung wäre eine Designfrage. Klein.
+- [ ] VoiceOver-Durchlauf auf einem echten iPhone; der Simulator hat kein VoiceOver. Klein.
 - [ ] Text in SVG-Grafiken (Kompass, Sonnenbogen, Modellkurven) folgt der Systemschrift noch nicht; braucht eine eigene Skalierung der Grafiken. Klein.
 - [x] Vortagswerte im Feld „Woher kommt das?“ als Modellwerte kennzeichnen – mit Punkt 1 erledigt
 - [ ] Läufe der Vergleichsmodelle (ICON-EU, ECMWF, GFS, UKMO) im Herkunftsblatt nennen; Open-Meteo hat Metadaten je Modell, nur die des Ensembles sind veraltet. Klein.
