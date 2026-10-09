@@ -1293,12 +1293,19 @@ function toggleTrend() {
 }
 
 /* ---- Regenradar als Blatt: die Radarseite läuft eingebettet, der Rahmen lädt erst beim ersten Öffnen ---- */
-const RADAR_EMBED_URL = "radar.html?embed=1";
+/* Versions-Query der eigenen Skript-URL; das Radar-Blatt lädt die eingebettete Seite damit in derselben Version
+   statt aus einem alten HTTP-Cache */
+var ASSET_VERSION = (function () {
+    const s = typeof document !== "undefined" ? document.currentScript : null;
+    const m = s && s.src ? /[?&]v=(\w+)/.exec(s.src) : null;
+    return m ? m[1] : "";
+})();
+function radarEmbedUrl() { return "radar.html?embed=1" + (ASSET_VERSION ? "&v=" + ASSET_VERSION : ""); }
 
 function openRadar() {
     const sheet = D("radarSheet"), frame = D("radarFrame");
     if (!sheet) return;
-    if (frame && frame.setAttribute && !(frame.getAttribute && frame.getAttribute("src"))) frame.setAttribute("src", RADAR_EMBED_URL);
+    if (frame && frame.setAttribute && !(frame.getAttribute && frame.getAttribute("src"))) frame.setAttribute("src", radarEmbedUrl());
     document.body.classList.add("radar-open");
     if (D("radarTab")) D("radarTab").setAttribute("aria-expanded", "true");
     announce("Regenradar geöffnet.");
@@ -1574,6 +1581,7 @@ function jumpToDay(i) {
     if (unfold) {
         field.classList.add("all");
         if (D("daysMoreLabel")) D("daysMoreLabel").textContent = "Weniger anzeigen";
+        if (D("daysMore")) D("daysMore").setAttribute("aria-expanded", "true");
     }
     const row = box.querySelector ? box.querySelector('.drow[data-day="' + i + '"]') : null;
     if (!row || !row.scrollIntoView) return;
@@ -1642,7 +1650,7 @@ function renderDays(fc, opts) {
     }
     if (moreRows) rows += '<div class="more-wrap"><div class="more-inner">' + moreRows + '</div></div>';
     if (n > SHOWN) {
-        rows += '<button type="button" class="days-more" id="daysMore"><span id="daysMoreLabel">Weitere ' + (n - SHOWN) + ' Tage</span>' +
+        rows += '<button type="button" class="days-more" id="daysMore" aria-expanded="false"><span id="daysMoreLabel">Weitere ' + (n - SHOWN) + ' Tage</span>' +
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>';
     }
     box.innerHTML = rows;
@@ -1652,6 +1660,7 @@ function renderDays(fc, opts) {
             const field = D("daysField");
             const open = field.classList.toggle("all");
             D("daysMoreLabel").textContent = open ? "Weniger anzeigen" : "Weitere " + (n - SHOWN) + " Tage";
+            btn.setAttribute("aria-expanded", open ? "true" : "false");
         });
     }
 }
@@ -2333,14 +2342,29 @@ function modelChartSvg(models, bands, nowHour, hl) {
 
 /* Hervorhebung wechseln: Klassen auf Pfaden und Chips, Band nur bei ICON-D2 sichtbar.
    Die Endwert-Beschriftung gehört zum hervorgehobenen Modell und wird dafür neu gesetzt. */
+/* Vorleser-Satz je Modell-Chip: ein Element statt vier loser Texte („ICON-D2: heute 0,2 mm, morgen 8,8 mm“) */
+function modelChipLabel(m) {
+    const f = function (v) { return isNum(v) ? fmtMm(v) + " mm" : "keine Angabe"; };
+    return m.name + ": heute " + f(m.today) + ", morgen " + f(m.tomorrow);
+}
+
+/* Hervorhebung und Druckzustand der Chips gemeinsam setzen */
+function markModelChips(chips, id) {
+    chips.forEach(function (el) {
+        const mine = el.getAttribute("data-model") === id;
+        el.classList.toggle("hl", mine);
+        el.setAttribute("aria-pressed", mine ? "true" : "false");
+    });
+}
+
 function highlightModel(id) {
     hlModel = id;
     const box = D("models");
     if (!box || !box.querySelectorAll) return;
-    Array.prototype.slice.call(box.querySelectorAll(".ml, .mchip")).forEach(function (el) {
-        const mine = (el.classList && el.classList.contains("m-" + id)) || el.getAttribute("data-model") === id;
-        el.classList.toggle("hl", !!mine);
+    Array.prototype.slice.call(box.querySelectorAll(".ml")).forEach(function (el) {
+        el.classList.toggle("hl", !!(el.classList && el.classList.contains("m-" + id)));
     });
+    markModelChips(Array.prototype.slice.call(box.querySelectorAll(".mchip")), id);
     Array.prototype.slice.call(box.querySelectorAll(".band")).forEach(function (el) { el.classList.toggle("off", id !== "icon_d2"); });
     const ends = Array.prototype.slice.call(box.querySelectorAll(".end"));
     const chip = box.querySelector ? box.querySelector('.mchip[data-model="' + id + '"]') : null;
@@ -2382,7 +2406,7 @@ function dModels(md, fc, ens) {
 
     const num = function (v) { return isNum(v) ? '<span data-count="' + Number(v.toFixed(1)) + '" data-decimals="' + (v >= 0.05 && v < 10 ? 1 : 0) + '">' + fmtMm(v) + '</span>' : '–'; };
     const chips = models.map(function (m, i) {
-        return '<div class="mchip' + (m.id === hl ? ' hl' : '') + '" data-model="' + m.id + '" style="animation-delay:' + dl(2.0 + i * 0.07) + 's"><span class="k">' + m.name + '</span><span class="v">' + num(m.today) + ' / ' + num(m.tomorrow) + '</span></div>';
+        return '<button type="button" class="mchip' + (m.id === hl ? ' hl' : '') + '" data-model="' + m.id + '" aria-pressed="' + (m.id === hl ? 'true' : 'false') + '" aria-label="' + modelChipLabel(m) + '" style="animation-delay:' + dl(2.0 + i * 0.07) + 's"><span class="k">' + m.name + '</span><span class="v">' + num(m.today) + ' / ' + num(m.tomorrow) + '</span></button>';
     }).join('');
 
     /* Ensemble-Zeile mit Zählwerten, damit nichts wie eine Trefferwahrscheinlichkeit wirkt */
@@ -2504,6 +2528,16 @@ function clearRendered() {
 
 /* Gleitende Tab-Markierung: die Pille hinter dem aktiven Tab bekommt dessen Position und Breite,
    der Wechsel läuft dann als Übergang im Stylesheet. Ohne Layout-Werte (Tests) passiert nichts. */
+/* Aktiven Bereich in der Tab-Leiste markieren: Klasse für die Pille, aria-current für Vorleser */
+function markTabs(links, active) {
+    links.forEach(function (l) {
+        const on = l === active;
+        l.classList.toggle("on", on);
+        if (on) l.setAttribute("aria-current", "page");
+        else if (l.removeAttribute) l.removeAttribute("aria-current");
+    });
+}
+
 function moveTabInk() {
     const nav = document.querySelector ? document.querySelector(".tabs nav") : null;
     if (!nav || !nav.querySelector) return;
@@ -2737,7 +2771,7 @@ function layoutItemHtml(item, movable) {
     const on = !isHidden(item.id);
     return '<div class="set-row set-item"><span class="set-lbl">' + item.name + '</span><div class="seg">' +
         (movable ? '<button type="button" class="set-mv" data-id="' + item.id + '" data-dir="up" aria-label="' + item.name + ' nach oben">↑</button><button type="button" class="set-mv" data-id="' + item.id + '" data-dir="down" aria-label="' + item.name + ' nach unten">↓</button>' : '') +
-        '<button type="button" class="set-vis" data-id="' + item.id + '" aria-pressed="' + (on ? 'true' : 'false') + '">' + (on ? 'Sichtbar' : 'Ausgeblendet') + '</button></div></div>';
+        '<button type="button" class="set-vis" data-id="' + item.id + '" aria-pressed="' + (on ? 'true' : 'false') + '" aria-label="' + item.name + ' sichtbar">' + (on ? 'Sichtbar' : 'Ausgeblendet') + '</button></div></div>';
 }
 
 /* ---- Reise: Ort mit Zeitraum, Countdown, Wechsel in die Vorhersage ---- */
@@ -3732,7 +3766,7 @@ function initDesignApp() {
         const io = new IntersectionObserver(function (entries) {
             entries.forEach(function (e) {
                 if (!e.isIntersecting) return;
-                links.forEach(function (l) { l.classList.toggle("on", l.getAttribute("data-target") === e.target.id); });
+                markTabs(links, links.filter(function (l) { return l.getAttribute("data-target") === e.target.id; })[0] || null);
                 moveTabInk();
             });
         }, { rootMargin: "-40% 0px -50% 0px" });
@@ -3741,7 +3775,7 @@ function initDesignApp() {
             if (sec) io.observe(sec);
             /* Beim Antippen sofort markieren, die Pille gleitet dann vor dem Scrollen los */
             l.addEventListener("click", function () {
-                links.forEach(function (x) { x.classList.toggle("on", x === l); });
+                markTabs(links, l);
                 moveTabInk();
             });
         });

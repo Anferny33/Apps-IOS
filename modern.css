@@ -172,9 +172,9 @@ html.reduce *, html.reduce *::before, html.reduce *::after { animation: none !im
 @keyframes warnPulse { 0%, 100% { box-shadow: 0 0 0 0 var(--pulse); } 50% { box-shadow: 0 0 0 9px rgba(0,0,0,0); } }
 
 /* ---------- 14 Tage: Aufklappen ---------- */
-.days-field .more-wrap { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--d-slow) var(--ease); }
+.days-field .more-wrap { display: grid; grid-template-rows: 0fr; visibility: hidden; transition: grid-template-rows var(--d-slow) var(--ease), visibility 0s var(--d-slow); }
 .days-field .more-inner { overflow: hidden; min-height: 0; }
-.days-field.all .more-wrap { grid-template-rows: 1fr; }
+.days-field.all .more-wrap { grid-template-rows: 1fr; visibility: visible; transition: grid-template-rows var(--d-slow) var(--ease), visibility 0s; }
 .drow.more { display: flex; animation: none; opacity: 0; transition: opacity 0.4s; }
 .drow.more .bar i { animation: none; transform: scaleX(0); }
 .days-field.all .drow.more { opacity: 1; animation: aUp var(--d-slow) var(--ease) both; }
@@ -287,8 +287,9 @@ html.night .tile.uv, html.night .tile.wind, html.night .tile.rain, html.night .t
 .preview-bar .pb-now { flex: none; min-width: 64px; min-height: 36px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--hero); color: var(--ink); font: inherit; font-size: 0.765rem; font-weight: 700; cursor: pointer; }
 .preview-bar .pb-now:focus-visible { outline: 3px solid var(--white); outline-offset: 2px; }
 .tile.open { transform: translateY(-2px); box-shadow: inset 0 0 0 2px var(--ink); }
-.tpanel { grid-column: 1 / -1; align-self: start; display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--d-base) var(--ease); }
-.tpanel.open { grid-template-rows: 1fr; }
+/* Zugeklappt auch für Vorleser unsichtbar: visibility springt beim Öffnen sofort, beim Schließen erst nach dem Zusammenfalten */
+.tpanel { grid-column: 1 / -1; align-self: start; display: grid; grid-template-rows: 0fr; visibility: hidden; transition: grid-template-rows var(--d-base) var(--ease), visibility 0s var(--d-base); }
+.tpanel.open { grid-template-rows: 1fr; visibility: visible; transition: grid-template-rows var(--d-base) var(--ease), visibility 0s; }
 .tpanel-in { overflow: hidden; min-height: 0; }
 .tpanel-body { padding: 18px; border-radius: var(--radius); margin-bottom: 12px; display: flex; flex-direction: column; gap: 12px; }
 .tp-wind .tpanel-body { background: var(--wind); } .tp-rain .tpanel-body { background: var(--rain); } .tp-sun .tpanel-body { background: var(--lilac); }
@@ -400,7 +401,8 @@ html.night .tile.uv, html.night .tile.wind, html.night .tile.rain, html.night .t
 
 /* ---------- Modellvergleich ---------- */
 .mchips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.mchip { padding: 12px; background: var(--ground); border-radius: 14px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mchip { padding: 12px; background: var(--ground); border-radius: 14px; display: flex; flex-direction: column; gap: 2px; min-width: 0; width: 100%; border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; -webkit-appearance: none; appearance: none; }
+.mchip:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
 .mchip .k { font-size: 0.647rem; font-weight: 700; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mchip .v { font-size: 1rem; font-weight: 700; letter-spacing: -0.3px; font-variant-numeric: tabular-nums; }
 .mchip.hl { background: var(--dark); color: var(--white); }
@@ -456,11 +458,13 @@ html.night .tile.uv, html.night .tile.wind, html.night .tile.rain, html.night .t
     max-width: 640px; margin: 0 auto;
     background: var(--card); color: var(--ink);
     border-radius: 28px 28px 0 0; padding: 10px 16px calc(env(safe-area-inset-bottom) + 16px);
-    transform: translateY(105%); transition: transform var(--d-fast) var(--ease);
+    transform: translateY(105%); visibility: hidden; transition: transform var(--d-fast) var(--ease), visibility 0s var(--d-fast);
     max-height: 80vh; display: flex; flex-direction: column;
 }
 body.sheet-open #sheetBg { opacity: 1; pointer-events: auto; }
 body.sheet-open #sheet { transform: none; }
+/* Geschlossene Blätter sind für Vorleser unsichtbar (visibility), beim Öffnen sofort sichtbar, beim Schließen erst nach dem Hinausgleiten */
+body.sheet-open #sheet, body.radar-open #radarSheet, body.settings-open #settings, body.src-open #src { visibility: visible; transition: transform var(--d-fast) var(--ease), visibility 0s; }
 .sheet .grip { width: 38px; height: 5px; border-radius: 3px; background: var(--line); margin: 0 auto 14px; }
 .sheet input {
     width: 100%; padding: 13px 14px 13px 42px; font-size: 0.941rem; font-family: inherit; font-weight: 500;

@@ -55,6 +55,10 @@ Browser-Konsolenfenster `window.PREVIEW_LOC = {lat, lon, name}` setzen.
 
 `npm test` läuft vier Suiten: Startseite (`tests/smoke-design.js`), Radar, Service Worker und Regen-Alarm (`tests/smoke-push.js`, Web-Push-Verschlüsselung im Rundlauf, VAPID, Alarmregel, Worker-Routen mit KV-Stub).
 
+### VoiceOver-Prüfung ohne Gerät
+
+`tests/ax-dump/run.sh <UDID> [Name] [Tipps]` holt den Bedienungshilfen-Baum von Safari im Simulator (Rollen, Beschriftungen, Werte, Reihenfolge), also das, was VoiceOver vorlesen würde. Braucht Xcode und `xcodegen`; die Seite muss im Simulator offen sein. `Tipps` sind Beschriftungen, die vor dem Dump angetippt werden (`"Einstellungen"`, `"Radar"`). Ergebnis in `tests/ax-dump/dump-<Name>.clean.txt`.
+
 ### Weitere Hinweise
 
 ```bash

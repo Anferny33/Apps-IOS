@@ -9,6 +9,7 @@ const idx = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 
 let fail = 0;
 const check = (n, c, x) => { console.log((c ? '  ok   ' : '  FAIL ') + n + (c ? '' : ' :: ' + String(x).slice(0, 220))); if (!c) fail++; };
+check('Hülle: Installation holt die Dateien am HTTP-Cache vorbei (cache: reload)', /c\.addAll\(SHELL\.map\(function \(u\) \{ return new Request\(u, \{ cache: "reload" \}\); \}\)\)/.test(fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8')));
 
 function run(opts) {
   opts = opts || {};
@@ -18,7 +19,7 @@ function run(opts) {
     if (!stores[name]) stores[name] = new Map();
     const m = stores[name];
     return {
-      addAll: async urls => { urls.forEach(u => m.set(u, { ok: true, url: u, fromCache: true })); },
+      addAll: async reqs => { reqs.forEach(r => m.set(keyOf(r), { ok: true, url: keyOf(r), fromCache: true, cacheMode: r.cache })); },
       add: async u => { m.set(u, { ok: true, url: u, fromCache: true }); },
       put: async (req, res) => { m.set(keyOf(req), res); putLog.push(keyOf(req)); },
       match: async req => m.get(keyOf(req)),
@@ -27,6 +28,7 @@ function run(opts) {
   };
   const sb = {
     console, Promise, Map, Set, URL, Object, Array, JSON, String, Error, Response: class { static error() { return { ok: false, status: 0, error: true }; } },
+    Request: class { constructor(u, init) { this.url = u; this.cache = init && init.cache; } },
     location: { origin: 'http://localhost:8000', href: 'http://localhost:8000/sw.js' },
     registration: { scope: 'http://localhost:8000/' },
     caches: {

@@ -16,7 +16,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
 <!-- Nachtpalette vor dem ersten Zeichnen, damit die Seite nachts nicht hell aufblitzt -->
 <script>try { if (localStorage.getItem("wetter:night") === "1") document.documentElement.classList.add("night"); } catch (e) {}</script>
-<link rel="stylesheet" href="modern.css?v=20261009n" id="cssModern">
+<link rel="stylesheet" href="modern.css?v=20261009p" id="cssModern">
 <!-- Schriftgrenze: die Systemschriftgröße wirkt bis zum 1,6-Fachen (27,2 px), darüber hält das Raster nicht mehr -->
 <script>try { var fs0 = parseFloat(getComputedStyle(document.documentElement).fontSize); if (fs0 > 27.2) document.documentElement.style.fontSize = "27.2px"; } catch (e) {}</script>
 </head>
@@ -50,8 +50,6 @@
 
     <section class="sec" id="sec-today">
         <div class="field hero-field skel a-pop" id="hero" style="height:250px;animation-delay:.09s">&nbsp;</div>
-        <!-- Live-Region: Ansagen für Vorleser (Laden, Fehler, Ansicht, Zeitreise) -->
-        <div class="vh" id="live" aria-live="polite" aria-atomic="true"></div>
         <!-- Aktualität: wann die gezeigten Daten geladen wurden (nicht der Modelllauf); „Woher?“ öffnet das Herkunftsblatt -->
         <div class="fresh" id="fresh"><span id="freshTxt"></span><button type="button" class="src-link hidden" id="freshSrc" aria-haspopup="dialog" aria-expanded="false">Woher?</button></div>
 
@@ -118,9 +116,11 @@
     </section>
 
     <footer class="a-up" style="animation-delay:1.32s">
-        <span id="updated"></span> · <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a> · Warnungen: <a href="https://www.dwd.de/" rel="noopener">DWD</a> · CC BY 4.0 · Ortsname: BigDataCloud<br>
+        <span id="updated"></span><span aria-hidden="true"> · </span><a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a><span aria-hidden="true"> · </span>Warnungen: <a href="https://www.dwd.de/" rel="noopener">DWD</a><span aria-hidden="true"> · </span>CC BY 4.0<span aria-hidden="true"> · </span>Ortsname: BigDataCloud<br>
         <a href="radar.html">Regenradar</a>
     </footer>
+    <!-- Live-Region: Ansagen für Vorleser (Laden, Fehler, Ansicht, Zeitreise); am Seitenende, damit sie nicht mitten in der Lesereihenfolge steht -->
+    <div class="vh" id="live" aria-live="polite" aria-atomic="true"></div>
 </div>
 
 <div class="tabs">
@@ -193,9 +193,9 @@
     <div class="src-body" id="srcBody"></div>
 </div>
 
-<script src="sonne.js?v=20261009n"></script>
-<script src="wetter-core.js?v=20261009n"></script>
-<script src="design.js?v=20261009n"></script>
+<script src="sonne.js?v=20261009p"></script>
+<script src="wetter-core.js?v=20261009p"></script>
+<script src="design.js?v=20261009p"></script>
 <script>initDesignApp();</script>
 <!-- Offline-Hülle: Seiten, Stylesheet, Skripte und Icons bleiben auch ohne Netz verfügbar -->
 <script>if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js").catch(function () {}); }</script>

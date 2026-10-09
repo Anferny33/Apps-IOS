@@ -47,7 +47,12 @@ und neue Ideen aus der Arbeit. Nach jeder Änderung wird die Liste nachgezogen u
 ## Neu aufgenommen
 
 - [x] Füllungen im Stundenstreifen: Entscheidung des Users am 09.10.2026, sie bleiben wie sie sind; die Zahl trägt die Information.
-- [ ] VoiceOver-Durchlauf auf einem echten iPhone; der Simulator hat kein VoiceOver. Klein.
+- [x] VoiceOver-Durchlauf (09.10.2026) ohne Gerät: Bedienungshilfen-Baum per XCUITest aus dem Simulator (`tests/ax-dump/run.sh`); neun Befunde korrigiert, siehe `docs/superpowers/specs/2026-10-09-voiceover-durchlauf-design.md`
+- [ ] Ansichten-Chips als Tab-Leiste (role tablist/tab, „1 von 5“) statt Druckknöpfe. Klein, Designfrage.
+- [ ] Tageszeilen sprechen als „Bild“ (role img); Alternative role text prüfen. Klein.
+- [ ] Mittelpunkt-Trenner („·“) in Kacheltexten: auf dem echten iPhone hören, ob VoiceOver sie vorliest. Prüfpunkt.
+- [ ] Stundenstreifen: 48 Schaltflächen am Stück; Sprungmarke oder Zusammenfassung, falls es beim Wischen stört. Klein.
+- [ ] Gegencheck mit echtem VoiceOver (Wischen, Rotor) auf dem iPhone, wenn es passt. Klein.
 - [x] Regen-Alarm in Betrieb genommen (09.10.2026): KV-Namespace SUBS, Geheimnis VAPID_PRIVATE_KEY, Worker deployt mit Cron */15 und Testroute `/push/test`
 - [x] Regen-Alarm auf dem iPhone geprüft: Probenachricht angekommen (09.10.2026); der erste Schlüssel-Upload hatte einen Zeilenumbruch, der Worker schneidet das jetzt selbst ab
 - [x] Tagesfilm samt Aufnahme auf dem echten iPhone geprüft (09.10.2026)

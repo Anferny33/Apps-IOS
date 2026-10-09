@@ -393,6 +393,9 @@ function updateBadge(f) {
         pill.textContent = f.isForecast ? "Prognose" : "Beobachtung";
         pill.className = "pill" + (f.isForecast ? " fc" : "");
     }
+    /* Vorleser hören den Zeitpunkt statt der Positionsnummer des Reglers */
+    const sl = $("slider");
+    if (sl && sl.setAttribute) sl.setAttribute("aria-valuetext", (f.time === null ? "aktuell" : fmtTime(f.time) + " Uhr") + ", " + (f.isForecast ? "Prognose" : "Beobachtung"));
     const badge = $("badge");
     if (badge && badge.classList && typeof badge.offsetWidth === "number") {
         badge.classList.remove("tick");
@@ -467,9 +470,12 @@ function legendHtml(lc) {
         const txt = c.open ? "ab " + fmtDe(c.low) + " mm/h" : c.label.replace(/^\[\s*([\d.]+)\s*-\s*([\d.]+)\s*\)$/, function (_, a, b) { return fmtDe(parseFloat(a)) + " bis " + fmtDe(parseFloat(b)) + " mm/h"; });
         return '<li><i style="background:' + c.color + '"></i>' + txt + '</li>';
     }).join("");
-    return '<div class="lg-row"><span class="lg-unit">mm/h</span><div class="lg-bar">' + bar + '</div>' +
+    const first = lc.classes[0], last = lc.classes[lc.classes.length - 1];
+    const alt = "Farbskala: Regen ab " + fmtDe(first.low) + (last.open ? " bis über " : " bis ") + fmtDe(last.low) + " mm/h" +
+        (lc.nodata ? ", grau heißt keine Radardaten" : "") + ". Alle Stufen stehen unter „Alle Stufen“.";
+    return '<span class="vh">' + alt + '</span><div class="lg-row" aria-hidden="true"><span class="lg-unit">mm/h</span><div class="lg-bar">' + bar + '</div>' +
         (lc.nodata ? '<span class="lg-nodata"><i style="background:' + lc.nodata.color + '"></i>keine Daten</span>' : '') + '</div>' +
-        '<div class="lg-ticks">' + ticks + '</div>' +
+        '<div class="lg-ticks" aria-hidden="true">' + ticks + '</div>' +
         '<details class="lg-more"><summary>Alle Stufen</summary><ul>' + list +
         (lc.nodata ? '<li><i style="background:' + lc.nodata.color + ';opacity:.5"></i>keine Radardaten (grau)</li>' : '') +
         '</ul><p>Klassen aus der Stildefinition des DWD-Dienstes, Niederschlag in mm/h.</p></details>';
@@ -688,7 +694,10 @@ function makeMarker(pos) {
     if (!el) return null;
     el.className = "site-pin";
     el.title = pos.name || "Dein Standort";
-    return new maplibregl.Marker({ element: el }).setLngLat([pos.lon, pos.lat]).addTo(map);
+    const m = new maplibregl.Marker({ element: el }).setLngLat([pos.lon, pos.lat]).addTo(map);
+    /* Nach dem Anlegen setzen: MapLibre beschriftet Marker sonst englisch und als Knopf */
+    if (el.setAttribute) { el.setAttribute("role", "img"); el.setAttribute("aria-label", pos.name ? "Gewählter Ort: " + pos.name : "Dein Standort"); }
+    return m;
 }
 
 function recenter() {
@@ -787,6 +796,8 @@ function initRadar() {
         zoom: pos ? 7 : 6,
         minZoom: 4, maxZoom: 12,
         attributionControl: { compact: true, customAttribution: "Radar: DWD, RADOLAN RV, CC BY 4.0" },
+        /* Beschriftungen der Kartenbibliothek für Vorleser auf Deutsch */
+        locale: { "Map.Title": "Kartenfläche", "Marker.Title": "Gewählter Ort", "AttributionControl.ToggleAttribution": "Quellenangaben ein- oder ausblenden", "AttributionControl.MapFeedback": "Rückmeldung zur Karte", "NavigationControl.ZoomIn": "Hineinzoomen", "NavigationControl.ZoomOut": "Herauszoomen", "NavigationControl.ResetBearing": "Norden nach oben" },
         dragRotate: false, pitchWithRotate: false, touchPitch: false
     });
     if (map.touchZoomRotate && map.touchZoomRotate.disableRotation) map.touchZoomRotate.disableRotation();
