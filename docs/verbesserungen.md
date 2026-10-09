@@ -46,9 +46,9 @@ und neue Ideen aus der Arbeit. Nach jeder Änderung wird die Liste nachgezogen u
 
 ## Neu aufgenommen
 
-- [ ] Füllungen im Stundenstreifen (Regen, Böen, Sonne) liegen unter 3:1 zum Grund. Geprüft am 09.10.2026: 3:1 verlangt dunkle Füllungen, auf denen die farbigen Stundentexte ihren Kontrast verlieren. Bleibt eine Designfrage für den User.
+- [x] Füllungen im Stundenstreifen: Entscheidung des Users am 09.10.2026, sie bleiben wie sie sind; die Zahl trägt die Information.
 - [ ] VoiceOver-Durchlauf auf einem echten iPhone; der Simulator hat kein VoiceOver. Klein.
 - [x] Regen-Alarm in Betrieb genommen (09.10.2026): KV-Namespace SUBS, Geheimnis VAPID_PRIVATE_KEY, Worker deployt mit Cron */15 und Testroute `/push/test`
 - [x] Regen-Alarm auf dem iPhone geprüft: Probenachricht angekommen (09.10.2026); der erste Schlüssel-Upload hatte einen Zeilenumbruch, der Worker schneidet das jetzt selbst ab
-- [ ] Aufnahme des Tagesfilms auf dem echten iPhone als Homescreen-App prüfen (im Simulator-Safari geht das Teilen-Blatt nicht auf).
+- [x] Tagesfilm samt Aufnahme auf dem echten iPhone geprüft (09.10.2026)
 - [x] Vortagswerte im Feld „Woher kommt das?“ als Modellwerte kennzeichnen – mit Punkt 1 erledigt
