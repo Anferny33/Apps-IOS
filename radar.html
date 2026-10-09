@@ -16,7 +16,9 @@
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css">
 <!-- Dieselben zwei Designs wie die Startseite; die dort gespeicherte Wahl gilt auch hier. -->
 <script>try { if (localStorage.getItem("wetter:night") === "1") document.documentElement.classList.add("night"); } catch (e) {}</script>
-<link rel="stylesheet" href="modern.css?v=20261009j" id="cssModern">
+<link rel="stylesheet" href="modern.css?v=20261009k" id="cssModern">
+<!-- Schriftgrenze: die Systemschriftgröße wirkt bis zum 1,6-Fachen (27,2 px), darüber hält das Raster nicht mehr -->
+<script>try { var fs0 = parseFloat(getComputedStyle(document.documentElement).fontSize); if (fs0 > 27.2) document.documentElement.style.fontSize = "27.2px"; } catch (e) {}</script>
 <style>
     /* ---------- Radar-Seite: Karte füllt den Platz zwischen Kopfzeile und Navigation ---------- */
     html, body { height: 100%; }
@@ -36,7 +38,7 @@
     #map { position: absolute; inset: 0; }
     #map .maplibregl-canvas { outline: none; }
     .maplibregl-ctrl-bottom-right { bottom: 6px; right: 6px; }
-    .maplibregl-ctrl-attrib { font-family: inherit !important; font-size: 9px !important; background: rgba(255,255,255,0.75) !important; color: #5c5a55 !important; border-radius: 10px !important; }
+    .maplibregl-ctrl-attrib { font-family: inherit !important; font-size: 0.529rem !important; background: rgba(255,255,255,0.75) !important; color: #5c5a55 !important; border-radius: 10px !important; }
     .maplibregl-ctrl-attrib a { color: var(--ink, #1E1B2E) !important; }
     .maplibregl-ctrl-attrib-button { background-color: rgba(255,255,255,0.75) !important; border-radius: 10px !important; }
 
@@ -46,10 +48,10 @@
         display: flex; align-items: center; gap: 8px;
         padding: 8px 12px; border-radius: 999px;
         background: var(--dark, rgba(11,26,51,0.85)); color: var(--white, #fff);
-        font-size: 13px; font-weight: 700; box-shadow: 0 6px 18px rgba(30,27,46,0.2);
+        font-size: 0.765rem; font-weight: 700; box-shadow: 0 6px 18px rgba(30,27,46,0.2);
         font-variant-numeric: tabular-nums;
     }
-    .badge .pill { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--rain, #BFD6F6); color: var(--rain-ink, #3A4A6B); transition: background-color 0.6s, color 0.6s; }
+    .badge .pill { font-size: 0.647rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--rain, #BFD6F6); color: var(--rain-ink, #3A4A6B); transition: background-color 0.6s, color 0.6s; }
     .badge .pill.fc { background: var(--sun, #F6D35B); color: var(--ink, #1E1B2E); }
     .badge .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--white, #fff); opacity: 0; transition: opacity 0.3s; }
     .badge.loading .dot { opacity: 1; animation: pulse 0.9s ease-in-out infinite; }
@@ -63,7 +65,7 @@
         width: 40px; height: 40px; border-radius: 14px; border: none; cursor: pointer;
         background: var(--card, #141c30); color: var(--ink, #fff);
         display: flex; align-items: center; justify-content: center;
-        box-shadow: 0 6px 18px rgba(30,27,46,0.18); font: inherit; font-size: 20px; font-weight: 700;
+        box-shadow: 0 6px 18px rgba(30,27,46,0.18); font: inherit; font-size: 1.176rem; font-weight: 700;
     }
     .mapbtn svg { width: 18px; height: 18px; }
     .mapbtn:active { transform: scale(0.94); }
@@ -73,7 +75,7 @@
         position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 5;
         padding: 7px 12px; border-radius: 999px; max-width: calc(100% - 24px);
         background: var(--dark, rgba(11,26,51,0.85)); color: var(--white, #fff);
-        font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        font-size: 0.706rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .status.hidden { display: none; }
 
@@ -81,7 +83,7 @@
         position: absolute; inset: 0; z-index: 6;
         display: flex; align-items: center; justify-content: center;
         text-align: center; padding: 24px;
-        font-size: 14px; font-weight: 500; line-height: 1.6;
+        font-size: 0.824rem; font-weight: 500; line-height: 1.6;
         color: var(--ink, #fff); background: var(--ground, rgba(11,26,51,0.85));
     }
     .map-msg.hidden { display: none; }
@@ -98,7 +100,7 @@
     .play {
         width: 46px; height: 46px; flex: none; border-radius: 50%; border: none; cursor: pointer;
         background: var(--dark, #2563b0); color: var(--white, #fff);
-        font-size: 16px; font-family: inherit; display: flex; align-items: center; justify-content: center;
+        font-size: 0.941rem; font-family: inherit; display: flex; align-items: center; justify-content: center;
     }
     .play.pop { animation: playPop 0.6s cubic-bezier(.2,.8,.2,1); }
     @keyframes playPop { 0% { transform: scale(0.86); } 60% { transform: scale(1.06); } 100% { transform: none; } }
@@ -114,22 +116,22 @@
     html.night { --tl-obs: rgba(241,239,248,0.45); --tl-fc: #3A3553; }
     .tl-axis { position: relative; height: 36px; margin-top: 4px; }
     .tl-axis.hidden { display: none; }
-    .tl-lbl { position: absolute; top: 4px; font-size: 11px; font-weight: 600; color: var(--ink-2, #9fb3d1); }
+    .tl-lbl { position: absolute; top: 4px; font-size: 0.647rem; font-weight: 600; color: var(--ink-2, #9fb3d1); }
     .tl-lbl.obs { left: 0; } .tl-lbl.fc { right: 0; } .tl-lbl.hidden { display: none; }
     .tl-mark { position: absolute; top: -18px; transform: translateX(-50%); width: 48px; height: 52px; padding: 0; border: 0; background: transparent; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 2px; color: var(--ink, #fff); font: inherit; }
     .tl-mark i { width: 2px; height: 16px; border-radius: 1px; background: var(--ink, #fff); }
-    .tl-mark span { font-size: 11px; font-weight: 700; white-space: nowrap; padding: 2px 7px; border-radius: 8px; background: var(--card, rgba(11,26,51,0.85)); font-variant-numeric: tabular-nums; }
+    .tl-mark span { font-size: 0.647rem; font-weight: 700; white-space: nowrap; padding: 2px 7px; border-radius: 8px; background: var(--card, rgba(11,26,51,0.85)); font-variant-numeric: tabular-nums; }
     .tl-mark:focus-visible { outline: 3px solid var(--ink, #fff); outline-offset: 2px; border-radius: 10px; }
 
     /* Legende: kompakte Farbleiste mit unteren Klassengrenzen, ausführliche Liste aufklappbar */
-    .legend { display: flex; flex-direction: column; gap: 4px; font-size: 11px; font-weight: 600; color: var(--ink-2, #9fb3d1); }
+    .legend { display: flex; flex-direction: column; gap: 4px; font-size: 0.647rem; font-weight: 600; color: var(--ink-2, #9fb3d1); }
     .lg-row { display: flex; align-items: center; gap: 8px; }
     .lg-unit { flex: none; }
     .lg-bar { flex: 1; display: flex; height: 12px; border-radius: 6px; overflow: hidden; }
     .lg-bar i { flex: 1; display: block; }
     .lg-nodata { flex: none; display: inline-flex; align-items: center; gap: 4px; font-weight: 500; }
     .lg-nodata i { width: 12px; height: 12px; border-radius: 3px; background: #7d7d7d; opacity: 0.5; display: inline-block; }
-    .lg-ticks { display: flex; padding-left: 40px; font-size: 10px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .lg-ticks { display: flex; padding-left: 40px; font-size: 0.588rem; font-weight: 600; font-variant-numeric: tabular-nums; }
     .lg-ticks span { flex: 1; min-width: 0; white-space: nowrap; }
     @media (max-width: 440px) { .lg-ticks span.alt { visibility: hidden; } }
     .lg-more { font-weight: 500; }
@@ -140,7 +142,7 @@
     .lg-more p { margin: 6px 0 0; font-weight: 500; }
     .legend img { height: 16px; max-width: 100%; display: block; }
     .lg-note { font-weight: 500; }
-    .rnote { font-size: 11px; color: var(--ink-2, #9fb3d1); line-height: 1.4; }
+    .rnote { font-size: 0.647rem; color: var(--ink-2, #9fb3d1); line-height: 1.4; }
 
     /* Querformat auf dem Telefon: alles in einer Zeile, Karte bekommt die Höhe */
     @media (orientation: landscape) and (max-height: 520px) {
@@ -156,7 +158,7 @@
         .lg-row { display: contents; }
         .lg-unit { grid-column: 1; grid-row: 1; }
         .lg-bar, .legend img { grid-column: 2; grid-row: 1; }
-        .lg-ticks { grid-column: 2; grid-row: 2; padding-left: 0; font-size: 9px; }
+        .lg-ticks { grid-column: 2; grid-row: 2; padding-left: 0; font-size: 0.529rem; }
         .lg-ticks span.alt { visibility: hidden; }
         .lg-nodata { grid-column: 2; grid-row: 3; }
         .lg-note { grid-column: 1 / -1; }
@@ -241,8 +243,8 @@
 </div>
 
 <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
-<script src="sonne.js?v=20261009j"></script>
-<script src="radar.js?v=20261009j"></script>
+<script src="sonne.js?v=20261009k"></script>
+<script src="radar.js?v=20261009k"></script>
 <script>if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js").catch(function () {}); }</script>
 </body>
 </html>

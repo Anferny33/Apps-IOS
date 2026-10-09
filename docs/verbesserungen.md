@@ -14,12 +14,12 @@ und neue Ideen aus der Arbeit. Nach jeder Änderung wird die Liste nachgezogen u
 - [x] Schirm-Schwelle: Rat in drei Stufen nach Menge, Intensität und Risiko – `e11cd5b`
 - [x] Vergleich mit gestern (8) als vierter Hero-Chip – `e11cd5b`
 - [x] Woher kommt das? (1): Herkunftsblatt aus Aktualitätszeile und Instrument-Feldern – `99a5e13`
-- [x] Highlights der nächsten Tage (9): Feld „Nächste Tage“ mit bis zu drei Regel-Highlights – 09.10.2026
+- [x] Highlights der nächsten Tage (9): Feld „Nächste Tage“ mit bis zu drei Regel-Highlights – `dbd3723`
 
 ## Offen, aus den Claude-Prinzipien
 
 - [ ] Eigenes Dashboard (3): Kacheln ausblenden und umsortieren, Reihenfolge gespeichert. Mittel.
-- [ ] Tagesfilm (4): zehn Sekunden Animation aus den Tageswerten, morgens als Begrüßung. Groß.
+- [ ] Tagesfilm (4): zehn Sekunden Animation aus den Tageswerten, morgens als Begrüßung, teilbar als Video. Groß. Entscheidung 09.10.2026: bleibt offen, wenn, dann vollständig mit Videoaufnahme; Bedingung: kostenlos, alles auf dem Gerät, keine API oder Dienste.
 - [ ] Bewegungssystem (5): feste Dauer- und Easing-Stufen, kürzere Startchoreografie (heute gut zwei Sekunden), Neustart nur bei Datenänderung. Mittel.
 
 ## Offen, aus anderen Apps
@@ -31,12 +31,18 @@ und neue Ideen aus der Arbeit. Nach jeder Änderung wird die Liste nachgezogen u
 
 ## Offen, Grundlagen
 
-- [ ] Zugänglichkeit (15): Schrift in rem mit Systemskalierung, Kontrastprüfung der Grautöne, Stundenspalten per Tastatur, Textalternative je Diagramm. Mittel.
+- [ ] Zugänglichkeit (15), in fünf Stufen. Mittel.
+  - [x] Stufe 1: Schrift folgt der Systemgröße (rem, Dynamic Type, Deckel 1,6-fach, große Zahlen begrenzt) – 09.10.2026
+  - [ ] Stufe 2: Stundenspalten als Schaltflächen mit Satz je Stunde, Pfeiltasten, Zeitreise per Tastatur
+  - [ ] Stufe 3: Textalternative je Diagramm (Regenbalken, Stundenstreifen, Sichtverlauf, Kompass, Sonnenbogen, Modellkurven)
+  - [ ] Stufe 4: Kontrastprüfung der getönten Kacheln, Chips im Hero, gedämpftes Grau nachts, Balkenfarben (3:1)
+  - [ ] Stufe 5: Live-Region für Laden, Aktualisieren, Fehler und Ansichtswechsel
 - [ ] Zwei Spalten ab 760 px (16) für iPad und Mac; bisher kein Breakpoint, Seite bleibt bei 640 px einspaltig. Mittel.
 - [ ] Einstellungen (17): Einheiten, Rausgehen-Schwellen, Bewegung, Standardansicht. Mittel.
 
 ## Neu aufgenommen
 
+- [ ] Text in SVG-Grafiken (Kompass, Sonnenbogen, Modellkurven) folgt der Systemschrift noch nicht; braucht eine eigene Skalierung der Grafiken. Klein.
 - [x] Vortagswerte im Feld „Woher kommt das?“ als Modellwerte kennzeichnen – mit Punkt 1 erledigt
 - [ ] Läufe der Vergleichsmodelle (ICON-EU, ECMWF, GFS, UKMO) im Herkunftsblatt nennen; Open-Meteo hat Metadaten je Modell, nur die des Ensembles sind veraltet. Klein.
 - [ ] Highlights im Herkunftsblatt erklären (Regeln und Schwellen), passt zu „Woher kommt das?“. Klein.

@@ -287,6 +287,20 @@ function boot(opts) {
   G(sb,'daysField').classList.remove('all');
   H.check('Shell: Feld „Nächste Tage“ in index.html und Stile im Stylesheet', fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8').includes('id="highlights"') && fs.readFileSync(require('path').join(__dirname, '..', 'modern.css'), 'utf8').includes('.hl-row') && fs.readFileSync(require('path').join(__dirname, '..', 'modern.css'), 'utf8').includes('.drow.flash'));
 
+  // Zugänglichkeit, Stufe 1: Schrift folgt der Systemgröße (rem auf 17-px-Basis, Dynamic Type unter WebKit)
+  const cssA = fs.readFileSync(require('path').join(__dirname, '..', 'modern.css'), 'utf8');
+  const radarA = fs.readFileSync(require('path').join(__dirname, '..', 'radar.html'), 'utf8');
+  const idxA = fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
+  H.check('Schrift: 17-px-Grundschrift, unter WebKit auf Touch-Geräten die Systemgröße', cssA.includes('html { font-size: 17px; }') && /@supports \(font: -apple-system-body\)\s*\{\s*@media \(hover: none\) and \(pointer: coarse\)\s*\{\s*html \{ font: -apple-system-body; \}/.test(cssA) && cssA.includes('body {\n    font-family:') && /body \{[^}]*font-size: 1rem;/.test(cssA));
+  const pxSizes = (cssA.match(/font-size: *[0-9.]+px/g) || []);
+  const pxLines = cssA.split('\n').filter(l => /font-size: *[0-9.]+px/.test(l));
+  H.check('Schrift: alle Textgrößen in rem, Pixel nur für Text in SVG-Grafiken', pxSizes.length === 6 && pxLines.every(l => /^html \{ font-size: 17px; \}|\.compass text|\.sunbig \.t[ln]|\.mchart \.(lbl|end)/.test(l)) && (cssA.match(/font-size: *[0-9.]+rem/g) || []).length >= 70, pxSizes.length + ' px: ' + pxLines.map(l => l.trim().slice(0, 40)).join(' | '));
+  H.check('Schrift: große Zahlen über die Bildschirmbreite gedeckelt', /\.hero-field \.temp \{[^}]*font-size: min\([0-9.]+rem, [0-9.]+vw\)/.test(cssA) && /\.tile \.big \{[^}]*font-size: min\([0-9.]+rem, [0-9.]+vw\)/.test(cssA) && /\.tile\.plain \.big \{[^}]*font-size: min\([0-9.]+rem, [0-9.]+vw\)/.test(cssA) && /\.wind-now \.big \{[^}]*font-size: min\([0-9.]+rem, [0-9.]+vw\)/.test(cssA));
+  H.check('Schrift: Zeilenhöhen ohne Pixel, Textzeilen mit Mindest- statt Festhöhe', !/line-height: *[0-9.]+px/.test(cssA) && /\.drow \{[^}]*min-height: 48px/.test(cssA) && !/\.drow \{[^}]*[^-]height: 48px/.test(cssA) && /\.days-more \{[^}]*min-height: 48px/.test(cssA) && /\.loc \{[^}]*min-height: 46px/.test(cssA) && /\.banner button \{[^}]*min-height: 44px/.test(cssA) && /\.preview-bar \.pb-now \{[^}]*min-height: 36px/.test(cssA), (cssA.match(/line-height: *[0-9.]+px/g) || []).join(','));
+  H.check('Schrift: Textspalten der Tagesliste und Stundenspalten skalieren mit', /\.drow \.n \{[^}]*width: [0-9.]+rem/.test(cssA) && /\.drow \.lo, \.drow \.hi \{[^}]*width: [0-9.]+rem/.test(cssA) && /\.hl-day \{[^}]*min-width: [0-9.]+rem/.test(cssA) && /\.hcol \{[^}]*flex: 0 0 [0-9.]+rem/.test(cssA) && /\.act-track i \{[^}]*flex: 0 0 [0-9.]+rem/.test(cssA));
+  H.check('Schrift: Radarseite ohne Pixel-Schriftgrößen', !/font-size: *[0-9.]+px/.test(radarA), (radarA.match(/font-size: *[0-9.]+px/g) || []).join(','));
+  H.check('Schrift: Obergrenze 1,6-fach im Kopfskript', /fontSize[\s\S]{0,200}27\.2|27\.2[\s\S]{0,200}fontSize/.test(idxA) && idxA.includes('Schriftgrenze'), idxA.slice(idxA.indexOf('Schriftgrenze') - 80, idxA.indexOf('Schriftgrenze') + 120));
+
   const wn = G(sb,'warnings').innerHTML;
   const dwdUrl = sb._fetchLog.find(u => u.includes('maps.dwd.de')) || '';
   H.check('Warnungen: DWD-WFS mit Punkt in Breite/Länge-Reihenfolge abgefragt', decodeURIComponent(dwdUrl).replace(/\+/g, ' ').includes('INTERSECTS(THE_GEOM,POINT(48.137 11.575))') && dwdUrl.includes('typeName=dwd%3AWarnungen_Gemeinden'), decodeURIComponent(dwdUrl));
@@ -705,7 +719,7 @@ function boot(opts) {
   H.check('Shell: Rausgehen-Feld in index.html', idx.includes('id="activityField"') && idx.includes('id="activity"'));
   H.check('Shell: Ansicht nach Frage in index.html und Stylesheet mit Nacht-Token', idx.includes('id="views"') && idx.includes('id="viewAnswer"') && idx.includes('id="hourlyNote"') && idx.includes('id="daysHint"') && css.includes('.view-chip') && css.includes('--wfill: #BFE0C4') && css.includes('--wfill: #2F5A3A') && css.includes('.hcol.tc4:not(.now)') && css.includes('.days-field.v-light .drow .bar i') && css.includes('.vis24 i.fog') && css.includes('html.night .vis24 i.fog'));
   H.check('Shell: keine klassische Ansicht mehr verlinkt oder vorhanden', !idx.includes('klassisch.html') && !fs.existsSync(require('path').join(__dirname, '..', 'klassisch.html')) && !fs.existsSync(require('path').join(__dirname, '..', 'wetter.css')));
-  H.check('Shell: Versions-Query 20261009j an allen Asset-Links', (idx.match(/\?v=20261009j"/g) || []).length === 4 && (rad.match(/\?v=20261009j"/g) || []).length === 3, (idx.match(/\?v=\w+"/g) || []).join(','));
+  H.check('Shell: Versions-Query 20261009k an allen Asset-Links', (idx.match(/\?v=20261009k"/g) || []).length === 4 && (rad.match(/\?v=20261009k"/g) || []).length === 3, (idx.match(/\?v=\w+"/g) || []).join(','));
   H.check('Shell: Sonnenrechnung vor den App-Skripten, Nachtklasse vor dem ersten Zeichnen', [idx, rad].every(h => h.includes('<script src="sonne.js?v=') && /wetter:night[\s\S]{0,120}classList\.add\("night"\)/.test(h) && h.indexOf('wetter:night') < h.indexOf('<link rel="stylesheet" href="modern.css')));
   H.check('Shell: Nachtpalette im Stylesheet mit Token, Hero-Farben, Fade und Kachel-Einblendung', css.includes('html.night {') && css.includes('--card:') && css.includes('--soft:') && css.includes('--wet:') && css.includes('html.night .theme-rain') && css.includes('html.fade') && css.includes('.tile.swap') && css.includes('.field.white { background: var(--card); }') && /\.tile \{[^}]*background: var\(--card\)/.test(css) && /\.hcol\.wet \{ background: var\(--wet\)/.test(css), css.match(/\.field\.white[^\n]*/));
 
