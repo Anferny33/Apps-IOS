@@ -2939,7 +2939,12 @@ function pushSettingsHtml() {
 }
 
 function moreSettingsHtml() {
-    return '<section class="set-sec"><h3>Regen-Alarm</h3>' + pushSettingsHtml() + '</section>' + filmSettingsHtml();
+    return '<section class="set-sec"><h3>Regen-Alarm</h3>' + pushSettingsHtml() + '</section>' + filmSettingsHtml() + feedbackSettingsHtml();
+}
+
+function feedbackSettingsHtml() {
+    return '<section class="set-sec"><h3>Rückmeldung</h3><div class="set-note">Fehler, Idee oder Lob an den Entwickler, ohne Konto. Mitgeschickt werden nur Version und Gerätedaten, kein Ort.</div>' +
+        '<div class="set-row"><button type="button" class="set-btn" id="fbOpen">Rückmeldung schreiben</button></div></section>';
 }
 /* ------------------------------------------------------------------ *
  * Tagesfilm: zehn Sekunden aus den Tageswerten, gezeichnet auf einer Zeichenfläche (1080 × 1920),
@@ -3166,6 +3171,165 @@ function shareFilm() {
     return true;
 }
 
+/* ------------------------------------------------------------------ *
+ * Rückmeldung: Blatt mit Art, Text und Kürzel; geht an den eigenen Worker, ohne Konto.
+ * Mitgeschickt werden Version, Gerät, Breite, Schriftfaktor, Homescreen-App, Ansicht und der
+ * letzte Fehlertext, kein Ort. Ohne Netz wartet der Eintrag auf den nächsten Start.
+ * ------------------------------------------------------------------ */
+const FB_KEY = "wetter:feedback";
+const FB_KINDS = [["fehler", "Fehler"], ["idee", "Idee"], ["lob", "Lob"]];
+var lastErrorText = "";
+let fbKind = "idee", fbTrigger = null, fbSending = false;
+
+function randomId(n) {
+    const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+    let out = "";
+    if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+        const buf = new Uint8Array(n);
+        crypto.getRandomValues(buf);
+        for (let i = 0; i < n; i++) out += chars[buf[i] % chars.length];
+        return out;
+    }
+    for (let i = 0; i < n; i++) out += chars[Math.floor(Math.random() * chars.length)];
+    return out;
+}
+
+function fbEsc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+
+function loadFeedbackState() {
+    let s = null;
+    try { s = JSON.parse(localStorage.getItem(FB_KEY)); } catch (e) { s = null; }
+    if (!s || typeof s !== "object") s = {};
+    if (typeof s.id !== "string" || !/^[a-z0-9]{16}$/.test(s.id)) s.id = randomId(16);
+    if (typeof s.name !== "string") s.name = "";
+    if (!Array.isArray(s.queue)) s.queue = [];
+    return s;
+}
+function saveFeedbackState(s) { try { localStorage.setItem(FB_KEY, JSON.stringify(s)); } catch (e) { /* kein Speicher */ } }
+
+function feedbackMeta() {
+    const nav = typeof navigator !== "undefined" ? navigator : {};
+    const win = typeof window !== "undefined" ? window : {};
+    let font = 1;
+    try {
+        const px = parseFloat(getComputedStyle(document.documentElement).fontSize);
+        if (isFinite(px) && px > 0) font = Math.round(px / 17 * 100) / 100;
+    } catch (e) { font = 1; }
+    return {
+        version: ASSET_VERSION || "", ua: String(nav.userAgent || "").slice(0, 200),
+        width: typeof win.innerWidth === "number" ? win.innerWidth : 0, font: font,
+        standalone: !!pushStandalone(), view: currentView(), lastError: lastErrorText.slice(0, 300),
+        ts: new Date().toISOString()
+    };
+}
+
+function feedbackHtml(state) {
+    const chips = FB_KINDS.map(function (k) {
+        return '<button type="button" class="set-chip fb-kind" data-kind="' + k[0] + '" aria-pressed="' + (k[0] === fbKind ? 'true' : 'false') + '">' + k[1] + '</button>';
+    }).join('');
+    const n = state.queue.length;
+    const waiting = n ? '<div class="fb-msg">' + (n === 1 ? '1 Rückmeldung wartet auf Netz und wird' : n + ' Rückmeldungen warten auf Netz und werden') + ' beim nächsten Start gesendet.</div>' : '';
+    return '<div class="fb-form">' +
+        '<div class="seg" role="group" aria-label="Art der Rückmeldung">' + chips + '</div>' +
+        '<textarea id="fbText" maxlength="2000" rows="5" placeholder="Was ist dir aufgefallen?" aria-label="Rückmeldung"></textarea>' +
+        '<input type="text" id="fbName" maxlength="40" placeholder="Name oder Kürzel (optional)" aria-label="Name oder Kürzel" autocomplete="off" value="' + fbEsc(state.name) + '">' +
+        '<div class="fb-row"><button type="button" class="set-btn" id="fbSend">Senden</button><span class="fb-msg" id="fbMsg" role="status"></span></div>' + waiting +
+        '<p class="fb-note">Mitgeschickt werden App-Version, Gerät, Bildschirmbreite, Schriftgröße, ob als Homescreen-App, die aktuelle Ansicht und der letzte Fehlertext. Kein Ort, keine Koordinaten. Die Nachricht liegt beim Cloudflare-Worker der App und wird nach 90 Tagen gelöscht.</p></div>';
+}
+
+function openFeedback(trigger) {
+    if (!D("fb") || !D("fbBody")) return;
+    fbTrigger = trigger || null;
+    D("fbBody").innerHTML = feedbackHtml(loadFeedbackState());
+    document.body.classList.add("fb-open");
+    if (D("fbLink")) D("fbLink").setAttribute("aria-expanded", "true");
+    setTimeout(function () { if (D("fbText") && D("fbText").focus) D("fbText").focus(); }, 300);
+}
+
+function closeFeedback() {
+    document.body.classList.remove("fb-open");
+    if (D("fbLink")) D("fbLink").setAttribute("aria-expanded", "false");
+    const back = fbTrigger && fbTrigger.focus ? fbTrigger : D("fbLink");
+    if (back && back.focus) back.focus();
+    fbTrigger = null;
+}
+
+function setFeedbackKind(kind) {
+    fbKind = FB_KINDS.some(function (k) { return k[0] === kind; }) ? kind : "idee";
+    const body = D("fbBody");
+    if (body && body.querySelectorAll) Array.prototype.slice.call(body.querySelectorAll(".fb-kind")).forEach(function (b) {
+        b.setAttribute("aria-pressed", b.getAttribute("data-kind") === fbKind ? "true" : "false");
+    });
+}
+
+function setFeedbackMsg(text) { if (D("fbMsg")) D("fbMsg").textContent = text; }
+
+function postFeedback(entry) {
+    return withTimeout(fetch(NINA_PROXY + "/feedback", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(entry) }), 8000, "Zeitüberschreitung");
+}
+
+async function sendFeedback() {
+    if (fbSending) return;
+    const text = D("fbText") ? String(D("fbText").value || "").trim() : "";
+    const name = D("fbName") ? String(D("fbName").value || "").trim().slice(0, 40) : "";
+    if (text.length < 3) { setFeedbackMsg("Bitte ein paar Worte mehr."); return; }
+    const state = loadFeedbackState();
+    state.name = name;
+    saveFeedbackState(state);
+    const entry = { text: text.slice(0, 2000), kind: fbKind, name: name, id: state.id, meta: feedbackMeta() };
+    fbSending = true;
+    setFeedbackMsg("Wird gesendet …");
+    let res = null;
+    try { res = await postFeedback(entry); } catch (e) { res = null; }
+    fbSending = false;
+    if (res && res.status === 429) { setFeedbackMsg("Höchstens fünf Rückmeldungen pro Stunde, bitte später noch einmal."); return; }
+    if (res && res.status === 400) { setFeedbackMsg("Der Worker hat die Rückmeldung abgelehnt, bitte den Text prüfen."); return; }
+    if (res && res.ok) {
+        if (D("fbText")) D("fbText").value = "";
+        setFeedbackMsg("Danke, angekommen.");
+        announce("Rückmeldung gesendet.");
+        return;
+    }
+    /* Kein Netz oder Worker nicht erreichbar: aufheben und beim nächsten Start nachschicken */
+    const st = loadFeedbackState();
+    st.queue.push(entry);
+    if (st.queue.length > 10) st.queue = st.queue.slice(-10);
+    saveFeedbackState(st);
+    if (D("fbText")) D("fbText").value = "";
+    setFeedbackMsg("Kein Netz. Die Rückmeldung ist gespeichert und wird beim nächsten Start gesendet.");
+    announce("Rückmeldung gespeichert.");
+}
+
+/* Wartende Einträge der Reihe nach schicken; beim ersten Fehlschlag bleibt der Rest liegen */
+async function flushFeedbackQueue() {
+    const state = loadFeedbackState();
+    if (!state.queue.length || typeof fetch !== "function") return;
+    const rest = state.queue.slice();
+    while (rest.length) {
+        let res = null;
+        try { res = await postFeedback(rest[0]); } catch (e) { res = null; }
+        if (res && (res.ok || res.status === 400)) rest.shift(); else break;
+    }
+    const st = loadFeedbackState();
+    st.queue = rest;
+    saveFeedbackState(st);
+}
+
+function initFeedback() {
+    if (D("fbLink")) D("fbLink").addEventListener("click", function () { openFeedback(D("fbLink")); });
+    if (D("fbBg")) D("fbBg").addEventListener("click", closeFeedback);
+    if (D("fbClose")) D("fbClose").addEventListener("click", closeFeedback);
+    if (D("fb")) D("fb").addEventListener("keydown", function (ev) { if (ev.key === "Escape") closeFeedback(); });
+    const body = D("fbBody");
+    if (body && body.addEventListener) body.addEventListener("click", function (ev) {
+        const q = function (sel) { return ev.target && ev.target.closest ? ev.target.closest(sel) : null; };
+        const k = q(".fb-kind");
+        if (k) { setFeedbackKind(k.getAttribute("data-kind")); return; }
+        if (q("#fbSend")) sendFeedback();
+    });
+    flushFeedbackQueue().catch(function () {});
+}
+
 function initFilm() {
     if (D("filmClose")) D("filmClose").addEventListener("click", closeFilm);
     if (D("filmShare")) D("filmShare").addEventListener("click", shareFilm);
@@ -3222,6 +3386,7 @@ function initSettings() {
         if (q("#tripDel")) { setSetting("trip", null); renderTrip(); announce("Reise gelöscht."); return; }
         if (q("#tripPick")) { closeSettings(); if (typeof window.openTripSearch === "function") window.openTripSearch(); return; }
         if (q("#filmPlay")) { closeSettings(); if (!openFilm()) announce("Tagesfilm hier nicht möglich."); return; }
+        if (q("#fbOpen")) { closeSettings(); openFeedback(D("settingsBtn")); return; }
         if (q("#pushTest")) { testPush(); return; }
         const t = q(".set-chip");
         if (!t) return;
@@ -3560,6 +3725,7 @@ function initDesignApp() {
 
     function showBanner(text, isError, btnLabel, btnFn) {
         announce(text);
+        if (isError) lastErrorText = String(text).replace(/<[^>]+>/g, "").slice(0, 300);
         const b = D("banner");
         b.className = "banner" + (isError ? " err" : "");
         b.innerHTML = text + (btnLabel ? '<button type="button" id="bannerBtn">' + btnLabel + '</button>' : '');
@@ -3910,6 +4076,7 @@ function initDesignApp() {
     initSource();
     initHourKeys();
     initSettings();
+    initFeedback();
     initTrip();
     if (D("trendBtn")) D("trendBtn").addEventListener("click", toggleTrend);
     initRadarSheet();

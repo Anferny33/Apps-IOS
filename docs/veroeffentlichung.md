@@ -9,7 +9,7 @@ die Reihenfolge ein Vorschlag. Punkte mit „Entscheidung“ brauchen deine Wahl
 Die App läuft als Homescreen-Web-App weiter, ohne Store, ohne Konto.
 
 - [ ] Testanleitung als kurze Seite oder Nachricht: Link https://anferny33.github.io/Apps-IOS/, in Safari öffnen, Teilen, „Zum Home-Bildschirm“, von dort starten. Hinweis: Regen-Alarm und Tagesfilm-Teilen nur aus der Homescreen-App, iOS 16.4 oder neuer.
-- [ ] Rückkanal festlegen: eine Nachricht, eine E-Mail-Adresse oder ein kleiner Link „Rückmeldung“ im Fuß der App (Entscheidung).
+- [x] Rückkanal: Blatt „Rückmeldung“ in der App (Fußzeile und Einstellungen) an den eigenen Worker, Lesen mit `proxy/feedback.sh`. Entschieden am 9. Oktober 2026.
 - [ ] Nutzung im Blick behalten: Open-Meteo erlaubt die kostenlose Nutzung nur nicht-kommerziell und bis 10.000 Aufrufe am Tag; jede Installation ruft die API direkt auf. Für eine Handvoll Tester reicht das.
 - [ ] Rückmeldungen in `docs/verbesserungen.md` sammeln und abarbeiten.
 

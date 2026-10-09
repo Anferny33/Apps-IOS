@@ -14,7 +14,12 @@ crons = ["*/15 * * * *"]
 binding = "SUBS"
 id = "6f24ae22af8c4484becf56b2a4a4ae7e"
 
+# Rückmeldungen der Tester: `npx wrangler kv namespace create FEEDBACK`; Lesen nur mit dem Geheimnis FEEDBACK_TOKEN
+[[kv_namespaces]]
+binding = "FEEDBACK"
+id = "443e727b471547c7a7e75d8bc5703e20"
+
 [vars]
 VAPID_PUBLIC_KEY = "BLlIrCr2ZhfskoTzqOPMPkQTD5BKRVZ4idoQga8jMXCYHKln2VHfi7j6KJuDxggh_nYNaQaQHnCoYd9KKuO_-SM"
 VAPID_SUBJECT = "mailto:anferny.nash@googlemail.com"
-# VAPID_PRIVATE_KEY als Geheimnis: `npx wrangler secret put VAPID_PRIVATE_KEY` (lokal in .dev.vars)
+# VAPID_PRIVATE_KEY und FEEDBACK_TOKEN als Geheimnisse: `npx wrangler secret put <NAME>` (lokal in .dev.vars)

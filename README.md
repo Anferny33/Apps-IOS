@@ -84,6 +84,13 @@ die PNGs mit `node tests/build-icons.js` neu rendern (braucht Playwright mit Chr
 
 Für den App Store: Checkliste in `docs/veroeffentlichung.md` (Phasen von der Freundesrunde bis zur Einreichung). Laufende Verbesserungen: `docs/verbesserungen.md`.
 
+### Rückmeldungen der Tester
+
+In der App gibt es „Rückmeldung“ in der Fußzeile und in den Einstellungen: Fehler, Idee oder Lob
+gehen an den eigenen Worker (`proxy/`), ohne Konto. `proxy/feedback.sh` holt die ungelesenen
+Einträge, `proxy/feedback.sh ack <id>` markiert sie; Vorschläge daraus landen in
+`docs/verbesserungen.md` unter „Rückmeldungen aus der Testrunde“.
+
 ### Web-App auf GitHub Pages
 
 GitHub Pages liefert den Branch `claude/lignano-weather-webapp-e346s0` aus.

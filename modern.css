@@ -464,7 +464,7 @@ html.night .tile.uv, html.night .tile.wind, html.night .tile.rain, html.night .t
 body.sheet-open #sheetBg { opacity: 1; pointer-events: auto; }
 body.sheet-open #sheet { transform: none; }
 /* Geschlossene Blätter sind für Vorleser unsichtbar (visibility), beim Öffnen sofort sichtbar, beim Schließen erst nach dem Hinausgleiten */
-body.sheet-open #sheet, body.radar-open #radarSheet, body.settings-open #settings, body.src-open #src { visibility: visible; transition: transform var(--d-fast) var(--ease), visibility 0s; }
+body.sheet-open #sheet, body.radar-open #radarSheet, body.settings-open #settings, body.src-open #src, body.fb-open #fb { visibility: visible; transition: transform var(--d-fast) var(--ease), visibility 0s; }
 .sheet .grip { width: 38px; height: 5px; border-radius: 3px; background: var(--line); margin: 0 auto 14px; }
 .sheet input {
     width: 100%; padding: 13px 14px 13px 42px; font-size: 0.941rem; font-family: inherit; font-weight: 500;
@@ -589,6 +589,21 @@ html.night .trip-btn { background: var(--ink); color: var(--ground); }
 /* ---------- Woher kommt das? (zweites Blatt, unabhängig von der Ortssuche) ---------- */
 #srcBg { z-index: 52; }
 .sheet.src { z-index: 53; }
+
+/* ---------- Rückmeldung: Blatt über den Einstellungen ---------- */
+#fbBg { z-index: 58; }
+.sheet.fb { z-index: 59; }
+body.fb-open #fbBg { opacity: 1; pointer-events: auto; }
+body.fb-open #fb { transform: none; }
+.fb-form { display: flex; flex-direction: column; gap: 10px; padding: 2px 2px 8px; }
+.fb-form textarea { width: 100%; min-height: 7.5rem; padding: 12px 14px; font: inherit; font-size: 0.941rem; font-weight: 500; line-height: 1.45; color: var(--ink); background: var(--ground); border: 0; border-radius: 16px; resize: vertical; outline: none; }
+.sheet.fb input { padding-left: 14px; background-image: none; }
+/* Textfelder matchen :focus-visible immer; ein leichter Ring statt des schwarzen Rahmens */
+.fb-form textarea:focus-visible, .sheet.fb input:focus-visible { box-shadow: inset 0 0 0 2px var(--ink-2); }
+.fb-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.fb-msg { font-size: 0.765rem; font-weight: 600; color: var(--ink); }
+.fb-note { margin: 2px 0 0; font-size: 0.706rem; font-weight: 500; color: var(--ink-2); line-height: 1.5; }
+footer .src-link { font-size: inherit; font-weight: 500; }
 body.src-open #srcBg { opacity: 1; pointer-events: auto; }
 body.src-open #src { transform: none; }
 .src-title { flex: 1; margin: 0; font-size: 1rem; font-weight: 800; letter-spacing: -0.2px; }

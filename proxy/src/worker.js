@@ -51,6 +51,15 @@ const PUSH_QUIET_MS = 3 * 3600000;          /* Sperrfrist zwischen zwei Nachrich
 const PUSH_HORIZON = 4;                     /* Viertelstunden nach der aktuellen: Regen innerhalb einer Stunde */
 const PUSH_TEST_GAP_MS = 5 * 60000;         /* Abstand zwischen zwei Probenachrichten je Abonnement */
 
+/* Rückmeldungen der Tester (KV-Namespace FEEDBACK) */
+const FB_PREFIX = "fb:";
+const FB_RATE_PREFIX = "fbrate:";
+const FB_TTL_S = 90 * 86400;                /* Einträge verfallen nach 90 Tagen */
+const FB_RATE_MAX = 5, FB_RATE_WINDOW_S = 3600;  /* je Kennung höchstens fünf pro Stunde */
+const FB_TEXT_MIN = 3, FB_TEXT_MAX = 2000;
+const FB_KINDS = ["fehler", "idee", "lob"];
+const FB_META = { version: 20, ua: 200, view: 20, lastError: 300, ts: 40 };  /* erlaubte Textfelder mit Höchstlänge */
+
 export default {
     async scheduled(event, env, ctx) { ctx.waitUntil(checkRain(env)); },
     async fetch(request, env, ctx) {
@@ -65,6 +74,15 @@ export default {
         if (url.pathname === "/push/test") {
             if (request.method !== "POST") return json({ error: "Nur POST" }, 405, cors);
             return pushTest(request, env, cors);
+        }
+        if (url.pathname === "/feedback") {
+            if (request.method === "POST") return feedbackPost(request, env, cors);
+            if (request.method === "GET") return feedbackList(request, url, env, cors);
+            return json({ error: "Nur GET oder POST" }, 405, cors);
+        }
+        if (url.pathname === "/feedback/ack") {
+            if (request.method !== "POST") return json({ error: "Nur POST" }, 405, cors);
+            return feedbackAck(request, env, cors);
         }
         if (request.method !== "GET") return json({ error: "Nur GET" }, 405, cors);
 
@@ -348,3 +366,89 @@ export async function checkRain(env, deps) {
     return out;
 }
 
+
+/* ------------------------------------------------------------------ *
+ * Rückmeldungen der Tester: Ablage im KV-Namespace FEEDBACK, Lesen und Markieren nur mit
+ * dem Geheimnis FEEDBACK_TOKEN (Authorization: Bearer …). Kein Ort, keine IP-Adresse.
+ * ------------------------------------------------------------------ */
+function clip(v, n) { return typeof v === "string" ? v.trim().slice(0, n) : ""; }
+
+/* Eingabe prüfen und kürzen; null, wenn Text oder Kennung fehlen */
+export function cleanFeedback(body, nowMs) {
+    if (!body || typeof body !== "object") return null;
+    const text = clip(body.text, FB_TEXT_MAX);
+    const install = typeof body.id === "string" && /^[a-z0-9]{8,40}$/.test(body.id) ? body.id : "";
+    if (text.length < FB_TEXT_MIN || !install) return null;
+    const m = body.meta && typeof body.meta === "object" ? body.meta : {};
+    const meta = {};
+    Object.keys(FB_META).forEach(function (k) { if (typeof m[k] === "string") meta[k] = clip(m[k], FB_META[k]); });
+    if (typeof m.width === "number" && isFinite(m.width)) meta.width = Math.max(0, Math.min(10000, Math.round(m.width)));
+    if (typeof m.font === "number" && isFinite(m.font)) meta.font = Math.max(0.5, Math.min(3, Math.round(m.font * 100) / 100));
+    if (typeof m.standalone === "boolean") meta.standalone = m.standalone;
+    const ms = nowMs || Date.now();
+    const rand = Math.random().toString(36).slice(2, 8);
+    return {
+        id: FB_PREFIX + String(ms).padStart(13, "0") + "-" + rand,
+        at: new Date(ms).toISOString(),
+        kind: FB_KINDS.indexOf(body.kind) >= 0 ? body.kind : "idee",
+        text: text, name: clip(body.name, 40), install: install.slice(0, 8),
+        meta: meta, read: false, exp: Math.floor(ms / 1000) + FB_TTL_S
+    };
+}
+
+async function feedbackPost(request, env, cors) {
+    if (!env.FEEDBACK) return json({ error: "Kein KV-Speicher gebunden" }, 500, cors);
+    let body;
+    try { body = await request.json(); } catch (e) { return json({ error: "JSON erwartet" }, 400, cors); }
+    const entry = cleanFeedback(body);
+    if (!entry) return json({ error: "Text (mindestens 3 Zeichen) oder Kennung fehlt" }, 400, cors);
+    const rateKey = FB_RATE_PREFIX + body.id;
+    let rate = null;
+    try { rate = JSON.parse(await env.FEEDBACK.get(rateKey)); } catch (e) { rate = null; }
+    const now = Date.now();
+    if (!rate || !rate.since || now - rate.since > FB_RATE_WINDOW_S * 1000) rate = { n: 0, since: now };
+    if (rate.n >= FB_RATE_MAX) return json({ error: "Höchstens " + FB_RATE_MAX + " Rückmeldungen pro Stunde" }, 429, cors);
+    rate.n++;
+    await env.FEEDBACK.put(rateKey, JSON.stringify(rate), { expirationTtl: FB_RATE_WINDOW_S });
+    await env.FEEDBACK.put(entry.id, JSON.stringify(entry), { expirationTtl: FB_TTL_S });
+    return json({ ok: true, id: entry.id }, 200, cors);
+}
+
+function feedbackAuthorized(request, env) {
+    const h = request.headers.get("Authorization") || "";
+    const token = h.startsWith("Bearer ") ? h.slice(7).trim() : "";
+    return !!env.FEEDBACK_TOKEN && token.length > 0 && token === String(env.FEEDBACK_TOKEN).trim();
+}
+
+async function feedbackList(request, url, env, cors) {
+    if (!env.FEEDBACK) return json({ error: "Kein KV-Speicher gebunden" }, 500, cors);
+    if (!feedbackAuthorized(request, env)) return json({ error: "Nicht erlaubt" }, 401, cors);
+    const all = url.searchParams.get("all") === "1";
+    const list = await env.FEEDBACK.list({ prefix: FB_PREFIX });
+    const items = [];
+    for (const key of list.keys) {
+        let e = null;
+        try { e = JSON.parse(await env.FEEDBACK.get(key.name)); } catch (err) { e = null; }
+        if (e && (all || !e.read)) items.push(e);
+    }
+    return json({ count: items.length, items: items }, 200, cors);
+}
+
+async function feedbackAck(request, env, cors) {
+    if (!env.FEEDBACK) return json({ error: "Kein KV-Speicher gebunden" }, 500, cors);
+    if (!feedbackAuthorized(request, env)) return json({ error: "Nicht erlaubt" }, 401, cors);
+    let body;
+    try { body = await request.json(); } catch (e) { return json({ error: "JSON erwartet" }, 400, cors); }
+    const ids = body && Array.isArray(body.ids) ? body.ids.filter(function (x) { return typeof x === "string" && x.startsWith(FB_PREFIX); }) : [];
+    const nowS = Math.floor(Date.now() / 1000);
+    let acked = 0;
+    for (const id of ids) {
+        let e = null;
+        try { e = JSON.parse(await env.FEEDBACK.get(id)); } catch (err) { e = null; }
+        if (!e) continue;
+        e.read = true;
+        await env.FEEDBACK.put(id, JSON.stringify(e), { expirationTtl: Math.max(60, (e.exp || nowS + FB_TTL_S) - nowS) });
+        acked++;
+    }
+    return json({ ok: true, acked: acked }, 200, cors);
+}

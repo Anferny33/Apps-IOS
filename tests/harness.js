@@ -224,10 +224,10 @@ function makeSandbox(opts) {
       setItem: (k, v) => { store[k] = String(v); },
       removeItem: k => { delete store[k]; }
     },
-    fetch: async (url) => {
+    fetch: async (url, init) => {
       fetchLog.push(url);
       if (!opts.fetchImpl) throw new Error('Failed to fetch');
-      return opts.fetchImpl(url);
+      return opts.fetchImpl(url, init);
     },
     navigator: opts.geolocation ? { geolocation: opts.geolocation } : {}
   };

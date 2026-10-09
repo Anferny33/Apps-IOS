@@ -53,6 +53,14 @@ und neue Ideen aus der Arbeit. Nach jeder Änderung wird die Liste nachgezogen u
 - [ ] Mittelpunkt-Trenner („·“) in Kacheltexten: auf dem echten iPhone hören, ob VoiceOver sie vorliest. Prüfpunkt.
 - [ ] Stundenstreifen: 48 Schaltflächen am Stück; Sprungmarke oder Zusammenfassung, falls es beim Wischen stört. Klein.
 - [ ] Gegencheck mit echtem VoiceOver (Wischen, Rotor) auf dem iPhone, wenn es passt. Klein.
+- [x] Rückkanal für Tester (09.10.2026): Blatt „Rückmeldung“ in Fußzeile und Einstellungen, Worker-Routen mit KV `FEEDBACK`, `proxy/feedback.sh`; Spezifikation `docs/superpowers/specs/2026-10-09-rueckkanal-design.md`
+- [ ] Tägliche geplante Aufgabe, die neue Rückmeldungen sichtet, sobald mehrere Tester aktiv sind. Klein.
+
+## Rückmeldungen aus der Testrunde
+
+Einträge aus `proxy/feedback.sh`, je mit Einschätzung und Vorschlag; Umsetzung nach Freigabe je Punkt.
+
+- (noch keine)
 - [x] Regen-Alarm in Betrieb genommen (09.10.2026): KV-Namespace SUBS, Geheimnis VAPID_PRIVATE_KEY, Worker deployt mit Cron */15 und Testroute `/push/test`
 - [x] Regen-Alarm auf dem iPhone geprüft: Probenachricht angekommen (09.10.2026); der erste Schlüssel-Upload hatte einen Zeilenumbruch, der Worker schneidet das jetzt selbst ab
 - [x] Tagesfilm samt Aufnahme auf dem echten iPhone geprüft (09.10.2026)

@@ -61,3 +61,16 @@ Der öffentliche VAPID-Schlüssel steht in `wrangler.toml` und in `wetter-core.j
 
 Prüfen: `node tests/smoke-push.js` läuft Verschlüsselung, VAPID, Alarmregel und Routen
 mit einem KV-Stub durch, ohne Netz.
+
+## Rückmeldungen der Tester
+
+Die App schickt Rückmeldungen (Fehler, Idee, Lob) an `POST /feedback`: Text, Art, optionales Kürzel,
+eine zufällige Installations-Kennung und Gerätedaten (Version, Browserkennung, Breite, Schriftfaktor,
+Homescreen-App, Ansicht, letzter Fehlertext). Kein Ort, keine IP-Adresse. Ablage im KV-Namespace
+`FEEDBACK`, Verfall nach 90 Tagen, je Kennung höchstens fünf Einträge pro Stunde.
+
+Lesen und Markieren nur mit dem Geheimnis `FEEDBACK_TOKEN` (`npx wrangler secret put FEEDBACK_TOKEN`,
+lokal in `.dev.vars`): `GET /feedback` liefert ungelesene Einträge (`?all=1` alle),
+`POST /feedback/ack` mit `{ "ids": [...] }` markiert sie als gelesen. Bequem per `proxy/feedback.sh`,
+`proxy/feedback.sh all` und `proxy/feedback.sh ack <id> …`. Frisch gesendete Einträge erscheinen in der
+Liste erst nach bis zu einer Minute (KV-Speicher ist erst dann überall sichtbar).

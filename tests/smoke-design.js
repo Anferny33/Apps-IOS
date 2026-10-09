@@ -796,7 +796,7 @@ function boot(opts) {
   H.check('Shell: Rausgehen-Feld in index.html', idx.includes('id="activityField"') && idx.includes('id="activity"'));
   H.check('Shell: Ansicht nach Frage in index.html und Stylesheet mit Nacht-Token', idx.includes('id="views"') && idx.includes('id="viewAnswer"') && idx.includes('id="hourlyNote"') && idx.includes('id="daysHint"') && css.includes('.view-chip') && css.includes('--wfill: #BFE0C4') && css.includes('--wfill: #2F5A3A') && css.includes('.hcol.tc4:not(.now)') && css.includes('.days-field.v-light .drow .bar i') && css.includes('.vis24 i.fog') && css.includes('html.night .vis24 i.fog'));
   H.check('Shell: keine klassische Ansicht mehr verlinkt oder vorhanden', !idx.includes('klassisch.html') && !fs.existsSync(require('path').join(__dirname, '..', 'klassisch.html')) && !fs.existsSync(require('path').join(__dirname, '..', 'wetter.css')));
-  H.check('Shell: Versions-Query 20261009p an allen Asset-Links', (idx.match(/\?v=20261009p"/g) || []).length === 4 && (rad.match(/\?v=20261009p"/g) || []).length === 3, (idx.match(/\?v=\w+"/g) || []).join(','));
+  H.check('Shell: Versions-Query 20261009q an allen Asset-Links', (idx.match(/\?v=20261009q"/g) || []).length === 4 && (rad.match(/\?v=20261009q"/g) || []).length === 3, (idx.match(/\?v=\w+"/g) || []).join(','));
   H.check('Shell: Sonnenrechnung vor den App-Skripten, Nachtklasse vor dem ersten Zeichnen', [idx, rad].every(h => h.includes('<script src="sonne.js?v=') && /wetter:night[\s\S]{0,120}classList\.add\("night"\)/.test(h) && h.indexOf('wetter:night') < h.indexOf('<link rel="stylesheet" href="modern.css')));
   H.check('Shell: Nachtpalette im Stylesheet mit Token, Hero-Farben, Fade und Kachel-Einblendung', css.includes('html.night {') && css.includes('--card:') && css.includes('--soft:') && css.includes('--wet:') && css.includes('html.night .theme-rain') && css.includes('html.fade') && css.includes('.tile.swap') && css.includes('.field.white { background: var(--card); }') && /\.tile \{[^}]*background: var\(--card\)/.test(css) && /\.hcol\.wet \{ background: var\(--wet\)/.test(css), css.match(/\.field\.white[^\n]*/));
 
@@ -895,7 +895,7 @@ function boot(opts) {
 
   /* VoiceOver-Durchlauf (Bedienungshilfen-Baum aus dem Simulator, 9. Oktober): geschlossene Blätter, zugeklappte
      Felder und die weiteren Tage standen im Baum; Modell-Chips waren vier lose Texte; Schalter ohne Feldnamen. */
-  H.check('VoiceOver: geschlossene Blätter unsichtbar, beim Öffnen sofort sichtbar', /\.sheet \{[^}]*visibility: hidden;[^}]*transition: transform var\(--d-fast\) var\(--ease\), visibility 0s var\(--d-fast\);/.test(css) && /body\.sheet-open #sheet, body\.radar-open #radarSheet, body\.settings-open #settings, body\.src-open #src \{ visibility: visible; transition: transform var\(--d-fast\) var\(--ease\), visibility 0s; \}/.test(css));
+  H.check('VoiceOver: geschlossene Blätter unsichtbar, beim Öffnen sofort sichtbar', /\.sheet \{[^}]*visibility: hidden;[^}]*transition: transform var\(--d-fast\) var\(--ease\), visibility 0s var\(--d-fast\);/.test(css) && /body\.sheet-open #sheet, body\.radar-open #radarSheet, body\.settings-open #settings, body\.src-open #src, body\.fb-open #fb \{ visibility: visible; transition: transform var\(--d-fast\) var\(--ease\), visibility 0s; \}/.test(css));
   H.check('VoiceOver: zugeklappte Detailfelder und weitere Tage unsichtbar, aufgeklappt sofort sichtbar', /\.tpanel \{[^}]*visibility: hidden;[^}]*transition: grid-template-rows var\(--d-base\) var\(--ease\), visibility 0s var\(--d-base\);/.test(css) && /\.tpanel\.open \{ grid-template-rows: 1fr; visibility: visible; transition: grid-template-rows var\(--d-base\) var\(--ease\), visibility 0s; \}/.test(css) && /\.days-field \.more-wrap \{[^}]*visibility: hidden;[^}]*transition: grid-template-rows var\(--d-slow\) var\(--ease\), visibility 0s var\(--d-slow\);/.test(css) && /\.days-field\.all \.more-wrap \{ grid-template-rows: 1fr; visibility: visible; transition: grid-template-rows var\(--d-slow\) var\(--ease\), visibility 0s; \}/.test(css));
   H.check('VoiceOver: Modell-Chips sind Schaltflächen mit einem Satz und Druckzustand', /<button type="button" class="mchip hl" data-model="icon_d2" aria-pressed="true" aria-label="ICON-D2: heute [\d,]+ mm, morgen [\d,]+ mm"/.test(mm) && /<button type="button" class="mchip" data-model="ukmo_seamless" aria-pressed="false" aria-label="UKMO: heute [\d,]+ mm, morgen 6,0 mm"/.test(mm) && !/<div class="mchip[ "]/.test(mm) && sb.modelChipLabel({ name: 'GFS', today: NaN, tomorrow: 1.25 }) === 'GFS: heute keine Angabe, morgen 1,3 mm', (mm.match(/<button[^>]*ukmo[^>]*>/) || [''])[0] + ' || ' + sb.modelChipLabel({ name: 'GFS', today: NaN, tomorrow: 1.25 }));
   H.check('VoiceOver: Modell-Chip-Klick setzt den Druckzustand um', (() => { const a = H.el(), b = H.el(); a.setAttribute('data-model', 'icon_d2'); a.setAttribute('aria-pressed', 'true'); b.setAttribute('data-model', 'ukmo_seamless'); b.setAttribute('aria-pressed', 'false'); sb.markModelChips([a, b], 'ukmo_seamless'); return a.getAttribute('aria-pressed') === 'false' && b.getAttribute('aria-pressed') === 'true' && b.classList.contains('hl') && !a.classList.contains('hl'); })());
@@ -904,7 +904,54 @@ function boot(opts) {
   const setV = G(sb,'settingsBody').innerHTML;
   H.check('VoiceOver: Sichtbar-Schalter nennen ihr Feld', /<button type="button" class="set-vis" data-id="insight" aria-pressed="true" aria-label="Hinweis sichtbar">Sichtbar<\/button>/.test(setV) && /class="set-vis" data-id="uv" aria-pressed="true" aria-label="UV-Index sichtbar"/.test(setV), (setV.match(/class="set-vis"[^>]*>/g) || []).slice(0, 2).join('\n'));
   H.check('Radar-Blatt: eingebettete Seite mit der Versions-Query des Skripts', sb.radarEmbedUrl() === 'radar.html?embed=1' && (sb.ASSET_VERSION = 'test1', sb.radarEmbedUrl() === 'radar.html?embed=1&v=test1') && (sb.ASSET_VERSION = '', true), sb.radarEmbedUrl());
-  H.check('VoiceOver: Live-Region am Seitenende, Fußzeilen-Trenner stumm, Tage-Knopf mit aria-expanded', idxA.indexOf('id="live"') > idxA.indexOf('</footer>') && (idxA.match(/<span aria-hidden="true"> · <\/span>/g) || []).length === 4 && /<button type="button" class="days-more" id="daysMore" aria-expanded="false">/.test(G(sb,'days').innerHTML));
+  H.check('VoiceOver: Live-Region am Seitenende, Fußzeilen-Trenner stumm, Tage-Knopf mit aria-expanded', idxA.indexOf('id="live"') > idxA.indexOf('</footer>') && (idxA.match(/<span aria-hidden="true"> · <\/span>/g) || []).length === 5 && /<button type="button" class="days-more" id="daysMore" aria-expanded="false">/.test(G(sb,'days').innerHTML));
+
+  /* Rückkanal: Blatt, Senden an den Worker, Antworten, Warteschlange ohne Netz, Metadaten */
+  const fbLog = [];
+  let fbMode = 'ok';
+  const fbFetch = async (url, init) => {
+    if (String(url).includes('/feedback')) {
+      fbLog.push({ url: String(url), init });
+      if (fbMode === 'down') throw new Error('offline');
+      if (fbMode === '429') return { ok: false, status: 429, json: async () => ({ error: 'zu viele' }) };
+      return { ok: true, status: 200, json: async () => ({ ok: true, id: 'fb:1' }) };
+    }
+    return H.okFetch(data)(url);
+  };
+  const sbB = boot({ fetchImpl: fbFetch, geolocation: granted });
+  const FB = id => sbB.document.getElementById(id);
+  await wait(300);
+  H.check('Rückmeldung: Blatt, Fußzeilen-Link und Hintergrund in index.html', idxA.includes('<div class="sheet fb" id="fb" role="dialog" aria-modal="true" aria-label="Rückmeldung">') && idxA.includes('id="fbBg"') && idxA.includes('id="fbClose"') && idxA.includes('id="fbBody"') && /<button type="button" class="src-link" id="fbLink" aria-haspopup="dialog" aria-expanded="false">Rückmeldung<\/button>/.test(idxA));
+  sbB.renderSettings();
+  H.check('Rückmeldung: Abschnitt in den Einstellungen mit Knopf', /<section class="set-sec"><h3>Rückmeldung<\/h3>[\s\S]*?id="fbOpen">Rückmeldung schreiben<\/button>/.test(G(sbB,'settingsBody').innerHTML));
+  sbB.openFeedback(null);
+  const fbHtml = FB('fbBody').innerHTML;
+  H.check('Rückmeldung: Blatt mit Art-Chips (Idee vorgewählt), Textfeld, Namensfeld, Senden und Hinweis', sbB.document.body.classList.contains('fb-open') && /class="set-chip fb-kind" data-kind="idee" aria-pressed="true"/.test(fbHtml) && /data-kind="fehler" aria-pressed="false"/.test(fbHtml) && /<textarea id="fbText"[^>]*maxlength="2000"/.test(fbHtml) && /<input[^>]*id="fbName"[^>]*maxlength="40"/.test(fbHtml) && fbHtml.includes('id="fbSend">Senden</button>') && fbHtml.includes('nach 90 Tagen gelöscht') && fbHtml.includes('Kein Ort, keine Koordinaten'), fbHtml.slice(0, 300));
+  FB('fbText').value = 'Hi';
+  await sbB.sendFeedback();
+  H.check('Rückmeldung: zu kurzer Text wird nicht gesendet', fbLog.length === 0 && FB('fbMsg').textContent === 'Bitte ein paar Worte mehr.', FB('fbMsg').textContent);
+  FB('fbText').value = 'Der Regenbalken ist mir zu klein.';
+  FB('fbName').value = 'Anna';
+  sbB.setFeedbackKind('fehler');
+  await sbB.sendFeedback();
+  const sent1 = fbLog.length ? JSON.parse(fbLog[0].init.body) : null;
+  const fbState = JSON.parse(sbB._store['wetter:feedback'] || '{}');
+  H.check('Rückmeldung: Senden schickt Text, Art, Name, Kennung und Metadaten; Dank, Name gemerkt, Feld geleert', fbLog.length === 1 && fbLog[0].url.endsWith('/feedback') && fbLog[0].init.method === 'POST' && sent1 && sent1.text === 'Der Regenbalken ist mir zu klein.' && sent1.kind === 'fehler' && sent1.name === 'Anna' && /^[a-z0-9]{16}$/.test(sent1.id) && sent1.id === fbState.id && typeof sent1.meta.ua === 'string' && typeof sent1.meta.ts === 'string' && sent1.meta.view === 'overview' && typeof sent1.meta.standalone === 'boolean' && FB('fbMsg').textContent === 'Danke, angekommen.' && FB('fbText').value === '' && fbState.name === 'Anna' && G(sbB,'live').textContent === 'Rückmeldung gesendet.', JSON.stringify(sent1) + ' | ' + FB('fbMsg').textContent);
+  fbMode = '429';
+  FB('fbText').value = 'Noch eine Idee für die Stundenleiste.';
+  await sbB.sendFeedback();
+  H.check('Rückmeldung: 429 vom Worker wird erklärt, Text bleibt stehen', FB('fbMsg').textContent === 'Höchstens fünf Rückmeldungen pro Stunde, bitte später noch einmal.' && FB('fbText').value !== '', FB('fbMsg').textContent);
+  fbMode = 'down';
+  await sbB.sendFeedback();
+  const queued = JSON.parse(sbB._store['wetter:feedback']).queue;
+  H.check('Rückmeldung: ohne Netz gespeichert, Hinweis auf den nächsten Start, Feld geleert', queued.length === 1 && queued[0].text === 'Noch eine Idee für die Stundenleiste.' && FB('fbMsg').textContent === 'Kein Netz. Die Rückmeldung ist gespeichert und wird beim nächsten Start gesendet.' && FB('fbText').value === '', FB('fbMsg').textContent + ' ' + queued.length);
+  fbMode = 'ok'; const fbBefore = fbLog.length;
+  await sbB.flushFeedbackQueue();
+  H.check('Rückmeldung: Warteschlange wird nachgeschickt und geleert', fbLog.length === fbBefore + 1 && JSON.parse(sbB._store['wetter:feedback']).queue.length === 0 && JSON.parse(fbLog[fbBefore].init.body).text === 'Noch eine Idee für die Stundenleiste.', fbLog.length - fbBefore);
+  sbB.closeFeedback();
+  H.check('Rückmeldung: Schließen entfernt die Klasse', !sbB.document.body.classList.contains('fb-open'));
+  H.check('Rückmeldung: letzter Fehlertext wandert in die Metadaten', /nicht geladen werden|Keine Verbindung/.test(sbF.feedbackMeta().lastError) && sbB.feedbackMeta().lastError === '', sbF.feedbackMeta().lastError);
+  H.check('Rückmeldung: Blatt über den Einstellungen, für Vorleser unsichtbar bis geöffnet', /#fbBg \{ z-index: 58; \}/.test(css) && /\.sheet\.fb \{ z-index: 59; \}/.test(css) && /body\.fb-open #fb \{ transform: none; \}/.test(css) && /body\.fb-open #fbBg \{ opacity: 1; pointer-events: auto; \}/.test(css) && /\.sheet\.fb input \{ padding-left: 14px; background-image: none; \}/.test(css));
 
   const sbSV = boot({ fetchImpl: H.okFetch(data), geolocation: granted, storage: { 'wetter:view': 'wind', 'wetter:settings': JSON.stringify({ startView: 'rain', motion: 'reduce' }) } });
   await wait(300);
