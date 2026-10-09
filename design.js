@@ -1448,7 +1448,8 @@ function tpItem(i, inner) {
 const TILE_NAMES = { wind: "Wind", rain: "Regen", sun: "Sonne", sicht: "Sicht" };
 
 function tilePanelHtml(key, inner, bodyClass) {
-    return '<div class="tpanel tp-' + key + '" data-for="' + key + '" id="tpanel-' + key + '" role="region" aria-label="' + (TILE_NAMES[key] || key) + ' im Detail"><div class="tpanel-in"><div class="tpanel-body' + (bodyClass ? ' ' + bodyClass : '') + '">' + inner + '</div></div></div>';
+    return '<div class="tpanel tp-' + key + '" data-for="' + key + '" id="tpanel-' + key + '" role="region" aria-label="' + (TILE_NAMES[key] || key) + ' im Detail"><div class="tpanel-in"><div class="tpanel-body' + (bodyClass ? ' ' + bodyClass : '') + '">' + inner +
+        '<button type="button" class="tp-src" data-src="' + key + '">Woher kommt das?</button></div></div></div>';
 }
 
 /* Wind: Kompass (Nadel zeigt, wohin der Wind weht) plus Böenverlauf der nächsten 12 Stunden */
@@ -2195,6 +2196,124 @@ function moveTabInk() {
 }
 
 let lastRenderedLoc = null;
+/* ------------------------------------------------------------------ *
+ * Woher kommt das? Quelle, Modell, Gitterpunkt, Rechenwege und Stand
+ * ------------------------------------------------------------------ */
+
+/* Welcher Abschnitt zu welchem Instrument-Feld gehört */
+const SRC_SECTION = { wind: "src-wind", rain: "src-regen", sun: "src-sonne", sicht: "src-sicht" };
+
+function fmtCoord(lat, lon) {
+    return fmtNum(Math.abs(lat), 2) + "° " + (lat >= 0 ? "N" : "S") + ", " + fmtNum(Math.abs(lon), 2) + "° " + (lon >= 0 ? "O" : "W");
+}
+function fmtKm(km) { return km < 10 ? fmtNum(km, 1) : String(Math.round(km)); }
+
+function srcSection(id, title, items) {
+    return '<section class="src-sec" id="' + id + '"><h3>' + title + '</h3>' +
+        items.filter(Boolean).map(function (p) { return '<p>' + p + '</p>'; }).join('') + '</section>';
+}
+
+/* Schwellen einer Aktivität als Satz, direkt aus der Tabelle */
+function activityRule(a) {
+    const parts = [
+        "gefühlt " + (a.feel[1] >= 60 ? "ab " + a.feel[0] + "°" : a.feel[0] + " bis " + a.feel[1] + "°"),
+        "Regenrisiko unter " + a.prob + " %",
+        isNum(a.wind) ? "Wind unter " + a.wind + " km/h" : null,
+        "Böen unter " + a.gust + " km/h",
+        a.light === "dusk" ? "bis zur Dämmerung" : (a.light === "day" ? "bei Tageslicht" : "auch nachts"),
+        "mindestens " + a.minH + (a.minH === 1 ? " Stunde" : " Stunden") + " am Stück"
+    ];
+    return a.name + ": " + parts.filter(Boolean).join(", ") + ".";
+}
+
+/* Das ganze Blatt aus den vorhandenen Daten; fehlende Quellen lassen nur ihren Satz weg */
+function sourceSheetHtml(data, air, meta, loc, loadedIso, cached, now) {
+    const fc = data.fc, c = fc.current, h = fc.hourly, tz = fc.timezone;
+    const gi = hourlyWindow(fc, 1).start;
+    const hasLoc = loc && isNum(loc.lat) && isNum(loc.lon);
+    const distTo = function (lat, lon) { return hasLoc ? fmtKm(distanceKm(loc.lat, loc.lon, lat, lon)) + " km entfernt" : null; };
+
+    const ort = [
+        hasLoc ? "Gewählter Ort: " + (loc.name || "Standort") + " (" + fmtCoord(loc.lat, loc.lon) + ")." : null,
+        isNum(fc.latitude) && isNum(fc.longitude)
+            ? "Modellpunkt der Vorhersage: " + [fmtCoord(fc.latitude, fc.longitude), distTo(fc.latitude, fc.longitude), isNum(fc.elevation) ? Math.round(fc.elevation) + " m Höhe" : null].filter(Boolean).join(", ") +
+              ". Das Modell rechnet für diesen Punkt, nicht für die Adresse."
+            : null,
+        air && isNum(air.latitude) && isNum(air.longitude) ? "Luft und Pollen: " + [hasLoc ? "Punkt " + distTo(air.latitude, air.longitude) : null, "Raster etwa 11 km"].filter(Boolean).join(", ") + "." : null
+    ];
+    const mod = [
+        "Vorhersage: bestes Modell je Ort über Open-Meteo, in Mitteleuropa DWD ICON (D2 für die ersten 48 Stunden, danach ICON-EU und ICON global). Nowcast: 15-Minuten-Werte desselben Modells.",
+        meta && isNum(meta.run)
+            ? "ICON-D2-Lauf von " + stampAt(meta.run * 1000, now, tz) + (isNum(meta.available) ? ", verfügbar seit " + stampAt(meta.available * 1000, now, tz) : "") +
+              ". Neuer Lauf alle " + Math.round((isNum(meta.interval) ? meta.interval : 10800) / 3600) + " Stunden."
+            : null,
+        "Regenrisiko: ICON-D2-Ensemble mit 20 Läufen. Modellvergleich: ICON-D2, ICON-EU, ECMWF IFS, GFS und UKMO, jeweils eigener Lauf.",
+        loadedIso ? freshnessText(loadedIso, cached, now, tz) + "." : null
+    ];
+    const y = yesterdayTemp(fc);
+    const temp = [
+        "Gefühlt: gefühlte Temperatur nach Open-Meteo aus Temperatur, Wind, Luftfeuchte und Sonnenstrahlung. Hoch und Tief: Tageswerte des Modells.",
+        "Vergleich mit gestern: Modellwert von gestern zur selben Uhrzeit, zwischen den Nachbarstunden gemittelt, keine Messung." +
+            (y !== null && isNum(c.temperature_2m) ? " Gestern " + fmtNum(y, 1) + "°, jetzt " + fmtNum(c.temperature_2m, 1) + "°." : "")
+    ];
+    const t = h.time[gi];
+    const st = data.members && data.members.length && data.ensIndex && data.ensIndex[t] !== undefined ? ensembleStats(data.members, data.ensIndex[t]) : null;
+    const regen = [
+        "Regenrisiko je Stunde: Anteil der Ensemble-Läufe mit mindestens 0,1 mm" +
+            (st ? ". Jetzt " + st.wet + " von " + st.n + " Läufen, also " + st.prob + " %." : "; ohne Ensemble der Modellwert."),
+        "Regenrat: Summe und stärkste Viertelstunde der nächsten 4 Stunden. Unter 0,5 mm nur Tropfen, unter 2 mm leichter Regen, sonst Schirm. Liegt das Risiko der Stunden unter 30 %, wird der Rat vorsichtiger.",
+        "Trockene Phasen und Regenverlauf: 15-Minuten-Werte des Modells. Blaue Felder ab 25 % Risiko."
+    ];
+    const wind = ["Wind und Böen in 10 m Höhe aus dem Modell, Stundenmittel und Spitze. Der Pfeil zeigt, wohin der Wind weht. Windig ab 20 km/h; Böen von 60 km/h füllen eine Spalte ganz."];
+    const sonne = ["Auf- und Untergang von Open-Meteo. Goldene Stunde: Sonne zwischen 4° unter und 6° über dem Horizont, blaue Stunde zwischen 8° und 4° darunter, aus dem berechneten Sonnenstand. Nachtpalette, sobald die Sonne tiefer als 8° steht. UV-Index aus dem Modell, Mondphase berechnet."];
+    const spread = h.temperature_2m && h.dew_point_2m && isNum(h.temperature_2m[gi]) && isNum(h.dew_point_2m[gi]) ? h.temperature_2m[gi] - h.dew_point_2m[gi] : null;
+    const sicht = [
+        "Sichtweite und Taupunkt aus dem Modell. Nebelrisiko: Punkte für Taupunktabstand bis 1,5° (zwei) oder bis 3° (einer), Wind bis 8 km/h, Bewölkung bis 30 %; Abzug bei Wind über 20 km/h oder Wolken ab 80 %. Drei Punkte hoch, zwei mittel, sonst gering. Sicht unter 1 km zählt immer als hoch, unter 4 km mindestens als mittel.",
+        spread !== null && h.wind_speed_10m && isNum(h.wind_speed_10m[gi]) && h.cloud_cover && isNum(h.cloud_cover[gi])
+            ? "Jetzt: Taupunktabstand " + fmtNum(spread, 1) + "°, Wind " + Math.round(h.wind_speed_10m[gi]) + " km/h, Bewölkung " + Math.round(h.cloud_cover[gi]) + " %, Risiko " + fogRiskAt(fc, gi) + "."
+            : null
+    ];
+    const raus = ["Vorschläge aus festen Schwellen je Stunde; die grüne Spur zeigt passende Stunden."].concat(ACTIVITIES.map(activityRule));
+    const luft = ["Luftqualität und Pollen: CAMS Europa (Copernicus) über Open-Meteo, Index nach der europäischen Skala. Außerhalb der Pollensaison zeigt die Kachel die Sicht."];
+    const warn = ["Warnungen: amtliche Warnungen des DWD für die Gemeinde (GeoServer, CC BY 4.0) und Meldungen aus NINA. Radar: DWD RADOLAN RV, Beobachtung und kurze Vorhersage, Karte basemap.de."];
+
+    return srcSection("src-ort", "Ort und Gitterpunkt", ort) +
+        srcSection("src-modelle", "Modelle und Stand", mod) +
+        srcSection("src-temp", "Temperatur", temp) +
+        srcSection("src-regen", "Regen", regen) +
+        srcSection("src-wind", "Wind", wind) +
+        srcSection("src-sonne", "Sonne und Licht", sonne) +
+        srcSection("src-sicht", "Sicht und Nebel", sicht) +
+        srcSection("src-rausgehen", "Rausgehen", raus) +
+        srcSection("src-luft", "Luft und Pollen", luft) +
+        srcSection("src-warn", "Warnungen und Radar", warn);
+}
+
+/* Blatt öffnen, wahlweise bei einem Abschnitt (Schlüssel eines Feldes oder Abschnitts-ID) */
+function openSource(section, trigger) {
+    if (!lastData || !D("src")) return;
+    lastSrcTrigger = trigger || null;
+    const id = section ? (SRC_SECTION[section] || section) : "";
+    const body = D("srcBody");
+    body.innerHTML = sourceSheetHtml(lastData, lastAir, lastMeta, lastLoc, loadedAt, loadedCached, Date.now());
+    D("src").setAttribute("data-section", id);
+    document.body.classList.add("src-open");
+    if (D("freshSrc")) D("freshSrc").setAttribute("aria-expanded", "true");
+    /* Zum Abschnitt springen und ihn hervorheben; ohne Layout (Harness) bleibt das Blatt oben */
+    const sec = id && body.querySelector ? body.querySelector("#" + id) : null;
+    if (sec && sec.classList) sec.classList.add("target");
+    body.scrollTop = sec && typeof sec.offsetTop === "number" ? Math.max(0, sec.offsetTop - 6) : 0;
+    setTimeout(function () { if (D("srcClose")) D("srcClose").focus(); }, 300);
+}
+
+function closeSource() {
+    document.body.classList.remove("src-open");
+    if (D("freshSrc")) D("freshSrc").setAttribute("aria-expanded", "false");
+    const back = lastSrcTrigger && lastSrcTrigger.focus ? lastSrcTrigger : D("freshSrc");
+    if (back && back.focus) back.focus();
+    lastSrcTrigger = null;
+}
+
 function renderAllDesign(payload) {
     const locKey = payload.fc ? String(payload.fc.latitude) + "," + String(payload.fc.longitude) : "";
     const sameLoc = locKey === lastRenderedLoc;
@@ -2203,6 +2322,8 @@ function renderAllDesign(payload) {
     const keepTime = sameLoc ? previewTime : null, keepTile = sameLoc ? openTile : null;
     lastData = prepareData(payload.fc, payload.ens);
     lastAir = payload.air || null;
+    lastMeta = payload.meta || null;
+    lastLoc = payload.loc || null;
     lastAuto = nightNowAt(payload.fc, localNowIso(payload.fc));
     applyNight(resolveNight(lastAuto));
     previewIdx = null;
@@ -2278,10 +2399,12 @@ function freshnessText(iso, cached, now, tz) {
 }
 
 function updateFreshness() {
-    const el = D("fresh");
+    const el = D("freshTxt");
     if (!el) return;
     const txt = freshnessText(loadedAt, loadedCached, Date.now(), loadedTz);
     if (el.textContent !== txt) el.textContent = txt;
+    const btn = D("freshSrc");
+    if (btn && btn.classList) btn.classList.toggle("hidden", !loadedAt);
 }
 
 /* Relative Angabe einmal pro Minute nachführen, ohne Netz, nur bei sichtbarer Seite */
@@ -2314,6 +2437,7 @@ function initFreshness() {
  * Ort, nie der Zeitreise. Nachts zeigen die Kacheln UV von morgen.
  * ------------------------------------------------------------------ */
 let nightOn = false, lastAir = null, nightFadeTimer = null;
+let lastMeta = null, lastLoc = null, lastSrcTrigger = null;   /* Herkunftsblatt: Modelllauf, gewählter Ort, auslösender Knopf */
 
 /* Echte Zeit; window.TEST_NOW ist der Haltepunkt der Tests */
 function nowMs() { return typeof window !== "undefined" && isNum(window.TEST_NOW) ? window.TEST_NOW : Date.now(); }
@@ -2410,7 +2534,7 @@ function initDesignApp() {
         if (loc.id !== loadedLocId) setLoaded(null, false, null, null);
 
         const results = await Promise.allSettled([
-            fetchForecast(loc), fetchEnsemble(loc), fetchModels(loc), fetchAir(loc), fetchWarnings(loc), fetchNina(loc)
+            fetchForecast(loc), fetchEnsemble(loc), fetchModels(loc), fetchAir(loc), fetchWarnings(loc), fetchNina(loc), fetchModelMeta()
         ]);
         /* Inzwischen ein anderer Ort (z. B. GPS nach gespeicherter Position)? Dann diese Antwort verwerfen. */
         if (currentLoc !== loc) { loading = false; return load(); }
@@ -2419,7 +2543,8 @@ function initDesignApp() {
 
         const reason = results[0].reason && results[0].reason.message ? results[0].reason.message : "Netzwerkfehler";
         if (fc) {
-            const payload = { fc: fc, ens: val(1), md: val(2), air: val(3), warn: val(4), nina: val(5) };
+            const payload = { fc: fc, ens: val(1), md: val(2), air: val(3), warn: val(4), nina: val(5), meta: val(6),
+                              loc: { name: loc.name || "", lat: loc.lat, lon: loc.lon } };
             const at = new Date().toISOString();
             renderAllDesign(payload);
             saveCache(currentLoc, payload);
@@ -2546,6 +2671,14 @@ function initDesignApp() {
         window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
+    /* ---- Woher kommt das? (zweites Blatt) ---- */
+    function initSource() {
+        if (D("freshSrc")) D("freshSrc").addEventListener("click", function () { openSource(null, D("freshSrc")); });
+        if (D("srcBg")) D("srcBg").addEventListener("click", closeSource);
+        if (D("srcClose")) D("srcClose").addEventListener("click", closeSource);
+        if (D("src")) D("src").addEventListener("keydown", function (ev) { if (ev.key === "Escape") closeSource(); });
+    }
+
     function initSearch() {
         let timer = null;
         D("locBtn").addEventListener("click", openSheet);
@@ -2650,6 +2783,8 @@ function initDesignApp() {
                 if (tile) { toggleTile(tile.getAttribute("data-tile")); restartAnimations(tile); }
                 return;
             }
+            const srcBtn = t.closest(".tp-src");
+            if (srcBtn) { openSource(srcBtn.getAttribute("data-src"), srcBtn); return; }
             if (t.closest("a, button, input")) return;
             /* Tipp auf das offene Detailfeld spielt dessen Animationen erneut */
             const panel = t.closest(".tpanel");
@@ -2743,6 +2878,7 @@ function initDesignApp() {
     });
 
     initSearch();
+    initSource();
     initTabs();
     initModeToggle();
     initViews();

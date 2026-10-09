@@ -108,6 +108,14 @@ function splitPastDay(fc) {
     return fc;
 }
 
+/* Metadaten des ICON-D2-Laufs (Open-Meteo): Zeitpunkt des letzten Laufs und seiner Verfügbarkeit,
+   Laufabstand; alles in Sekunden. Nur für das Herkunftsblatt, ein Fehler blendet dort die Zeile aus. */
+function fetchModelMeta() {
+    return getJson("https://api.open-meteo.com/data/dwd_icon_d2/static/meta.json").then(function (m) {
+        return { run: m.last_run_initialisation_time, available: m.last_run_availability_time, interval: m.update_interval_seconds };
+    });
+}
+
 /* ICON-D2-EPS: 20 Ensemble-Läufe. Daraus wird die Regenwahrscheinlichkeit
    direkt ausgezählt – das ist ehrlicher als ein einzelner Modelllauf. */
 function fetchEnsemble(loc) {
@@ -384,6 +392,7 @@ function ensembleStats(members, idx) {
     vals.sort(function (a, b) { return a - b; });
     return {
         n: vals.length,
+        wet: wet,
         prob: Math.round(wet / vals.length * 100),
         median: quantile(vals, 0.5),
         max: vals[vals.length - 1],

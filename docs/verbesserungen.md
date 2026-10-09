@@ -11,12 +11,12 @@ und neue Ideen aus der Arbeit. Nach jeder Änderung wird die Liste nachgezogen u
 - [x] Tag-Nacht-Schalter statt Palettenknopf – `e331959`
 - [x] Ansicht nach Frage (2) – `a38e87a`
 - [x] Rausgehen-Zeile mit vier Feldern und Piktogrammen – `1a5e19c`, `95768e4`
-- [x] Schirm-Schwelle: Rat in drei Stufen nach Menge, Intensität und Risiko – 09.10.2026
-- [x] Vergleich mit gestern (8) als vierter Hero-Chip – 09.10.2026
+- [x] Schirm-Schwelle: Rat in drei Stufen nach Menge, Intensität und Risiko – `e11cd5b`
+- [x] Vergleich mit gestern (8) als vierter Hero-Chip – `e11cd5b`
+- [x] Woher kommt das? (1): Herkunftsblatt aus Aktualitätszeile und Instrument-Feldern – 09.10.2026
 
 ## Offen, aus den Claude-Prinzipien
 
-- [ ] Woher kommt das? (1): Tipp auf eine Zahl zeigt Quelle, Modell, Gitterpunkt, Rechenweg, Ladezeitpunkt. Klein.
 - [ ] Eigenes Dashboard (3): Kacheln ausblenden und umsortieren, Reihenfolge gespeichert. Mittel.
 - [ ] Tagesfilm (4): zehn Sekunden Animation aus den Tageswerten, morgens als Begrüßung. Groß.
 - [ ] Bewegungssystem (5): feste Dauer- und Easing-Stufen, kürzere Startchoreografie (heute gut zwei Sekunden), Neustart nur bei Datenänderung. Mittel.
@@ -37,4 +37,5 @@ und neue Ideen aus der Arbeit. Nach jeder Änderung wird die Liste nachgezogen u
 
 ## Neu aufgenommen
 
-- [ ] Vortagswerte im Feld „Woher kommt das?“ als Modellwerte kennzeichnen (keine Messstation). Gehört zu Punkt 1.
+- [x] Vortagswerte im Feld „Woher kommt das?“ als Modellwerte kennzeichnen – mit Punkt 1 erledigt
+- [ ] Läufe der Vergleichsmodelle (ICON-EU, ECMWF, GFS, UKMO) im Herkunftsblatt nennen; Open-Meteo hat Metadaten je Modell, nur die des Ensembles sind veraltet. Klein.

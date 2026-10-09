@@ -59,7 +59,7 @@ function mockForecast() {
     return d.toISOString().slice(0, 10);
   });
   const fc = {
-    latitude: 48.137, longitude: 11.575, utc_offset_seconds: 7200, timezone: 'Europe/Berlin',
+    latitude: 48.137, longitude: 11.575, elevation: 520, utc_offset_seconds: 7200, timezone: 'Europe/Berlin',
     current: { time: day + 'T14:15', temperature_2m: 17.4, apparent_temperature: 16.1,
                relative_humidity_2m: 71, precipitation: 0.0, weather_code: 2,
                wind_speed_10m: 12, wind_gusts_10m: 25, wind_direction_10m: 225,
@@ -142,6 +142,7 @@ function mockModels() {
 
 function mockAir() {
   return {
+    latitude: 48.1, longitude: 11.6, elevation: 524,
     current: {
       time: '2026-09-25T14:00', european_aqi: 34, pm10: 14.2, pm2_5: 8.1, nitrogen_dioxide: 11.3, ozone: 62,
       birch_pollen: 0, grass_pollen: 7, alder_pollen: 0, mugwort_pollen: 12, ragweed_pollen: 1.5, olive_pollen: 0
@@ -240,7 +241,8 @@ function makeSandbox(opts) {
 function okFetch(data) {
   return async (url) => {
     let body;
-    if (url.includes('bigdatacloud')) body = data.place || {};
+    if (url.includes('meta.json')) body = data.meta;
+    else if (url.includes('bigdatacloud')) body = data.place || {};
     else if (url.includes('geocoding-api')) body = data.geo || { results: [] };
     else if (url.includes('air-quality')) body = data.air;
     else if (url.includes('ensemble')) body = data.ens;

@@ -6,6 +6,7 @@ const fs = require('fs');
 const DESIGN = fs.readFileSync(require('path').join(__dirname, '..', 'design.js'), 'utf8');
 const fc = H.mockForecast();
 const data = { fc, ens: H.mockEnsemble(fc), md: H.mockModels(), air: H.mockAir(), geo: H.mockGeocode(), warn: H.mockWarnings(), nina: H.mockNina(),
+               meta: { last_run_initialisation_time: Date.UTC(2026, 8, 25, 9) / 1000, last_run_availability_time: Date.UTC(2026, 8, 25, 10, 20) / 1000, update_interval_seconds: 10800 },
                place: { city: 'München', principalSubdivision: 'Bayern' } };
 const granted = { getCurrentPosition: ok => ok({ coords: { latitude: 48.137, longitude: 11.575 } }) };
 const denied = { getCurrentPosition: (ok, err) => err({ code: 1, message: 'denied' }) };
@@ -148,7 +149,7 @@ function boot(opts) {
   // Aufklappbare Kacheln: Chevron, Disclosure-Schaltfläche, Zuordnung zum Detailfeld
   const detA = G(sb,'details').innerHTML;
   H.check('Kacheln: nur Wind, Regen, Sonne tragen Chevron und Disclosure-Schaltfläche', (detA.match(/class="chev"/g) || []).length === 3 && (detA.match(/class="t-toggle"/g) || []).length === 3 && detA.includes('<button type="button" class="t-toggle" aria-expanded="false" aria-controls="tpanel-wind" aria-label="Wind: Details anzeigen"></button>') && detA.includes('id="tpanel-wind" role="region" aria-label="Wind im Detail"') && !/class="tile uv"[^>]*>[\s\S]*?class="chev"[\s\S]*?class="tile wind"/.test(detA.replace(/<div class="tile wind"[\s\S]*/, '')), (detA.match(/class="t-toggle"/g) || []).length);
-  H.check('Kacheln: keine verschachtelten Schaltflächen in den Kacheln', !/<button[^>]*>[^<]*<button/.test(detA) && (detA.match(/<\/button>/g) || []).length === 3, (detA.match(/<\/button>/g) || []).length);
+  H.check('Kacheln: keine verschachtelten Schaltflächen in den Kacheln (3 Disclosure, 3 Herkunft)', !/<button[^>]*>[^<]*<button/.test(detA) && (detA.match(/<\/button>/g) || []).length === 6, (detA.match(/<\/button>/g) || []).length);
   // Vorschauleiste: sichtbar während der Vorschau (Harness ohne IntersectionObserver = Hero nicht im Bild)
   sb.selectHour(42);
   H.check('Vorschauleiste: zeigt „Vorschau · Morgen, 18 Uhr“, solange eine Stunde gewählt ist', !G(sb,'previewBar').classList.contains('hidden') && G(sb,'previewLabel').textContent === 'Vorschau · Morgen, 18 Uhr', G(sb,'previewLabel').textContent);
@@ -226,6 +227,31 @@ function boot(opts) {
   sb.renderHero(fcDrops);
   H.check('Hinweis bei Tropfen: kein Schirm nötig, Tropfen-Symbol', G(sb,'insight').innerHTML.includes('<span>Nur ein paar Tropfen, kein Schirm nötig</span>') && G(sb,'insight').innerHTML.includes('M12 3s6 7 6 11'), G(sb,'insight').innerHTML);
   sb.renderHero(fc);
+
+  // Woher kommt das? Herkunftsblatt mit Quelle, Modell, Gitterpunkt, Rechenwegen und Stand
+  H.check('Herkunft: Abfrage holt die ICON-D2-Metadaten', sb._fetchLog.some(u => u.includes('/data/dwd_icon_d2/static/meta.json')), sb._fetchLog.filter(u => u.includes('meta')).join(' | '));
+  H.check('Herkunft: Aktualitätszeile mit sichtbarem Knopf „Woher?“', G(sb,'freshTxt').textContent === 'Gerade eben aktualisiert' && !G(sb,'freshSrc').classList.contains('hidden'), G(sb,'freshTxt').textContent);
+  H.check('Herkunft: Instrument-Felder enden mit „Woher kommt das?“', (G(sb,'details').innerHTML.match(/<button type="button" class="tp-src" data-src="(wind|rain|sun)">Woher kommt das\?<\/button><\/div><\/div><\/div>/g) || []).length === 3, (G(sb,'details').innerHTML.match(/tp-src/g) || []).length);
+  sb.openSource('wind', null);
+  const srcHtml = G(sb,'srcBody').innerHTML;
+  H.check('Herkunft: Blatt öffnet beim Abschnitt Wind', sb.document.body.classList.contains('src-open') && G(sb,'src').getAttribute('data-section') === 'src-wind', G(sb,'src').getAttribute('data-section'));
+  H.check('Herkunft: Ort und Modellpunkt mit Entfernung und Höhe', /Gewählter Ort: München[^(]*\(48,14° N, 11,57° O\)\./.test(srcHtml) && srcHtml.includes('Modellpunkt der Vorhersage: 48,14° N, 11,57° O, 0,0 km entfernt, 520 m Höhe.') && /Luft und Pollen: Punkt [\d,]+ km entfernt, Raster etwa 11 km\./.test(srcHtml), srcHtml.slice(srcHtml.indexOf('src-ort'), srcHtml.indexOf('src-ort') + 400));
+  const runTxt = sb.stampAt(Date.UTC(2026, 8, 25, 9), Date.now(), 'Europe/Berlin'), availTxt = sb.stampAt(Date.UTC(2026, 8, 25, 10, 20), Date.now(), 'Europe/Berlin');
+  H.check('Herkunft: ICON-D2-Lauf aus den Metadaten in Ortszeit', srcHtml.includes('ICON-D2-Lauf von ' + runTxt + ', verfügbar seit ' + availTxt + '. Neuer Lauf alle 3 Stunden.') && runTxt.includes('11:00'), srcHtml.slice(srcHtml.indexOf('ICON-D2-Lauf'), srcHtml.indexOf('ICON-D2-Lauf') + 140));
+  H.check('Herkunft: Ladezeitpunkt wie in der Aktualitätszeile', srcHtml.includes('<p>Gerade eben aktualisiert.</p>'));
+  H.check('Herkunft: Regenrisiko als Anteil der Läufe', srcHtml.includes('Jetzt 15 von 21 Läufen, also 71 %.'), srcHtml.slice(srcHtml.indexOf('Regenrisiko je Stunde'), srcHtml.indexOf('Regenrisiko je Stunde') + 160));
+  H.check('Herkunft: Nebelrisiko mit den aktuellen Zahlen', /Jetzt: Taupunktabstand 3,0°, Wind 18 km\/h, Bewölkung 45 %, Risiko gering\./.test(srcHtml), srcHtml.slice(srcHtml.indexOf('Jetzt: Taupunkt'), srcHtml.indexOf('Jetzt: Taupunkt') + 100));
+  H.check('Herkunft: Vergleich mit gestern als Modellwert', srcHtml.includes('Vergleich mit gestern: Modellwert von gestern zur selben Uhrzeit') && srcHtml.includes('keine Messung'));
+  H.check('Herkunft: Rausgehen-Schwellen aus der Tabelle', srcHtml.includes('Spaziergang: gefühlt 5 bis 28°, Regenrisiko unter 30 %, Böen unter 45 km/h, bis zur Dämmerung, mindestens 1 Stunde am Stück.') && srcHtml.includes('Draußen sitzen: gefühlt ab 17°, Regenrisiko unter 20 %, Wind unter 15 km/h, Böen unter 30 km/h, auch nachts, mindestens 2 Stunden am Stück.'), srcHtml.slice(srcHtml.indexOf('Spaziergang:'), srcHtml.indexOf('Spaziergang:') + 140));
+  H.check('Herkunft: zehn Abschnitte mit Überschriften', (srcHtml.match(/<section class="src-sec" id="src-/g) || []).length === 10 && ['ort','modelle','temp','regen','wind','sonne','sicht','rausgehen','luft','warn'].every(k => srcHtml.includes('id="src-' + k + '"')) && (srcHtml.match(/<h3>/g) || []).length === 10, (srcHtml.match(/<section class="src-sec" id="src-/g) || []).length);
+  sb.closeSource();
+  H.check('Herkunft: Schließen nimmt die Körperklasse weg', !sb.document.body.classList.contains('src-open'));
+  const srcBare = sb.sourceSheetHtml(sb.prepareData(clone(), null), null, null, null, null, false, Date.now());
+  H.check('Herkunft: ohne Metadaten, Luftdaten, Ort und Ensemble bleibt das Blatt vollständig', !srcBare.includes('ICON-D2-Lauf') && !srcBare.includes('Luft und Pollen: Punkt') && !srcBare.includes('Gewählter Ort') && srcBare.includes('ohne Ensemble der Modellwert') && srcBare.includes('Modellpunkt der Vorhersage: 48,14° N, 11,57° O, 520 m Höhe.') && (srcBare.match(/<section/g) || []).length === 10, srcBare.slice(0, 300));
+  await wait(320);   /* Klicks innerhalb von 300 ms nach einem Zieh-Ende werden verworfen */
+  sb.document.body.trigger('click', { target: { closest: sel => sel === '.tp-src' ? { getAttribute: () => 'sicht', focus() {} } : null } });
+  H.check('Herkunft: „Woher kommt das?“ im Feld öffnet beim Abschnitt Sicht', sb.document.body.classList.contains('src-open') && G(sb,'src').getAttribute('data-section') === 'src-sicht', G(sb,'src').getAttribute('data-section'));
+  sb.closeSource();
 
   const wn = G(sb,'warnings').innerHTML;
   const dwdUrl = sb._fetchLog.find(u => u.includes('maps.dwd.de')) || '';
@@ -512,8 +538,8 @@ function boot(opts) {
   H.check('Aktualität: ungültige Zeitzone fällt auf die Gerätezeit zurück', ft('2026-10-08T08:10:00Z', false, 'Nirgendwo/Stadt').startsWith('Stand heute, '), ft('2026-10-08T08:10:00Z', false, 'Nirgendwo/Stadt'));
   H.check('Aktualität: ohne Zeitpunkt leer', ft(null) === '' && ft('kaputt') === '');
   // Im Ablauf: nach dem Laden „Gerade eben“, Cache-Start zeigt den gespeicherten Stand, fehlgeschlagene Aktualisierung behält Daten + Stand
-  H.check('Aktualität: nach erfolgreichem Laden „Gerade eben aktualisiert“', G(sb,'fresh').textContent === 'Gerade eben aktualisiert', G(sb,'fresh').textContent);
-  H.check('Aktualität: Offline-Start aus dem Cache zeigt den gespeicherten Stand, nicht die Startzeit', G(sb5,'fresh').textContent.startsWith('Stand ') && G(sb5,'fresh').textContent.endsWith('· gespeicherte Daten') && G(sb5,'updated').textContent.includes('08.10.'), G(sb5,'fresh').textContent + ' | ' + G(sb5,'updated').textContent);
+  H.check('Aktualität: nach erfolgreichem Laden „Gerade eben aktualisiert“', G(sb,'freshTxt').textContent === 'Gerade eben aktualisiert', G(sb,'freshTxt').textContent);
+  H.check('Aktualität: Offline-Start aus dem Cache zeigt den gespeicherten Stand, nicht die Startzeit', G(sb5,'freshTxt').textContent.startsWith('Stand ') && G(sb5,'freshTxt').textContent.endsWith('· gespeicherte Daten') && G(sb5,'updated').textContent.includes('08.10.'), G(sb5,'freshTxt').textContent + ' | ' + G(sb5,'updated').textContent);
   let online = true;
   const flaky = async (url) => { if (!online) throw new Error('Failed to fetch'); return H.okFetch(data)(url); };
   const sbF = boot({ fetchImpl: flaky, geolocation: granted });
@@ -524,21 +550,21 @@ function boot(opts) {
   sbF._store[LOC_KEY] = JSON.stringify({ savedAt: cachedIso, payload: { fc, ens: data.ens, md: data.md, air: data.air } });
   online = false;
   G(sbF,'refresh').trigger('click'); await wait(300);
-  H.check('Aktualität: fehlgeschlagene Aktualisierung behält Daten und markiert den gespeicherten Stand', G(sbF,'hero').innerHTML.includes('17°') && G(sbF,'fresh').textContent === cachedText() && cachedText().endsWith('· gespeicherte Daten') && G(sbF,'banner').innerHTML.includes('zuletzt gespeicherten'), G(sbF,'fresh').textContent + ' | ' + G(sbF,'hero').innerHTML.slice(0, 60));
+  H.check('Aktualität: fehlgeschlagene Aktualisierung behält Daten und markiert den gespeicherten Stand', G(sbF,'hero').innerHTML.includes('17°') && G(sbF,'freshTxt').textContent === cachedText() && cachedText().endsWith('· gespeicherte Daten') && G(sbF,'banner').innerHTML.includes('zuletzt gespeicherten'), G(sbF,'freshTxt').textContent + ' | ' + G(sbF,'hero').innerHTML.slice(0, 60));
   delete sbF._store[LOC_KEY];
   G(sbF,'refresh').trigger('click'); await wait(300);
-  H.check('Aktualität: Fehler ohne Cache lässt die zuletzt gültigen Daten und ihren Stand stehen, Fehlerbanner mit Wiederholen', G(sbF,'hero').innerHTML.includes('17°') && G(sbF,'fresh').textContent === cachedText() && G(sbF,'banner').className.includes('err') && G(sbF,'banner').innerHTML.includes('bannerBtn'), G(sbF,'fresh').textContent + ' | ' + G(sbF,'banner').innerHTML);
+  H.check('Aktualität: Fehler ohne Cache lässt die zuletzt gültigen Daten und ihren Stand stehen, Fehlerbanner mit Wiederholen', G(sbF,'hero').innerHTML.includes('17°') && G(sbF,'freshTxt').textContent === cachedText() && G(sbF,'banner').className.includes('err') && G(sbF,'banner').innerHTML.includes('bannerBtn'), G(sbF,'freshTxt').textContent + ' | ' + G(sbF,'banner').innerHTML);
   online = true;
   G(sbF,'refresh').trigger('click'); await wait(300);
-  H.check('Aktualität: erfolgreiche Aktualisierung setzt wieder „Gerade eben“', G(sbF,'fresh').textContent === 'Gerade eben aktualisiert' && G(sbF,'banner').classList.contains('hidden'), G(sbF,'fresh').textContent);
+  H.check('Aktualität: erfolgreiche Aktualisierung setzt wieder „Gerade eben“', G(sbF,'freshTxt').textContent === 'Gerade eben aktualisiert' && G(sbF,'banner').classList.contains('hidden'), G(sbF,'freshTxt').textContent);
   // Ortswechsel auf einen Ort ohne Daten und ohne Cache: nichts Altes bleibt stehen
   online = false;
   G(sbF,'locBtn').trigger('click'); await wait(350);
   sbF._store['wetter:recent'] = JSON.stringify([hamburgDE]);
   G(sbF,'q').value = ''; G(sbF,'q').trigger('input'); await wait(50);
   G(sbF,'res')._buttons[0].trigger('click'); await wait(300);
-  H.check('Aktualität: Ortswechsel ohne Daten leert die Anzeige samt Stand', G(sbF,'fresh').textContent === '' && G(sbF,'hero').innerHTML.includes('Keine Daten') && G(sbF,'locName').textContent.includes('Hamburg'), G(sbF,'fresh').textContent + ' | ' + G(sbF,'locName').textContent);
-  H.check('Aktualität: Zeile wird nur bei Änderung neu gesetzt (kein Flackern)', (() => { const n = G(sbF,'fresh'); let sets = 0; const orig = Object.getOwnPropertyDescriptor(n, 'textContent'); let v = n.textContent; Object.defineProperty(n, 'textContent', { get: () => v, set: (x) => { sets++; v = x; }, configurable: true }); sbF.updateFreshness(); sbF.updateFreshness(); if (orig) Object.defineProperty(n, 'textContent', orig); else { delete n.textContent; n.textContent = v; } return sets === 0; })());
+  H.check('Aktualität: Ortswechsel ohne Daten leert die Anzeige samt Stand', G(sbF,'freshTxt').textContent === '' && G(sbF,'hero').innerHTML.includes('Keine Daten') && G(sbF,'locName').textContent.includes('Hamburg'), G(sbF,'freshTxt').textContent + ' | ' + G(sbF,'locName').textContent);
+  H.check('Aktualität: Zeile wird nur bei Änderung neu gesetzt (kein Flackern)', (() => { const n = G(sbF,'freshTxt'); let sets = 0; const orig = Object.getOwnPropertyDescriptor(n, 'textContent'); let v = n.textContent; Object.defineProperty(n, 'textContent', { get: () => v, set: (x) => { sets++; v = x; }, configurable: true }); sbF.updateFreshness(); sbF.updateFreshness(); if (orig) Object.defineProperty(n, 'textContent', orig); else { delete n.textContent; n.textContent = v; } return sets === 0; })());
 
   // Texte: Schwelle der blauen Felder, gefühlte Temperatur und Windworte in den Fenstern
   const dsrc = fs.readFileSync(require('path').join(__dirname, '..', 'design.js'), 'utf8');
@@ -645,7 +671,7 @@ function boot(opts) {
   H.check('Shell: Rausgehen-Feld in index.html', idx.includes('id="activityField"') && idx.includes('id="activity"'));
   H.check('Shell: Ansicht nach Frage in index.html und Stylesheet mit Nacht-Token', idx.includes('id="views"') && idx.includes('id="viewAnswer"') && idx.includes('id="hourlyNote"') && idx.includes('id="daysHint"') && css.includes('.view-chip') && css.includes('--wfill: #BFE0C4') && css.includes('--wfill: #2F5A3A') && css.includes('.hcol.tc4:not(.now)') && css.includes('.days-field.v-light .drow .bar i') && css.includes('.vis24 i.fog') && css.includes('html.night .vis24 i.fog'));
   H.check('Shell: keine klassische Ansicht mehr verlinkt oder vorhanden', !idx.includes('klassisch.html') && !fs.existsSync(require('path').join(__dirname, '..', 'klassisch.html')) && !fs.existsSync(require('path').join(__dirname, '..', 'wetter.css')));
-  H.check('Shell: Versions-Query 20261009h an allen Asset-Links', (idx.match(/\?v=20261009h"/g) || []).length === 4 && (rad.match(/\?v=20261009h"/g) || []).length === 3, (idx.match(/\?v=\w+"/g) || []).join(','));
+  H.check('Shell: Versions-Query 20261009i an allen Asset-Links', (idx.match(/\?v=20261009i"/g) || []).length === 4 && (rad.match(/\?v=20261009i"/g) || []).length === 3, (idx.match(/\?v=\w+"/g) || []).join(','));
   H.check('Shell: Sonnenrechnung vor den App-Skripten, Nachtklasse vor dem ersten Zeichnen', [idx, rad].every(h => h.includes('<script src="sonne.js?v=') && /wetter:night[\s\S]{0,120}classList\.add\("night"\)/.test(h) && h.indexOf('wetter:night') < h.indexOf('<link rel="stylesheet" href="modern.css')));
   H.check('Shell: Nachtpalette im Stylesheet mit Token, Hero-Farben, Fade und Kachel-Einblendung', css.includes('html.night {') && css.includes('--card:') && css.includes('--soft:') && css.includes('--wet:') && css.includes('html.night .theme-rain') && css.includes('html.fade') && css.includes('.tile.swap') && css.includes('.field.white { background: var(--card); }') && /\.tile \{[^}]*background: var\(--card\)/.test(css) && /\.hcol\.wet \{ background: var\(--wet\)/.test(css), css.match(/\.field\.white[^\n]*/));
 
