@@ -491,11 +491,18 @@ function backToNow() {
 /* ---- Rausgehen: Aktivitätsfenster ---- */
 
 const ACTIVITIES = [
-    { id: "walk", name: "Spaziergang",    minH: 1, feel: [5, 28],  prob: 30, gust: 45,           light: "dusk" },
-    { id: "bike", name: "Radfahren",      minH: 2, feel: [8, 30],  prob: 20, wind: 25, gust: 40, light: "day" },
-    { id: "run",  name: "Joggen",         minH: 1, feel: [2, 24],  prob: 40, gust: 50,           light: "any" },
-    { id: "sit",  name: "Draußen sitzen", minH: 2, feel: [17, 99], prob: 20, wind: 15, gust: 30, light: "any" }
+    { id: "walk", name: "Spaziergang",    short: "Spaziergang", minH: 1, feel: [5, 28],  prob: 30, gust: 45,           light: "dusk" },
+    { id: "bike", name: "Radfahren",      short: "Radfahren",   minH: 2, feel: [8, 30],  prob: 20, wind: 25, gust: 40, light: "day" },
+    { id: "run",  name: "Joggen",         short: "Joggen",      minH: 1, feel: [2, 24],  prob: 40, gust: 50,           light: "any" },
+    { id: "sit",  name: "Draußen sitzen", short: "Sitzen",      minH: 2, feel: [17, 99], prob: 20, wind: 15, gust: 30, light: "any" }
 ];
+/* Linien-Symbole im Stil der übrigen Icons: gehende Figur, Fahrrad, laufende Figur, Bank unter einem Baum */
+const ACT_ICONS = {
+    walk: '<svg class="act-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13" cy="4" r="1.7"/><path d="M12.5 7.5l-2.5 5.5 3 2.5 1 6M10 13l-3 2.5 0.5 5M12.5 7.5l3.5 1 2 3.5"/></svg>',
+    bike: '<svg class="act-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.5" cy="17" r="3.5"/><circle cx="18.5" cy="17" r="3.5"/><path d="M5.5 17l4-8h5.5l3.5 8M9.5 9l2.5 8M15 9l-1.5-3h-2.5"/></svg>',
+    run:  '<svg class="act-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="14.5" cy="4" r="1.7"/><path d="M13.5 7.5l-3.5 4 3 2.5-1.5 6M10 11.5l-3.5 1M13 14l3.5 2 1.5 4.5M13.5 7.5l3.5 1 2.5 3.5"/></svg>',
+    sit:  '<svg class="act-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="6" r="3"/><path d="M12 9v3M3 12h18M5 12v8M19 12v8M3 16h18"/></svg>'
+};
 const FAIL_WORDS = { nass: "meist zu nass", kalt: "meist zu kalt", warm: "meist zu warm", wind: "meist zu windig", dunkel: "nur bei Tageslicht" };
 
 function activityById(id) {
@@ -613,8 +620,11 @@ function dActivity() {
     field.classList.remove("hidden");
     const act = activityById(activityId) || ACTIVITIES[0];
     const res = activityWindows(lastData, act);
-    const chips = ACTIVITIES.map(function (a) {
-        return '<button type="button" class="act-chip' + (a.id === act.id ? ' on' : '') + '" data-act="' + a.id + '">' + a.name + '</button>';
+    /* Eine Zeile mit vier gleich breiten Feldern: Symbol, Name, gleitende Pille hinter dem gewählten */
+    const chips = '<span class="act-ink" aria-hidden="true"></span>' + ACTIVITIES.map(function (a) {
+        const on = a.id === act.id;
+        return '<button type="button" class="act-chip' + (on ? ' on' : '') + '" data-act="' + a.id + '" aria-pressed="' + (on ? 'true' : 'false') + '"' +
+            (a.short !== a.name ? ' aria-label="' + a.name + '"' : '') + '>' + (ACT_ICONS[a.id] || '') + '<span class="act-lbl">' + a.short + '</span></button>';
     }).join('');
     const list = res.windows.slice(0, 3).map(function (w, i) {
         return '<button type="button" class="act-win" data-i="' + w.start + '" style="animation-delay:' + dl(1.1 + i * 0.08) + 's"><b>' + w.when + '</b><span>' + w.facts + '</span></button>';
@@ -623,6 +633,30 @@ function dActivity() {
         (list ? '<div class="act-list">' + list + '</div>' : '') +
         '<div class="note">' + (list ? 'Antippen zeigt die Stunde oben im Hero.' : activityNote(res.reason)) + '</div>';
     updateActTrack(res.windows);
+    moveActInk();
+}
+
+/* Gleitende Pille hinter dem gewählten Feld: startet an der alten Position, läuft zur neuen (Übergang im Stylesheet) */
+let actInkFrom = null;
+function moveActInk() {
+    const box = D("activity");
+    if (!box || !box.querySelector) return;
+    const bar = box.querySelector(".act-chips");
+    const ink = bar && bar.querySelector ? bar.querySelector(".act-ink") : null;
+    const on = bar && bar.querySelector ? bar.querySelector(".act-chip.on") : null;
+    if (!bar || !ink || !on || !ink.style || typeof on.offsetLeft !== "number" || !on.offsetWidth) return;
+    const target = { left: on.offsetLeft, width: on.offsetWidth };
+    if (actInkFrom && (actInkFrom.left !== target.left || actInkFrom.width !== target.width)) {
+        ink.style.transition = "none";
+        ink.style.left = actInkFrom.left + "px";
+        ink.style.width = actInkFrom.width + "px";
+        void ink.offsetWidth;
+        ink.style.transition = "";
+    }
+    ink.style.left = target.left + "px";
+    ink.style.width = target.width + "px";
+    actInkFrom = target;
+    if (bar.classList) bar.classList.add("ink-ready");
 }
 
 function setActivity(id) {
@@ -2469,7 +2503,7 @@ function initDesignApp() {
                 moveTabInk();
             });
         });
-        if (typeof window !== "undefined" && window.addEventListener) window.addEventListener("resize", moveTabInk);
+        if (typeof window !== "undefined" && window.addEventListener) { window.addEventListener("resize", moveTabInk); window.addEventListener("resize", moveActInk); }
         moveTabInk();
     }
 
