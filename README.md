@@ -78,6 +78,10 @@ die PNGs mit `node tests/build-icons.js` neu rendern (braucht Playwright mit Chr
 
 ## Veröffentlichen
 
+Für den App Store: Checkliste in `docs/veroeffentlichung.md` (Phasen von der Freundesrunde bis zur Einreichung). Laufende Verbesserungen: `docs/verbesserungen.md`.
+
+### Web-App auf GitHub Pages
+
 GitHub Pages liefert den Branch `claude/lignano-weather-webapp-e346s0` aus.
 Jeder Push dorthin ist nach etwa einer Minute live; die Homescreen-App dann
 einmal beenden und neu öffnen.
