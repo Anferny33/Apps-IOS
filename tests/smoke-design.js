@@ -487,7 +487,7 @@ function boot(opts) {
 
   // Texte: Schwelle der blauen Felder, gefühlte Temperatur und Windworte in den Fenstern
   const dsrc = fs.readFileSync(require('path').join(__dirname, '..', 'design.js'), 'utf8');
-  const thr = (dsrc.match(/const wet = i !== 0 && prob >= (\d+);/) || [])[1];
+  const thr = (dsrc.match(/const wet = i !== 0 && prob >= (\d+)/) || [])[1];
   H.check('Texte: Beschriftung der blauen Felder nennt dieselbe Schwelle wie die Berechnung', thr === '25' && fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8').includes('Blaue Felder: Regenrisiko ab ' + thr + ' %'), thr);
   H.check('Texte: kein „windstill“ und kein „Regen wahrscheinlich“ mehr', !dsrc.includes('windstill') && !fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8').includes('Regen wahrscheinlich'));
 
@@ -529,14 +529,60 @@ function boot(opts) {
   H.check('Sicht: diesig mit Nebelneigung bei geringem Taupunktabstand', vh.word === 'diesig' && vh.sub.includes('Nebelneigung') && vh.big.includes('2,5') && vh.big.includes('km'), JSON.stringify(vh));
   H.check('Sicht: ohne Sichtfeld keine Kachelangaben', sb.visibilityInfo(JSON.parse(JSON.stringify(H.mockForecast())).hourly ? (() => { const f = JSON.parse(JSON.stringify(fc)); delete f.hourly.visibility; return f; })() : fc) === null);
 
+  // 8) Ansicht nach Frage
+  sb.setView('overview');
+  const views = G(sb,'views').innerHTML;
+  H.check('Ansicht: fünf Chips, Überblick gedrückt, kein Satz', (views.match(/class="view-chip/g) || []).length === 5 && views.includes('class="view-chip on" data-view="overview" aria-pressed="true"') && G(sb,'viewAnswer').classList.contains('hidden') && sb.currentView() === 'overview', views.slice(0, 200));
+  const stripBefore = G(sb,'hourly').innerHTML, daysBefore = G(sb,'days').innerHTML;
+  sb.selectHour(42);
+  sb.setView('wind');
+  let strip = G(sb,'hourly').innerHTML, days = G(sb,'days').innerHTML;
+  H.check('Ansicht Wind: Pfeile, Wert und Böen je Spalte, grüne Füllung, Spalten stehen still', (strip.match(/class="hcol/g) || []).length === 48 && (strip.match(/class="ic arrow"/g) || []).length === 48 && strip.includes('style="--ang:242deg"') && strip.includes('<div class="v">18</div><div class="p">Böen 36</div>') && (strip.match(/fill wfill/g) || []).length === 47 && strip.includes('--p:60%') && !/class="hcol now[^"]*"[^>]*><i class="fill/.test(strip) && !strip.includes('animation-delay') && (strip.match(/animation:none/g) || []).length >= 48, strip.slice(0, 300));
+  H.check('Ansicht Wind: Antwortsatz, Notiz, Kopfzeile, Wahl gespeichert, Zeitreise bleibt', G(sb,'viewAnswer').textContent === 'Jetzt Böen bis 36 km/h aus SW.' && !G(sb,'viewAnswer').classList.contains('hidden') && G(sb,'hourlyNote').textContent.startsWith('Grün:') && G(sb,'daysHint').textContent === 'Wind · Böen km/h' && sb._store['wetter:view'] === 'wind' && G(sb,'views').innerHTML.includes('data-view="wind" aria-pressed="true"') && G(sb,'hero').innerHTML.includes('<span>Morgen, 18 Uhr</span>'), G(sb,'viewAnswer').textContent);
+  sb.clearHour();
+  H.check('Ansicht Wind: Tagesliste mit Pfeil, Richtung, Wind, Böenbalken', (days.match(/class="drow/g) || []).length === 14 && days.includes('<div class="pp">SW</div><div class="lo">22</div><div class="bar"><i style="left:0.0%;width:100.0%;animation:none"></i></div><div class="hi">48</div>') && (days.match(/class="ic arrow"/g) || []).length === 14 && G(sb,'daysField').classList.contains('v-wind'), days.slice(0, 400));
+  sb.setView('rain');
+  strip = G(sb,'hourly').innerHTML; days = G(sb,'days').innerHTML;
+  H.check('Ansicht Regen: Risiko als Wert, Menge darunter, Füllung ab 25 %, Satz, Tagesliste', strip.includes('<div class="v">71%</div><div class="p">1,2 mm</div>') && strip.includes('<i class="fill" style="--p:71%;animation:none"></i>') && G(sb,'viewAnswer').textContent === 'Regen bis 15 Uhr, dann trocken, ab 21 Uhr wieder Regen.' && G(sb,'daysHint').textContent === 'Risiko · Stunden · mm' && days.includes('<div class="pp">55%</div><div class="lo">3 h</div>') && days.includes('<div class="hi">3,4</div>') && G(sb,'daysField').classList.contains('v-rain') && !G(sb,'daysField').classList.contains('v-wind'), strip.slice(0, 300) + ' | ' + G(sb,'viewAnswer').textContent);
+  sb.setView('warm');
+  strip = G(sb,'hourly').innerHTML;
+  H.check('Ansicht Wärme: Tönung nach Temperatur, gefühlt darunter, Satz, Liste wie Überblick', strip.includes('class="hcol now tc4"') && strip.includes('class="hcol tc3"') && strip.includes('<div class="v">18°</div><div class="p">gef. 17°</div>') && (strip.match(/ tc2"/g) || []).length > 0 && G(sb,'viewAnswer').textContent === 'Höchstens 20° morgen um 11 Uhr, gefühlt 19°, nachts bis 4°.' && G(sb,'daysHint').textContent === 'Tief · Hoch' && G(sb,'days').innerHTML.includes('<div class="lo">8°</div>'), G(sb,'viewAnswer').textContent);
+  sb.setView('light');
+  strip = G(sb,'hourly').innerHTML; days = G(sb,'days').innerHTML;
+  H.check('Ansicht Licht: UV-Wert, Bewölkung, Sonnenfüllung, 22 Nachtspalten gedämpft, Satz, Liste', strip.includes('<div class="v">UV 4</div><div class="p">45 %</div>') && (strip.match(/ dark"/g) || []).length === 22 && (strip.match(/fill lfill/g) || []).length === 25 && strip.includes('--p:55%') && strip.includes('<div class="v">–</div>') && G(sb,'viewAnswer').textContent === '6 h Sonne heute, UV mittel jetzt, goldene Stunde ab 18:24.' && days.includes('<div class="pp">UV 5</div><div class="lo"></div><div class="bar"><i style="left:0.0%;width:50.5%;animation:none"></i></div><div class="hi">6 h</div>') && G(sb,'daysHint').textContent === 'UV · Sonnenstunden', G(sb,'viewAnswer').textContent);
+  sb.setView('overview');
+  const norm = x => x.replace(/ style="[^"]*"/g, '').replace(/ data-stagger="[^"]*"/g, '');
+  H.check('Ansicht Überblick: Markup wie zuvor bis auf die Einblendung, Satz verborgen, Notiz wie gehabt', norm(G(sb,'hourly').innerHTML) === norm(stripBefore) && norm(G(sb,'days').innerHTML) === norm(daysBefore) && G(sb,'viewAnswer').classList.contains('hidden') && G(sb,'hourlyNote').textContent === 'Blaue Felder: Regenrisiko ab 25 %' && sb._store['wetter:view'] === 'overview', norm(G(sb,'hourly').innerHTML).slice(0, 200));
+  G(sb,'views').trigger('click', { target: { closest: () => ({ getAttribute: () => 'wind' }) } });
+  H.check('Ansicht: Chip-Tipp über den Delegaten', sb.currentView() === 'wind' && G(sb,'hourly').innerHTML.includes('class="ic arrow"'));
+  sb.setView('xyz');
+  H.check('Ansicht: unbekannte Werte fallen auf Überblick', sb.currentView() === 'overview');
+  // Sätze an Grenzfällen
+  const vDry = clone(); vDry.hourly.precipitation = vDry.hourly.precipitation.map(() => 0); vDry.hourly.precipitation_probability = vDry.hourly.precipitation_probability.map(() => 5);
+  const vWet = clone(); vWet.hourly.precipitation = vWet.hourly.precipitation.map(() => 0.5);
+  const vLater = clone(); vLater.hourly.precipitation = vLater.hourly.precipitation.map((v, i) => (i >= 18 && i <= 20 ? 0.8 : 0)); vLater.hourly.precipitation_probability = vLater.hourly.precipitation_probability.map(() => 5);
+  H.check('Sätze Regen: trocken, durchgehend, später mit Menge', sb.answerRain(sb.prepareData(vDry, null)) === 'Kein Regen in den nächsten 24 Stunden.' && sb.answerRain(sb.prepareData(vWet, null)) === 'Regen die nächsten 24 Stunden, etwa 12 mm.' && sb.answerRain(sb.prepareData(vLater, null)) === 'Trocken bis 18 Uhr, dann Regen bis 21 Uhr, etwa 2,4 mm.', [vDry, vWet, vLater].map(f => sb.answerRain(sb.prepareData(f, null))).join(' | '));
+  const vCalm = clone(); vCalm.hourly.wind_gusts_10m = vCalm.hourly.wind_gusts_10m.map(() => 12);
+  const vGust = clone(); vGust.hourly.wind_gusts_10m = vGust.hourly.wind_gusts_10m.map((g, i) => (i === 19 ? 52 : (i >= 26 ? 15 : 30)));
+  H.check('Sätze Wind: kaum Wind, Höchstböe später mit Nachsatz', sb.answerWind(vCalm) === 'Kaum Wind in den nächsten 24 Stunden.' && sb.answerWind(vGust) === 'Böen bis 52 km/h aus W gegen 19 Uhr, später ruhig.', sb.answerWind(vGust));
+  const vNight = clone(); vNight.current.time = '2026-09-25T22:15';
+  H.check('Sätze Licht nachts: nächster Aufgang, Sonne morgen, UV', sb.answerLight(vNight) === 'Sonnenaufgang 07:12, morgen 6 h Sonne, UV mittel.', sb.answerLight(vNight));
+  const vDayLow = clone(); vDayLow.hourly.temperature_2m = vDayLow.hourly.temperature_2m.map((t, i) => (i === 16 ? 2 : Math.max(t, 6)));
+  H.check('Sätze Wärme: Tiefstwert am Tag mit Stunde', sb.answerWarm(vDayLow) === 'Höchstens 20° morgen um 11 Uhr, gefühlt 19°, tiefstens 2° um 16 Uhr.', sb.answerWarm(vDayLow));
+  // Gespeicherte Ansicht beim Start
+  const sbW = boot({ fetchImpl: H.okFetch(data), geolocation: granted, storage: { 'wetter:view': 'wind' } });
+  await wait(300);
+  H.check('Ansicht: gespeicherte Wahl beim Start, Spalten mit Einblendung', sbW.currentView() === 'wind' && G(sbW,'hourly').innerHTML.includes('class="ic arrow"') && G(sbW,'views').innerHTML.includes('data-view="wind" aria-pressed="true"') && G(sbW,'viewAnswer').textContent === 'Jetzt Böen bis 36 km/h aus SW.' && !G(sbW,'hourly').innerHTML.includes('animation:none') && G(sbW,'daysHint').textContent === 'Wind · Böen km/h', G(sbW,'viewAnswer').textContent);
+
   // Shell-Markup: gleitende Tab-Pille und Design-Schleier liegen in beiden Seiten
   const idx = fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8');
   const rad = fs.readFileSync(require('path').join(__dirname, '..', 'radar.html'), 'utf8');
+  const css = fs.readFileSync(require('path').join(__dirname, '..', 'modern.css'), 'utf8');
   H.check('Shell: Tab-Pille in index.html und radar.html, kein klassisches Design mehr, Schalter und Service Worker', [idx, rad].every(h => h.includes('<span class="tab-ink"') && !h.includes('designVeil') && !h.includes('design.css') && !h.includes('data-design') && !h.includes('wetter:design') && !h.includes('class="sky"') && h.includes('id="modeBtn"') && h.includes('serviceWorker.register("sw.js")')) && !idx.includes('designLink') && !fs.existsSync(require('path').join(__dirname, '..', 'design.css')));
   H.check('Shell: Rausgehen-Feld in index.html', idx.includes('id="activityField"') && idx.includes('id="activity"'));
+  H.check('Shell: Ansicht nach Frage in index.html und Stylesheet mit Nacht-Token', idx.includes('id="views"') && idx.includes('id="viewAnswer"') && idx.includes('id="hourlyNote"') && idx.includes('id="daysHint"') && css.includes('.view-chip') && css.includes('--wfill: #BFE0C4') && css.includes('--wfill: #2F5A3A') && css.includes('.hcol.tc4:not(.now)') && css.includes('.days-field.v-light .drow .bar i'));
   H.check('Shell: keine klassische Ansicht mehr verlinkt oder vorhanden', !idx.includes('klassisch.html') && !fs.existsSync(require('path').join(__dirname, '..', 'klassisch.html')) && !fs.existsSync(require('path').join(__dirname, '..', 'wetter.css')));
-  H.check('Shell: Versions-Query 20261009b an allen Asset-Links', (idx.match(/\?v=20261009b"/g) || []).length === 4 && (rad.match(/\?v=20261009b"/g) || []).length === 3, (idx.match(/\?v=\w+"/g) || []).join(','));
-  const css = fs.readFileSync(require('path').join(__dirname, '..', 'modern.css'), 'utf8');
+  H.check('Shell: Versions-Query 20261009c an allen Asset-Links', (idx.match(/\?v=20261009c"/g) || []).length === 4 && (rad.match(/\?v=20261009c"/g) || []).length === 3, (idx.match(/\?v=\w+"/g) || []).join(','));
   H.check('Shell: Sonnenrechnung vor den App-Skripten, Nachtklasse vor dem ersten Zeichnen', [idx, rad].every(h => h.includes('<script src="sonne.js?v=') && /wetter:night[\s\S]{0,120}classList\.add\("night"\)/.test(h) && h.indexOf('wetter:night') < h.indexOf('<link rel="stylesheet" href="modern.css')));
   H.check('Shell: Nachtpalette im Stylesheet mit Token, Hero-Farben, Fade und Kachel-Einblendung', css.includes('html.night {') && css.includes('--card:') && css.includes('--soft:') && css.includes('--wet:') && css.includes('html.night .theme-rain') && css.includes('html.fade') && css.includes('.tile.swap') && css.includes('.field.white { background: var(--card); }') && /\.tile \{[^}]*background: var\(--card\)/.test(css) && /\.hcol\.wet \{ background: var\(--wet\)/.test(css), css.match(/\.field\.white[^\n]*/));
 

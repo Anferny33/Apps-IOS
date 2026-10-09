@@ -810,7 +810,190 @@ function renderHero(fc) {
         '<div class="txt"><b>' + nc.text + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '</div>';
 }
 
-function dHourly(fc, ens) {
+/* ------------------------------------------------------------------ *
+ * Ansicht nach Frage: Überblick, Regen, Wind, Wärme, Licht. Die Wahl
+ * färbt Stundenstreifen und Tagesliste um und beantwortet die Frage in
+ * einem Satz. Hero, Zeitreise, Kacheln und Modellvergleich bleiben.
+ * ------------------------------------------------------------------ */
+const VIEWS = [
+    { id: "overview", label: "Überblick" }, { id: "rain", label: "Regen" }, { id: "wind", label: "Wind" },
+    { id: "warm", label: "Wärme" }, { id: "light", label: "Licht" }
+];
+let view = "overview";
+
+function viewById(id) { return VIEWS.some(function (v) { return v.id === id; }) ? id : "overview"; }
+function loadView() { try { view = viewById(localStorage.getItem("wetter:view")); } catch (e) { view = "overview"; } }
+function saveView() { try { localStorage.setItem("wetter:view", view); } catch (e) {} }
+function currentView() { return view; }
+
+function renderViews() {
+    const box = D("views");
+    if (!box) return;
+    box.innerHTML = VIEWS.map(function (v) {
+        const on = v.id === view;
+        return '<button type="button" class="view-chip' + (on ? ' on' : '') + '" data-view="' + v.id + '" aria-pressed="' + (on ? 'true' : 'false') + '">' + v.label + '</button>';
+    }).join("");
+}
+
+function initViews() {
+    loadView();
+    renderViews();
+    const box = D("views");
+    if (box && box.addEventListener) box.addEventListener("click", function (ev) {
+        const b = ev && ev.target && ev.target.closest ? ev.target.closest(".view-chip") : null;
+        if (b) setView(b.getAttribute("data-view"));
+    });
+}
+
+/* Wechsel: merken, Chips, Streifen und Liste leise neu bauen, Satz und Notiz, Ring und Spur erneut setzen */
+function setView(id) {
+    const next = viewById(id);
+    if (next === view) return;
+    view = next;
+    saveView();
+    renderViews();
+    if (!lastData || !lastData.fc) return;
+    dHourly(lastData.fc, null, { quiet: true });
+    renderDays(lastData.fc, { quiet: true });
+    renderViewText();
+    dActivity();
+    if (previewIdx !== null) markHour(previewIdx);
+    ["hourly", "days"].forEach(function (k) {
+        const el = D(k);
+        if (!el || !el.classList) return;
+        el.classList.remove("swap");
+        if (typeof el.offsetWidth === "number") void el.offsetWidth;
+        el.classList.add("swap");
+    });
+}
+
+function viewNote(v) {
+    return { overview: "Blaue Felder: Regenrisiko ab 25 %", rain: "Blaue Felder: Regenrisiko ab 25 %, darunter die Menge",
+             wind: "Grün: Wind ab 20 km/h, Füllung nach Böen, Pfeil zeigt, wohin es weht", warm: "Tönung nach Temperatur, darunter gefühlt",
+             light: "Gelbe Füllung: Sonnenanteil, Wert: UV-Index, darunter Bewölkung" }[v] || "";
+}
+function daysHint(v) {
+    return { rain: "Risiko · Stunden · mm", wind: "Wind · Böen km/h", light: "UV · Sonnenstunden" }[v] || "Tief · Hoch";
+}
+
+function renderViewText() {
+    const ans = D("viewAnswer");
+    if (ans) {
+        const txt = lastData ? viewAnswer(view, lastData) : "";
+        ans.textContent = txt;
+        if (ans.classList) ans.classList.toggle("hidden", !txt);
+    }
+    const note = D("hourlyNote");
+    if (note) note.textContent = viewNote(view);
+    const hint = D("daysHint");
+    if (hint) hint.textContent = daysHint(view);
+}
+
+/* „15 Uhr“, „morgen 6 Uhr“, mit Präposition „morgen gegen 6 Uhr“ */
+function whenHour(fc, t, prep) {
+    const dw = dayWordFor(fc, t);
+    const day = dw === "Heute" ? "" : (dw === "Morgen" ? "morgen " : dw + " ");
+    return day + (prep ? prep + " " : "") + parseInt(t.slice(11, 13), 10) + " Uhr";
+}
+
+function viewAnswer(v, data) {
+    if (v === "rain") return answerRain(data);
+    if (v === "wind") return answerWind(data.fc);
+    if (v === "warm") return answerWarm(data.fc);
+    if (v === "light") return answerLight(data.fc);
+    return "";
+}
+
+/* Regen: nass = Risiko ab 25 % oder Menge ab 0,1 mm, Fenster die nächsten 24 Stunden */
+function answerRain(data) {
+    const fc = data.fc, h = fc.hourly, w = hourlyWindow(fc, 24), s = w.start, e = Math.min(w.end, h.time.length);
+    if (s < 0 || e - s < 2) return "";
+    const wet = function (gi) { return hourProb(data, gi) >= 25 || (h.precipitation && isNum(h.precipitation[gi]) && h.precipitation[gi] >= 0.1); };
+    const mmOf = function (a, b) { let mm = 0; for (let k = a; k < b; k++) mm += (h.precipitation && isNum(h.precipitation[k])) ? h.precipitation[k] : 0; return mm; };
+    let gi = s;
+    if (wet(s)) {
+        while (gi < e && wet(gi)) gi++;
+        if (gi >= e) return "Regen die nächsten 24 Stunden, etwa " + fmtMm(mmOf(s, e)) + " mm.";
+        let again = gi;
+        while (again < e && !wet(again)) again++;
+        return "Regen bis " + whenHour(fc, h.time[gi]) + ", dann trocken" + (again < e ? ", ab " + whenHour(fc, h.time[again]) + " wieder Regen." : ".");
+    }
+    while (gi < e && !wet(gi)) gi++;
+    if (gi >= e) return "Kein Regen in den nächsten 24 Stunden.";
+    let end = gi, pmax = 0;
+    while (end < e && wet(end)) { pmax = Math.max(pmax, hourProb(data, end)); end++; }
+    const mm = mmOf(gi, end), endT = h.time[Math.min(end, h.time.length - 1)];
+    return "Trocken bis " + whenHour(fc, h.time[gi]) + ", dann Regen bis " + whenHour(fc, endT) + (mm >= 0.1 ? ", etwa " + fmtMm(mm) + " mm." : ", bis zu " + Math.round(pmax) + " % Risiko.");
+}
+
+/* Wind: Höchstböe mit Richtung und Stunde, Nachsatz aus den letzten zwölf Stunden des Fensters */
+function answerWind(fc) {
+    const h = fc.hourly, w = hourlyWindow(fc, 24), s = w.start, e = Math.min(w.end, h.time.length);
+    if (s < 0 || !h.wind_gusts_10m) return "";
+    let gmax = -1, gi = s;
+    for (let k = s; k < e; k++) if (isNum(h.wind_gusts_10m[k]) && h.wind_gusts_10m[k] > gmax) { gmax = h.wind_gusts_10m[k]; gi = k; }
+    if (gmax < 20) return "Kaum Wind in den nächsten 24 Stunden.";
+    let g2 = 0;
+    for (let k = Math.max(s, e - 12); k < e; k++) g2 = Math.max(g2, isNum(h.wind_gusts_10m[k]) ? h.wind_gusts_10m[k] : 0);
+    const tail = g2 < 20 ? ", später ruhig." : (g2 < 0.7 * gmax ? ", später weniger." : ".");
+    const dir = h.wind_direction_10m && isNum(h.wind_direction_10m[gi]) ? " aus " + compass(h.wind_direction_10m[gi]) : "";
+    const head = gi === s ? "Jetzt Böen bis " + Math.round(gmax) + " km/h" + dir : "Böen bis " + Math.round(gmax) + " km/h" + dir + " " + whenHour(fc, h.time[gi], "gegen");
+    return head + tail;
+}
+
+/* Wärme: Höchstwert mit Stunde und gefühlt, Tiefstwert nachts oder zur Stunde */
+function answerWarm(fc) {
+    const h = fc.hourly, w = hourlyWindow(fc, 24), s = w.start, e = Math.min(w.end, h.time.length);
+    if (s < 0) return "";
+    let hi = -Infinity, hiI = s, lo = Infinity, loI = s;
+    for (let k = s; k < e; k++) {
+        const t = h.temperature_2m[k];
+        if (!isNum(t)) continue;
+        if (t > hi) { hi = t; hiI = k; }
+        if (t < lo) { lo = t; loI = k; }
+    }
+    if (!isFinite(hi)) return "";
+    const feel = h.apparent_temperature ? h.apparent_temperature[hiI] : null;
+    const loHour = parseInt(h.time[loI].slice(11, 13), 10);
+    const loPart = loHour >= 20 || loHour < 6 ? "nachts bis " + Math.round(lo) + "°" : "tiefstens " + Math.round(lo) + "° " + whenHour(fc, h.time[loI], "um");
+    const head = hiI === s ? "Jetzt am wärmsten mit " + Math.round(hi) + "°" : "Höchstens " + Math.round(hi) + "° " + whenHour(fc, h.time[hiI], "um");
+    return head + (isNum(feel) ? ", gefühlt " + Math.round(feel) + "°" : "") + ", " + loPart + ".";
+}
+
+/* Licht: Sonnenstunden, UV-Maximum im Rest des Tages, goldene Stunde; nachts der nächste Aufgang */
+function answerLight(fc) {
+    const h = fc.hourly, d = fc.daily, w = hourlyWindow(fc, 24), s = w.start;
+    if (s < 0 || !d) return "";
+    const sunH = function (i) { return d.sunshine_duration && isNum(d.sunshine_duration[i]) ? Math.round(d.sunshine_duration[i] / 3600) : null; };
+    const dayNow = h.is_day ? h.is_day[s] === 1 : true;
+    if (!dayNow) {
+        const idx = parseInt(h.time[s].slice(11, 13), 10) < 12 ? 0 : 1, dw = idx ? "morgen" : "heute";
+        const lv = uvLevel(d.uv_index_max ? d.uv_index_max[idx] : null);
+        return "Sonnenaufgang " + hhmm(d.sunrise && d.sunrise[idx]) + (sunH(idx) !== null ? ", " + dw + " " + sunH(idx) + " h Sonne" : "") + (lv ? ", UV " + lv.word : "") + ".";
+    }
+    const today = dayOf(h.time[s]);
+    let uvMax = -1, uvI = s;
+    for (let k = s; k < h.time.length && dayOf(h.time[k]) === today; k++) if (h.uv_index && isNum(h.uv_index[k]) && h.uv_index[k] > uvMax) { uvMax = h.uv_index[k]; uvI = k; }
+    const lv = uvLevel(uvMax), golden = nextGoldenText(fc);
+    return (sunH(0) !== null ? sunH(0) + " h Sonne heute" : "Tag") +
+        (lv ? ", UV " + lv.word + (uvI === s ? " jetzt" : " um " + parseInt(h.time[uvI].slice(11, 13), 10) + " Uhr") : "") +
+        (golden ? ", " + golden.charAt(0).toLowerCase() + golden.slice(1) : "") + ".";
+}
+
+/* Pfeil, der zeigt, wohin der Wind weht (Drehung um die Herkunftsrichtung) */
+function arrowIcon(dirFrom, cls) {
+    const ang = isNum(dirFrom) ? Math.round(dirFrom) : 0;
+    return '<svg class="' + (cls || "ic") + ' arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="--ang:' + ang + 'deg" aria-hidden="true"><g><path d="M12 4v16M6 14l6 6 6-6"/></g></svg>';
+}
+
+/* Temperaturstufe für die Spaltentönung der Wärme-Ansicht */
+function tempClass(t) {
+    if (!isNum(t)) return "";
+    return t <= 0 ? " tc1" : (t <= 8 ? " tc2" : (t <= 16 ? " tc3" : (t <= 24 ? " tc4" : " tc5")));
+}
+
+function dHourly(fc, ens, opts) {
+    const quiet = !!(opts && opts.quiet);
     const box = D("hourly");
     unskel(box);
     const h = fc.hourly;
@@ -831,16 +1014,49 @@ function dHourly(fc, ens) {
         const dd = dayOf(t);
         const newDay = prevDay !== null && dd !== prevDay;
         prevDay = dd;
-        const wet = i !== 0 && prob >= 25;
+        const wet = i !== 0 && prob >= 25 && (view === "overview" || view === "rain");
+        const fillStyle = function (pct, lead) { return '--p:' + pct + '%;' + (quiet ? 'animation:none' : 'animation-delay:' + dl(lead + Math.min(i, 8) * 0.06) + 's'); };
+        const icon = svgIcon(h.weather_code[gi], h.is_day ? h.is_day[gi] : 1, "ic");
+        let cls = wet ? ' wet' : '', fill = '', ic = icon, val, sub;
+        if (view === "wind") {
+            const spd = h.wind_speed_10m ? h.wind_speed_10m[gi] : null, g = h.wind_gusts_10m ? h.wind_gusts_10m[gi] : null;
+            if (isNum(spd) && spd >= 20) cls = ' windy';
+            if (i !== 0 && isNum(g) && g > 0) fill = '<i class="fill wfill" style="' + fillStyle(Math.min(100, Math.round(g / 60 * 100)), 1.15) + '"></i>';
+            ic = arrowIcon(h.wind_direction_10m ? h.wind_direction_10m[gi] : null);
+            val = isNum(spd) ? String(Math.round(spd)) : '–';
+            sub = isNum(g) ? 'Böen ' + Math.round(g) : '&nbsp;';
+        } else if (view === "warm") {
+            const f = h.apparent_temperature ? h.apparent_temperature[gi] : null;
+            cls = tempClass(v);
+            val = isNum(v) ? Math.round(v) + '°' : '–';
+            sub = isNum(f) ? 'gef. ' + Math.round(f) + '°' : '&nbsp;';
+        } else if (view === "light") {
+            const uv = h.uv_index ? h.uv_index[gi] : null, cc = h.cloud_cover ? h.cloud_cover[gi] : null, day = h.is_day ? h.is_day[gi] === 1 : true;
+            const share = day && isNum(cc) ? Math.max(0, Math.min(100, Math.round(100 - cc))) : 0;
+            if (!day) cls = ' dark';
+            if (i !== 0 && share > 0) fill = '<i class="fill lfill" style="' + fillStyle(share, 1.15) + '"></i>';
+            val = day && isNum(uv) ? 'UV ' + Math.round(uv) : '–';
+            sub = isNum(cc) ? Math.round(cc) + ' %' : '&nbsp;';
+        } else if (view === "rain") {
+            const mm = h.precipitation ? h.precipitation[gi] : null;
+            if (wet) fill = '<i class="fill" style="' + fillStyle(Math.round(prob), 1.15) + '"></i>';
+            val = Math.round(prob) + '%';
+            sub = isNum(mm) && mm >= 0.05 ? fmtMm(mm) + ' mm' : '&nbsp;';
+        } else {
+            /* Regenstunden: das Blau steigt wie ein Wasserstand bis zur Wahrscheinlichkeit */
+            if (wet) fill = quiet ? '<i class="fill" style="' + fillStyle(Math.round(prob), 1.15) + '"></i>' :
+                '<i class="fill" data-stagger="' + (Math.min(i, 8) * 0.06).toFixed(2) + 's" style="--p:' + Math.round(prob) + '%;animation-delay:' + dl(1.15 + Math.min(i, 8) * 0.06) + 's"></i>';
+            val = isNum(v) ? Math.round(v) + '°' : '–';
+            sub = Math.round(prob) + '%';
+        }
         /* data-i: globaler Stundenindex für die Zeitreise; die Spalte „Jetzt" hat keins */
         cols +=
-            '<div' + (i === 0 ? '' : ' data-i="' + gi + '"') + ' class="hcol' + (i === 0 ? ' now' : '') + (newDay ? ' newday' : '') + (wet ? ' wet' : '') + '" style="animation-delay:' + dl(0.9 + Math.min(i, 8) * 0.06) + 's">' +
-                /* Regenstunden: das Blau steigt wie ein Wasserstand bis zur Wahrscheinlichkeit */
-                (wet ? '<i class="fill" data-stagger="' + (Math.min(i, 8) * 0.06).toFixed(2) + 's" style="--p:' + Math.round(prob) + '%;animation-delay:' + dl(1.15 + Math.min(i, 8) * 0.06) + 's"></i>' : '') +
+            '<div' + (i === 0 ? '' : ' data-i="' + gi + '"') + ' class="hcol' + (i === 0 ? ' now' : '') + (newDay ? ' newday' : '') + cls + '" style="' + (quiet ? 'animation:none' : 'animation-delay:' + dl(0.9 + Math.min(i, 8) * 0.06) + 's') + '">' +
+                fill +
                 '<div class="t">' + (i === 0 ? "Jetzt" : (newDay ? weekday(dd) : hhmm(t).slice(0, 2))) + '</div>' +
-                svgIcon(h.weather_code[gi], h.is_day ? h.is_day[gi] : 1, "ic") +
-                '<div class="v">' + (isNum(v) ? Math.round(v) + '°' : '–') + '</div>' +
-                '<div class="p">' + Math.round(prob) + '%</div>' +
+                ic +
+                '<div class="v">' + val + '</div>' +
+                '<div class="p">' + sub + '</div>' +
             '</div>';
     }
     box.innerHTML = '<div class="strip"><div class="strip-inner">' + cols + '</div><div class="act-track">' + cells + '</div></div>';
@@ -971,10 +1187,15 @@ function setPause(minutes) {
     updatePause();
 }
 
-function renderDays(fc) {
+function renderDays(fc, opts) {
+    const quiet = !!(opts && opts.quiet);
     const box = D("days");
     unskel(box);
     const d = fc.daily, n = d.time.length;
+    const field = D("daysField");
+    if (field && field.classList) { VIEWS.forEach(function (v) { field.classList.remove("v-" + v.id); }); field.classList.add("v-" + view); }
+    const maxOf = function (arr) { return arr ? Math.max(1e-9, Math.max.apply(null, arr.filter(isNum))) : 1; };
+    const maxSum = maxOf(d.precipitation_sum), maxGust = maxOf(d.wind_gusts_10m_max);
     const tLo = Math.min.apply(null, d.temperature_2m_min.filter(isNum));
     const tHi = Math.max.apply(null, d.temperature_2m_max.filter(isNum));
     const span = Math.max(1, tHi - tLo);
@@ -990,16 +1211,36 @@ function renderDays(fc) {
         const more = i >= SHOWN;
         /* Weitere Tage blenden erst beim Aufklappen ein (Staffelung im Stylesheet), ihre Spannen wachsen dann */
         const delay = more ? null : dl(1.4 + Math.min(i, SHOWN) * 0.05);
+        /* Zeile je Ansicht: Symbol, erster Wert, links, Balken, rechts */
+        let ic = svgIcon(code, 1, "ic"), first = isNum(prob) ? Math.round(prob) + '%' : '', loTxt = Math.round(lo) + '°', hiTxt = Math.round(hi) + '°';
+        let bLeft = left, bWidth = width, dot = i === 0 && isNum(cur) ? '<b style="left:' + Math.max(0, Math.min(100, (cur - tLo) / span * 100)).toFixed(1) + '%"></b>' : '';
+        if (view === "rain") {
+            const sum = d.precipitation_sum[i], ph = d.precipitation_hours ? d.precipitation_hours[i] : null;
+            loTxt = isNum(ph) && ph > 0 ? Math.round(ph) + ' h' : '';
+            bLeft = 0; bWidth = isNum(sum) && sum > 0 ? Math.max(2, sum / maxSum * 100) : 0;
+            hiTxt = fmtMm(sum); dot = '';
+        } else if (view === "wind") {
+            const wm = d.wind_speed_10m_max ? d.wind_speed_10m_max[i] : null, gm = d.wind_gusts_10m_max ? d.wind_gusts_10m_max[i] : null, dir = d.wind_direction_10m_dominant ? d.wind_direction_10m_dominant[i] : null;
+            ic = arrowIcon(dir); first = compass(dir);
+            loTxt = isNum(wm) ? String(Math.round(wm)) : '';
+            bLeft = 0; bWidth = isNum(gm) && gm > 0 ? Math.max(2, gm / maxGust * 100) : 0;
+            hiTxt = isNum(gm) ? String(Math.round(gm)) : '–'; dot = '';
+        } else if (view === "light") {
+            const uvm = d.uv_index_max ? d.uv_index_max[i] : null, sun = d.sunshine_duration ? d.sunshine_duration[i] : null, dlen = d.daylight_duration ? d.daylight_duration[i] : null;
+            first = isNum(uvm) ? 'UV ' + Math.round(uvm) : '';
+            loTxt = '';
+            bLeft = 0; bWidth = isNum(sun) && isNum(dlen) && dlen > 0 ? Math.max(0, Math.min(100, sun / dlen * 100)) : 0;
+            hiTxt = isNum(sun) ? Math.round(sun / 3600) + ' h' : '–'; dot = '';
+        }
+        const barAnim = quiet ? 'animation:none' : 'animation-delay:' + (more ? '0.5' : (+delay + 0.2).toFixed(2)) + 's';
         const row =
-            '<div class="drow' + (i === 0 ? ' today' : '') + mood + (more ? ' more' : '') + '"' + (more ? '' : ' style="animation-delay:' + delay + 's"') + '>' +
+            '<div class="drow' + (i === 0 ? ' today' : '') + mood + (more ? ' more' : '') + '"' + (quiet ? ' style="animation:none"' : (more ? '' : ' style="animation-delay:' + delay + 's"')) + '>' +
                 '<div class="n">' + (i === 0 ? "Heute" : weekday(d.time[i])) + '</div>' +
-                svgIcon(code, 1, "ic") +
-                '<div class="pp">' + (isNum(prob) ? Math.round(prob) + '%' : '') + '</div>' +
-                '<div class="lo">' + Math.round(lo) + '°</div>' +
-                '<div class="bar"><i style="left:' + left.toFixed(1) + '%;width:' + width.toFixed(1) + '%;animation-delay:' + (more ? '0.5' : (+delay + 0.2).toFixed(2)) + 's"></i>' +
-                    (i === 0 && isNum(cur) ? '<b style="left:' + Math.max(0, Math.min(100, (cur - tLo) / span * 100)).toFixed(1) + '%"></b>' : '') +
-                '</div>' +
-                '<div class="hi">' + Math.round(hi) + '°</div>' +
+                ic +
+                '<div class="pp">' + first + '</div>' +
+                '<div class="lo">' + loTxt + '</div>' +
+                '<div class="bar"><i style="left:' + bLeft.toFixed(1) + '%;width:' + bWidth.toFixed(1) + '%;' + barAnim + '"></i>' + dot + '</div>' +
+                '<div class="hi">' + hiTxt + '</div>' +
             '</div>';
         if (more) moreRows += row; else rows += row;
     }
@@ -1830,6 +2071,7 @@ function renderAllDesign(payload) {
     dActivity();
     dNowcast(payload.fc);
     renderDays(payload.fc);
+    renderViewText();
     renderDetails(payload.fc, payload.air);
     dModels(payload.md, payload.fc, payload.ens);
     startCounters(D("details"));
@@ -2360,6 +2602,7 @@ function initDesignApp() {
     initSearch();
     initTabs();
     initModeToggle();
+    initViews();
     initReplay();
     initPreviewBar();
     initFreshness();

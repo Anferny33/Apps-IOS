@@ -22,6 +22,9 @@
     --line: #ECEAF4;
     --wet: #DCE9F9;
     --good-bg: #E4F1E8;
+    /* Ansicht nach Frage: Füllungen und Tönungen des Stundenstreifens */
+    --wfill: #BFE0C4; --windy-ink: #2E7D4F; --lfill: #F6E7A6; --nightcol: #DAD6E6;
+    --tc1: #D9E8F7; --tc2: #DCEBF6; --tc4: #FBE4C8; --tc5: #F9CDB8;
     --radius: 22px;
     --tab-h: 68px;
 }
@@ -628,7 +631,10 @@ html.night {
     --ink: #F1EFF8; --ink-2: #A9A3C4;
     --uv: #5A3A2E; --wind: #27392B; --rain: #34496E; --wet: #243048; --rain-ink: #BFD6F6; --lilac: #3A2F57;
     --dark: #3A3553; --dark-muted: #8E88AE; --good-bg: #243A2C;
+    --wfill: #2F5A3A; --windy-ink: #7FD69A; --lfill: #5A4E24; --nightcol: #191626;
+    --tc1: #24364E; --tc2: #243048; --tc4: #4A3A28; --tc5: #5A2F2A;
 }
+html.night .view-chip.on { background: var(--ink); color: var(--ground); }
 /* Auswahlzustände nachts invertiert (hell auf dunkel), sonst gingen sie zwischen Karte und Chip unter */
 html.night .act-chip.on, html.night .pchip.on, html.night .mchip.hl, html.night .hcol.now, html.night .hero-field .meta .now-btn { background: var(--ink); color: var(--ground); }
 html.night .hcol.now .t, html.night .hcol.now .p { color: #5A5478; }
@@ -666,3 +672,26 @@ html.fade .act-chip, html.fade .pchip, html.fade .act-win, html.fade .banner, ht
 .moon-ico .moon-lit { fill: currentColor; }
 .fog-ico .f2 { animation: fogDrift 3.2s ease-in-out infinite alternate; }
 @keyframes fogDrift { from { transform: translateX(-1.5px); } to { transform: translateX(1.5px); } }
+
+/* ---------- Ansicht nach Frage ---------- */
+.views { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; -webkit-overflow-scrolling: touch; }
+.views::-webkit-scrollbar { display: none; }
+.view-chip { flex: none; padding: 8px 12px; border: 0; border-radius: 999px; background: var(--card); color: var(--ink); font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.view-chip.on { background: var(--dark); color: var(--white); }
+.view-chip:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+.answer { font-size: 14px; font-weight: 600; line-height: 1.45; margin: -4px 0 12px; }
+.answer.hidden { display: none; }
+/* Streifen: Pfeil, Füllungen, Tönungen; die Jetzt-Spalte behält ihre Farbe */
+.hcol .arrow { color: var(--ink); } .hcol .arrow g { transform: rotate(var(--ang, 0deg)); transform-origin: 12px 12px; }
+.hcol .fill.wfill { background: var(--wfill); } .hcol .fill.lfill { background: var(--lfill); }
+.hcol.windy:not(.now) .t, .hcol.windy:not(.now) .p { color: var(--windy-ink); }
+.hcol.tc1:not(.now) { background: var(--tc1); } .hcol.tc2:not(.now) { background: var(--tc2); } .hcol.tc4:not(.now) { background: var(--tc4); } .hcol.tc5:not(.now) { background: var(--tc5); }
+.hcol.dark:not(.now) { background: var(--nightcol); } .hcol.dark:not(.now) .v { color: var(--ink-2); }
+#hourly.swap, #days.swap { animation: aFade 0.45s ease both; }
+/* Tagesliste: Balkenfarbe je Ansicht, Pfeil statt Wettersymbol in der Wind-Ansicht */
+.days-field.v-rain .drow .bar i { background: var(--dark-blue); }
+.days-field.v-rain .drow .lo, .days-field.v-wind .drow .lo { width: 38px; white-space: nowrap; }
+.days-field.v-rain .drow .hi, .days-field.v-wind .drow .hi, .days-field.v-light .drow .hi { width: 34px; white-space: nowrap; }
+.days-field.v-wind .drow .bar i { background: #7FD69A; }
+.days-field.v-light .drow .bar i { background: var(--sun); }
+.drow .arrow { width: 22px; height: 22px; flex: none; color: var(--white); } .drow .arrow g { transform: rotate(var(--ang, 0deg)); transform-origin: 12px 12px; }
