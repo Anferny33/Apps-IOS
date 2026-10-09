@@ -68,17 +68,44 @@ async function getJson(url) {
     return data;
 }
 
+/* Der Vortag kommt mit (past_days) und wird in splitPastDay als fc.past abgetrennt,
+   damit Tag 0 und Stunde 0 überall „heute“ bleiben. */
 function fetchForecast(loc) {
     return getJson(buildUrl("https://api.open-meteo.com/v1/forecast", {
         latitude: loc.lat,
         longitude: loc.lon,
         timezone: "auto",
         forecast_days: 14,
+        past_days: 1,
         current: "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,pressure_msl,cloud_cover,is_day",
         minutely_15: "precipitation",
         hourly: "temperature_2m,apparent_temperature,precipitation,precipitation_probability,weather_code,is_day,wind_speed_10m,wind_gusts_10m,wind_direction_10m,uv_index,cloud_cover,cloud_cover_low,cloud_cover_high,visibility,dew_point_2m",
         daily: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,precipitation_hours,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant,uv_index_max,sunrise,sunset,daylight_duration,sunshine_duration"
-    }));
+    })).then(splitPastDay);
+}
+
+/* Alles vor dem heutigen Datum (Ortszeit aus current.time) wandert aus hourly, minutely_15 und
+   daily nach fc.past; die drei Blöcke beginnen danach wieder mit heute. Grenze ist das Datum,
+   nicht eine Anzahl Werte: Tage mit Zeitumstellung haben 23 oder 25 Stunden. Antworten ohne
+   Vortag (alte gespeicherte Daten) bleiben unverändert und bekommen kein past. */
+function splitPastDay(fc) {
+    if (!fc || !fc.current || typeof fc.current.time !== "string") return fc;
+    const today = fc.current.time.slice(0, 10);
+    const cut = function (block) {
+        if (!block || !Array.isArray(block.time)) return null;
+        const n = firstIndexFrom(block.time, today);
+        if (n <= 0) return null;
+        const past = {};
+        Object.keys(block).forEach(function (k) {
+            if (!Array.isArray(block[k])) return;
+            past[k] = block[k].slice(0, n);
+            block[k] = block[k].slice(n);
+        });
+        return past;
+    };
+    const past = { hourly: cut(fc.hourly), minutely_15: cut(fc.minutely_15), daily: cut(fc.daily) };
+    if (past.hourly || past.minutely_15 || past.daily) fc.past = past;
+    return fc;
 }
 
 /* ICON-D2-EPS: 20 Ensemble-Läufe. Daraus wird die Regenwahrscheinlichkeit

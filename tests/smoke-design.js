@@ -172,6 +172,61 @@ function boot(opts) {
   H.check('Hero: SVG-Icon statt Emoji', hero.includes('<svg class="big-icon'));
   H.check('Hinweis bei Regen: Schirm mit Dach- und Tropfen-Ebene', G(sb,'insight').innerHTML.includes('<svg class="umb"') && G(sb,'insight').innerHTML.includes('class="umb-canopy"') && G(sb,'insight').innerHTML.includes('class="umb-drops"'));
 
+  // Vergleich mit gestern: Vortag abtrennen (Datenschicht) und Chip im Hero
+  const withPast = (hoursYday) => {
+    const f = clone();
+    const yd = '2026-09-24';
+    const hT = Array.from({length: hoursYday}, (_, i) => yd + 'T' + String(i).padStart(2, '0') + ':00');
+    Object.keys(f.hourly).forEach(k => { f.hourly[k] = (k === 'time' ? hT : hT.map(() => 10)).concat(f.hourly[k]); });
+    const mT = Array.from({length: 96}, (_, i) => yd + 'T' + String(Math.floor(i / 4)).padStart(2, '0') + ':' + String((i % 4) * 15).padStart(2, '0'));
+    f.minutely_15.time = mT.concat(f.minutely_15.time); f.minutely_15.precipitation = mT.map(() => 0).concat(f.minutely_15.precipitation);
+    Object.keys(f.daily).forEach(k => { f.daily[k] = [k === 'time' ? yd : f.daily[k][0]].concat(f.daily[k]); });
+    return f;
+  };
+  const fp = sb.splitPastDay(withPast(24));
+  H.check('Vortag: Stunden, Viertelstunden und Tage beginnen wieder mit heute', fp.hourly.time[0] === '2026-09-25T00:00' && fp.hourly.time.length === 72 && fp.minutely_15.time[0] === '2026-09-25T00:00' && fp.minutely_15.precipitation.length === 96 && fp.daily.time[0] === '2026-09-25' && fp.daily.time.length === 14, [fp.hourly.time[0], fp.minutely_15.time[0], fp.daily.time[0]].join(' | '));
+  H.check('Vortag: past hält 24 Stunden, 96 Viertelstunden und einen Tag', !!fp.past && fp.past.hourly.time.length === 24 && fp.past.hourly.temperature_2m.length === 24 && fp.past.hourly.time[23] === '2026-09-24T23:00' && fp.past.minutely_15.time.length === 96 && fp.past.daily.time.length === 1 && fp.past.daily.time[0] === '2026-09-24', JSON.stringify(fp.past && fp.past.daily));
+  const fp23 = sb.splitPastDay(withPast(23));
+  H.check('Vortag: Grenze ist das Datum, nicht die Anzahl (23-Stunden-Tag)', fp23.past.hourly.time.length === 23 && fp23.hourly.time[0] === '2026-09-25T00:00' && fp23.hourly.time.length === 72, fp23.past.hourly.time.length + ' / ' + fp23.hourly.time[0]);
+  const fp0 = sb.splitPastDay(clone());
+  H.check('Vortag: Daten ohne Vortag bleiben unverändert und ohne past', !('past' in fp0) && fp0.hourly.time.length === 72 && fp0.daily.time[0] === '2026-09-25');
+  H.check('Vortag: Abfrage holt past_days=1', (sb._fetchLog.find(u => u.includes('api.open-meteo.com/v1/forecast') && u.includes('forecast_days=14')) || '').includes('past_days=1'), sb._fetchLog.find(u => u.includes('forecast_days=14')));
+  const yFc = (t14, t15) => { const f = clone(); f.past = { hourly: { time: Array.from({length: 24}, (_, i) => '2026-09-24T' + String(i).padStart(2, '0') + ':00'), temperature_2m: Array.from({length: 24}, (_, i) => i === 14 ? t14 : (i === 15 ? t15 : 10)) } }; return f; };
+  H.check('Gestern: wärmer, kälter, gleich (14:15 zwischen 14 und 15 Uhr interpoliert)', sb.yesterdayText(yFc(15.0, 15.4)) === '2° wärmer als gestern' && sb.yesterdayText(yFc(20.6, 20.6)) === '3° kälter als gestern' && sb.yesterdayText(yFc(17.2, 17.2)) === 'Wie gestern', [sb.yesterdayText(yFc(15.0, 15.4)), sb.yesterdayText(yFc(20.6, 20.6)), sb.yesterdayText(yFc(17.2, 17.2))].join(' | '));
+  H.check('Gestern: ohne Vortag kein Text', sb.yesterdayText(clone()) === null);
+  const yLate = yFc(10, 10); yLate.current.time = '2026-09-25T23:30';
+  const expLate = Math.round(17.4 - (10 + (yLate.hourly.temperature_2m[0] - 10) * 0.5));
+  H.check('Gestern: 23:30 interpoliert mit 0 Uhr heute', sb.yesterdayText(yLate) === expLate + '° wärmer als gestern', sb.yesterdayText(yLate) + ' vs ' + expLate);
+  const yGap = yFc(15, 15); yGap.past.hourly.time[14] = '2026-09-24T14:30';
+  H.check('Gestern: fehlende Stunde heißt kein Vergleich', sb.yesterdayText(yGap) === null);
+  sb.renderHero(yFc(15.0, 15.4));
+  H.check('Hero: Chip „2° wärmer als gestern“ als vierter Chip im Jetzt-Zustand', />Gefühlt 16°<\/span><span class="a-up" style="animation-delay:[-\d.]+s">2° wärmer als gestern<\/span><\/div>/.test(G(sb,'hero').innerHTML), G(sb,'hero').innerHTML.slice(-220));
+  sb.selectHour(42);
+  H.check('Hero: in der Vorschau kein Vergleich mit gestern', !/gestern/.test(G(sb,'hero').innerHTML));
+  sb.backToNow();
+  sb.renderHero(fc);
+  // Schirm-Schwelle: Rat nach Menge, stärkster Viertelstunde und Risiko
+  const data0 = sb.prepareData(fc, data.ens);
+  const ncOf = (vals) => ({ wet: true, vals: vals.concat(Array(16 - vals.length).fill(0)), times: ncs.times, text: '' });
+  const advFull = sb.umbrellaAdvice(ncOf([0.4, 0.4, 0.4, 0.4, 0.4, 0.4]), fc, data0);
+  const advLight = sb.umbrellaAdvice(ncOf([0.3, 0.3, 0.3, 0.3]), fc, data0);
+  const advDrop = sb.umbrellaAdvice(ncOf([0.1, 0.1]), fc, data0);
+  const advPeak = sb.umbrellaAdvice(ncOf([0.7]), fc, data0);
+  H.check('Rat: Stufen Schirm, leicht, Tropfen; Spitze allein reicht für Schirm', advFull.level === 2 && advFull.text === 'Schirm einpacken' && advLight.level === 1 && advLight.text === 'Leichter Regen, eine Kapuze reicht' && advDrop.level === 0 && advDrop.text === 'Nur ein paar Tropfen, kein Schirm nötig' && advPeak.level === 2, [advFull.text, advLight.text, advDrop.text, advPeak.level].join(' | '));
+  H.check('Rat: Symbol je Stufe (Regen-Schirm, ruhiger Schirm, Tropfen)', advFull.icon.includes('class="umb"') && !advLight.icon.includes('class="umb"') && advLight.icon.includes('M3 12a9 9 0 0 1 18 0z') && advDrop.icon.includes('M12 3s6 7 6 11'), advDrop.icon.slice(0, 60));
+  const fcLow = clone(); fcLow.hourly.precipitation_probability = fcLow.hourly.precipitation_probability.map(() => 20);
+  H.check('Rat: unter 30 % Risiko vorsichtiger', sb.umbrellaAdvice(ncOf([0.4, 0.4, 0.4, 0.4, 0.4, 0.4]), fcLow, null).text === 'Schirm zur Sicherheit, Risiko 20 %' && sb.umbrellaAdvice(ncOf([0.3, 0.3, 0.3, 0.3]), fcLow, null).text === 'Leichter Regen möglich, Risiko 20 %' && sb.umbrellaAdvice(ncOf([0.1, 0.1]), fcLow, null).text === 'Vielleicht ein paar Tropfen, Risiko 20 %', sb.umbrellaAdvice(ncOf([0.4, 0.4, 0.4, 0.4, 0.4, 0.4]), fcLow, null).text);
+  const fcZero = clone(); fcZero.hourly.precipitation_probability = fcZero.hourly.precipitation_probability.map(() => 0);
+  H.check('Rat: Risiko nahe null heißt „unter 10 %“, nicht „0 %“', sb.umbrellaAdvice(ncOf([0.4, 0.4, 0.4, 0.4, 0.4, 0.4]), fcZero, null).text === 'Schirm zur Sicherheit, Risiko unter 10 %', sb.umbrellaAdvice(ncOf([0.4, 0.4, 0.4, 0.4, 0.4, 0.4]), fcZero, null).text);
+  H.check('Rat: Risiko ist das Maximum der Stunden im Nowcast-Fenster', sb.nowcastProb(fc, data0) === advFull.prob && advFull.prob >= 30 && sb.nowcastProb(fcLow, null) === 20, advFull.prob + ' / ' + sb.nowcastProb(fcLow, null));
+  const fcLight = clone(); fcLight.minutely_15.precipitation = fcLight.minutely_15.precipitation.map((v, i) => (i >= 60 && i < 66 ? 0.2 : 0));
+  sb.renderHero(fcLight);
+  H.check('Hinweis bei leichtem Regen: Kapuze und ruhiger Schirm', G(sb,'insight').innerHTML.includes('<span>Leichter Regen, eine Kapuze reicht</span>') && !G(sb,'insight').innerHTML.includes('<svg class="umb"') && G(sb,'insight').innerHTML.includes('Regen ab ca. 14:45 Uhr · ca. 1,2 mm'), G(sb,'insight').innerHTML);
+  const fcDrops = clone(); fcDrops.minutely_15.precipitation = fcDrops.minutely_15.precipitation.map((v, i) => (i === 60 || i === 61 ? 0.1 : 0));
+  sb.renderHero(fcDrops);
+  H.check('Hinweis bei Tropfen: kein Schirm nötig, Tropfen-Symbol', G(sb,'insight').innerHTML.includes('<span>Nur ein paar Tropfen, kein Schirm nötig</span>') && G(sb,'insight').innerHTML.includes('M12 3s6 7 6 11'), G(sb,'insight').innerHTML);
+  sb.renderHero(fc);
+
   const wn = G(sb,'warnings').innerHTML;
   const dwdUrl = sb._fetchLog.find(u => u.includes('maps.dwd.de')) || '';
   H.check('Warnungen: DWD-WFS mit Punkt in Breite/Länge-Reihenfolge abgefragt', decodeURIComponent(dwdUrl).replace(/\+/g, ' ').includes('INTERSECTS(THE_GEOM,POINT(48.137 11.575))') && dwdUrl.includes('typeName=dwd%3AWarnungen_Gemeinden'), decodeURIComponent(dwdUrl));
@@ -590,7 +645,7 @@ function boot(opts) {
   H.check('Shell: Rausgehen-Feld in index.html', idx.includes('id="activityField"') && idx.includes('id="activity"'));
   H.check('Shell: Ansicht nach Frage in index.html und Stylesheet mit Nacht-Token', idx.includes('id="views"') && idx.includes('id="viewAnswer"') && idx.includes('id="hourlyNote"') && idx.includes('id="daysHint"') && css.includes('.view-chip') && css.includes('--wfill: #BFE0C4') && css.includes('--wfill: #2F5A3A') && css.includes('.hcol.tc4:not(.now)') && css.includes('.days-field.v-light .drow .bar i') && css.includes('.vis24 i.fog') && css.includes('html.night .vis24 i.fog'));
   H.check('Shell: keine klassische Ansicht mehr verlinkt oder vorhanden', !idx.includes('klassisch.html') && !fs.existsSync(require('path').join(__dirname, '..', 'klassisch.html')) && !fs.existsSync(require('path').join(__dirname, '..', 'wetter.css')));
-  H.check('Shell: Versions-Query 20261009g an allen Asset-Links', (idx.match(/\?v=20261009g"/g) || []).length === 4 && (rad.match(/\?v=20261009g"/g) || []).length === 3, (idx.match(/\?v=\w+"/g) || []).join(','));
+  H.check('Shell: Versions-Query 20261009h an allen Asset-Links', (idx.match(/\?v=20261009h"/g) || []).length === 4 && (rad.match(/\?v=20261009h"/g) || []).length === 3, (idx.match(/\?v=\w+"/g) || []).join(','));
   H.check('Shell: Sonnenrechnung vor den App-Skripten, Nachtklasse vor dem ersten Zeichnen', [idx, rad].every(h => h.includes('<script src="sonne.js?v=') && /wetter:night[\s\S]{0,120}classList\.add\("night"\)/.test(h) && h.indexOf('wetter:night') < h.indexOf('<link rel="stylesheet" href="modern.css')));
   H.check('Shell: Nachtpalette im Stylesheet mit Token, Hero-Farben, Fade und Kachel-Einblendung', css.includes('html.night {') && css.includes('--card:') && css.includes('--soft:') && css.includes('--wet:') && css.includes('html.night .theme-rain') && css.includes('html.fade') && css.includes('.tile.swap') && css.includes('.field.white { background: var(--card); }') && /\.tile \{[^}]*background: var\(--card\)/.test(css) && /\.hcol\.wet \{ background: var\(--wet\)/.test(css), css.match(/\.field\.white[^\n]*/));
 

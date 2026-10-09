@@ -142,10 +142,37 @@ function hourProb(data, gi) {
     return h.precipitation_probability && isNum(h.precipitation_probability[gi]) ? h.precipitation_probability[gi] : 0;
 }
 
-function nextDay(dateStr) {
+function nextDay(dateStr) { return shiftDay(dateStr, 1); }
+function prevDay(dateStr) { return shiftDay(dateStr, -1); }
+function shiftDay(dateStr, days) {
     const d = new Date(dateStr + "T12:00:00");
-    d.setDate(d.getDate() + 1);
+    d.setDate(d.getDate() + days);
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+/* Temperatur gestern zur selben Uhrzeit aus dem abgetrennten Vortag (Modelllauf, keine Messung),
+   linear zwischen den beiden Nachbarstunden; die Stunde nach 23 Uhr ist 0 Uhr heute.
+   Ohne Vortag oder ohne die Stunde (Lücke, Zeitumstellung) null. */
+function yesterdayTemp(fc) {
+    const p = fc.past && fc.past.hourly, c = fc.current;
+    if (!p || !Array.isArray(p.time) || !Array.isArray(p.temperature_2m) || !c || typeof c.time !== "string") return null;
+    const key = prevDay(dayOf(c.time)) + "T" + c.time.slice(11, 13) + ":00";
+    const i = p.time.indexOf(key);
+    if (i < 0 || !isNum(p.temperature_2m[i])) return null;
+    const a = p.temperature_2m[i];
+    const next = i + 1 < p.time.length ? p.temperature_2m[i + 1]
+        : (fc.hourly && fc.hourly.temperature_2m ? fc.hourly.temperature_2m[0] : null);
+    if (!isNum(next)) return a;
+    return a + (next - a) * parseInt(c.time.slice(14, 16), 10) / 60;
+}
+
+/* „2° wärmer als gestern“, „3° kälter als gestern“, „Wie gestern“; null ohne Vergleichswert */
+function yesterdayText(fc) {
+    const y = yesterdayTemp(fc);
+    if (y === null || !isNum(fc.current.temperature_2m)) return null;
+    const d = Math.round(fc.current.temperature_2m - y);
+    if (d === 0) return "Wie gestern";
+    return Math.abs(d) + "° " + (d > 0 ? "wärmer" : "kälter") + " als gestern";
 }
 
 /* Fakten einer Stunde für das Hero: Beschriftung „Morgen, 17 Uhr", Beschreibung, Werte. */
@@ -364,7 +391,8 @@ function nowFacts(fc) {
         isDay: c.is_day,
         apparent: c.apparent_temperature,
         hi: d && isNum(d.temperature_2m_max[0]) ? Math.round(d.temperature_2m_max[0]) : null,
-        lo: d && isNum(d.temperature_2m_min[0]) ? Math.round(d.temperature_2m_min[0]) : null
+        lo: d && isNum(d.temperature_2m_min[0]) ? Math.round(d.temperature_2m_min[0]) : null,
+        yday: yesterdayText(fc)
     };
 }
 
@@ -384,6 +412,7 @@ function heroChipsHtml(f, intro) {
     if (f.now) {
         if (f.hi !== null) out += chip("Hoch " + f.hi + "°", 0.5) + chip("Tief " + f.lo + "°", 0.58);
         out += chip("Gefühlt " + Math.round(f.apparent) + "°", 0.66);
+        if (f.yday) out += chip(f.yday, 0.74);
     } else {
         if (isNum(f.apparent)) out += chip("Gefühlt " + Math.round(f.apparent) + "°", 0);
         if (isNum(f.prob)) out += chip("Regen " + Math.round(f.prob) + " %", 0);
@@ -813,6 +842,34 @@ function rainOutlook(fc, data, skipHours) {
     return { text: "Heute voraussichtlich trocken", prob: a.max, unknown: false };
 }
 
+/* Höchstes Regenrisiko der Stunden im Nowcast-Fenster (aktuelle Stunde plus vier): Ensemble, sonst Modell */
+function nowcastProb(fc, data) {
+    const w = hourlyWindow(fc, 5);
+    let max = null;
+    for (let i = w.start; i < w.end; i++) {
+        const p = probAt(data, fc, i);
+        if (p !== null && (max === null || p > max)) max = p;
+    }
+    return max;
+}
+
+/* Rat zum Regen der nächsten 4 Stunden. Summe und stärkste Viertelstunde stufen ihn:
+   0 Tropfen (unter 0,5 mm, keine Viertelstunde ab 0,3 mm), 1 leicht (unter 2 mm, keine ab 0,6 mm),
+   2 Schirm. Liegt das Regenrisiko der Stunden bekannt unter 30 %, wird der Rat vorsichtiger. */
+function umbrellaAdvice(nc, fc, data) {
+    const total = nc.vals.reduce(function (a, b) { return a + b; }, 0);
+    const peak = Math.max.apply(null, nc.vals.concat([0]));
+    const level = (total < 0.5 && peak < 0.3) ? 0 : ((total < 2 && peak < 0.6) ? 1 : 2);
+    const prob = nowcastProb(fc, data);
+    const unsure = prob !== null && prob < 30;
+    /* Der Nowcast selbst spricht für Regen; ein Ensemble-Risiko nahe null wird darum nicht als Zahl genannt */
+    const risk = unsure ? ", Risiko " + (prob < 10 ? "unter 10" : Math.round(prob)) + " %" : "";
+    const texts = unsure
+        ? ["Vielleicht ein paar Tropfen" + risk, "Leichter Regen möglich" + risk, "Schirm zur Sicherheit" + risk]
+        : ["Nur ein paar Tropfen, kein Schirm nötig", "Leichter Regen, eine Kapuze reicht", "Schirm einpacken"];
+    return { level: level, text: texts[level], icon: level === 0 ? UI.drop : (level === 1 ? UI.umbrella : UI.umbrellaRain), prob: prob };
+}
+
 function renderHero(fc) {
     const d = fc.daily;
     const f = nowFacts(fc);
@@ -835,12 +892,12 @@ function renderHero(fc) {
     const ins = D("insight");
     if (!nc) { ins.classList.add("hidden"); return; }
     /* Einordnung aus den Stundenwerten nach dem Nowcast-Fenster (bei fehlendem Nowcast ab jetzt) */
-    let sub;
-    if (nc.wet) sub = "Schirm einpacken";
-    else { const o = rainOutlook(fc, lastData, nc.unknown ? 0 : 4); sub = o ? o.text : ""; }
+    let sub, ico;
+    if (nc.wet) { const adv = umbrellaAdvice(nc, fc, lastData); sub = adv.text; ico = adv.icon; }
+    else { const o = rainOutlook(fc, lastData, nc.unknown ? 0 : 4); sub = o ? o.text : ""; ico = nc.unknown ? UI.alert : UI.check; }
     ins.classList.remove("hidden");
     ins.innerHTML =
-        '<div class="ico">' + (nc.wet ? UI.umbrellaRain : (nc.unknown ? UI.alert : UI.check)) + '</div>' +
+        '<div class="ico">' + ico + '</div>' +
         '<div class="txt"><b>' + nc.text + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '</div>';
 }
 
