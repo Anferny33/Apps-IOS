@@ -4,3 +4,17 @@ compatibility_date = "2026-10-01"
 
 # Ohne eigene Domain läuft der Worker unter https://wetter-nina-proxy.<konto>.workers.dev
 workers_dev = true
+
+# Regen-Alarm: alle 15 Minuten die Vorhersage je Abonnement prüfen (siehe README)
+[triggers]
+crons = ["*/15 * * * *"]
+
+# Abonnements liegen in einem KV-Namespace: `npx wrangler kv namespace create SUBS` und die ID hier eintragen
+[[kv_namespaces]]
+binding = "SUBS"
+id = "KV-ID-HIER-EINTRAGEN"
+
+[vars]
+VAPID_PUBLIC_KEY = "BLlIrCr2ZhfskoTzqOPMPkQTD5BKRVZ4idoQga8jMXCYHKln2VHfi7j6KJuDxggh_nYNaQaQHnCoYd9KKuO_-SM"
+VAPID_SUBJECT = "mailto:anferny.nash@googlemail.com"
+# VAPID_PRIVATE_KEY als Geheimnis: `npx wrangler secret put VAPID_PRIVATE_KEY` (lokal in .dev.vars)

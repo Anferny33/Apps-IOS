@@ -2,3 +2,5 @@
 .wrangler/
 node_modules/
 .DS_Store
+# Lokale Geheimnisse des Workers (VAPID-Schlüssel)
+proxy/.dev.vars

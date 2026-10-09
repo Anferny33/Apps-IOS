@@ -58,6 +58,21 @@ function run(opts) {
 (async () => {
   const ver = (idx.match(/design\.js\?v=(\w+)"/) || [])[1];
   const A = run({});
+  // Regen-Alarm: Push zeigt die Nachricht, Tipp holt die App nach vorn oder öffnet sie
+  const shown = [], focused = [], opened = [];
+  A.sb.registration.showNotification = async (t, o) => { shown.push({ t, o }); };
+  A.sb.clients.matchAll = async () => [{ url: 'http://localhost:8000/index.html', focus: async () => { focused.push(1); } }];
+  A.sb.clients.openWindow = async (u) => { opened.push(u); };
+  await A.fire('push', { data: { json: () => ({ title: 'Regen ab 16:30 Uhr', body: 'Lignano: gegen 16:30 Uhr fängt es an zu regnen.', url: './' }) } });
+  check('Push: Nachricht mit Titel, Text, Symbol und Ziel', shown.length === 1 && shown[0].t === 'Regen ab 16:30 Uhr' && shown[0].o.body.startsWith('Lignano') && shown[0].o.icon === 'icons/icon-192.png' && shown[0].o.tag === 'regen-alarm' && shown[0].o.data.url === './', JSON.stringify(shown));
+  await A.fire('push', { data: null });
+  check('Push: ohne Daten eine Standardmeldung', shown.length === 2 && shown[1].t === 'Regen in Sicht', JSON.stringify(shown[1]));
+  await A.fire('notificationclick', { notification: { close() {}, data: { url: './' } } });
+  check('Push: Tipp holt die offene App nach vorn', focused.length === 1 && opened.length === 0);
+  A.sb.clients.matchAll = async () => [];
+  await A.fire('notificationclick', { notification: { close() {}, data: { url: './' } } });
+  check('Push: ohne offene App wird sie geöffnet', opened.length === 1 && opened[0] === 'http://localhost:8000/', opened.join(','));
+
   check('Version: Konstante im Worker entspricht der Versions-Query der Seiten', A.sb.SW_INFO.version === ver && typeof ver === 'string', A.sb.SW_INFO.version + ' vs ' + ver);
   check('Hülle: Startseite, Radar, Manifest, Stylesheet, Skripte mit Version, Icons', ['./', 'index.html', 'radar.html', 'manifest.webmanifest', 'modern.css?v=' + ver, 'sonne.js?v=' + ver, 'wetter-core.js?v=' + ver, 'design.js?v=' + ver, 'radar.js?v=' + ver, 'icons/icon-192.png', 'icons/apple-touch-icon.png'].every(u => A.sb.SW_INFO.shell.includes(u)) && !A.sb.SW_INFO.shell.some(u => u.includes('design.css')), A.sb.SW_INFO.shell.join(','));
 

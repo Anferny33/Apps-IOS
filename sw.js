@@ -3,7 +3,7 @@
  * SW_VERSION muss der Versions-Query der Seiten entsprechen und wird mit ihr erhöht. */
 "use strict";
 
-const SW_VERSION = "20261009l";
+const SW_VERSION = "20261009m";
 const CACHE = "wetter-shell-" + SW_VERSION;
 const SHELL = [
     "./", "index.html", "radar.html", "manifest.webmanifest",
@@ -69,4 +69,29 @@ self.addEventListener("fetch", function (e) {
     if (url.origin === self.location.origin) { e.respondWith(networkFirst(req)); return; }
     if (RUNTIME_HOSTS.indexOf(url.hostname) >= 0) { e.respondWith(staleWhileRevalidate(req)); return; }
     /* Wetterdaten, Warnungen, Radarbilder, Kartenkacheln: unverändert über das Netz */
+});
+
+/* Regen-Alarm: Nachricht des Workers anzeigen; ein Tipp holt die App nach vorn oder öffnet sie */
+self.addEventListener("push", function (e) {
+    let data = {};
+    try { data = e.data ? e.data.json() : {}; } catch (err) { data = { body: e.data && e.data.text ? e.data.text() : "" }; }
+    const title = data.title || "Regen in Sicht";
+    e.waitUntil(self.registration.showNotification(title, {
+        body: data.body || "",
+        icon: "icons/icon-192.png",
+        badge: "icons/icon-192.png",
+        tag: "regen-alarm",
+        renotify: true,
+        data: { url: data.url || "./" }
+    }));
+});
+
+self.addEventListener("notificationclick", function (e) {
+    e.notification.close();
+    const target = new URL((e.notification.data && e.notification.data.url) || "./", self.registration.scope).href;
+    e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (list) {
+        const open = list.find(function (c) { return c.url.indexOf(self.registration.scope) === 0; });
+        if (open) return open.focus();
+        return self.clients.openWindow(target);
+    }));
 });

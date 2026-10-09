@@ -5,7 +5,7 @@
   "description": "Wetter-App für den aktuellen Standort – statische Web-App ohne Build-Schritt",
   "scripts": {
     "start": "python3 -m http.server 8000",
-    "test": "DUMP=1 node tests/smoke-design.js && node tests/smoke-radar.js && node tests/smoke-sw.js",
+    "test": "DUMP=1 node tests/smoke-design.js && node tests/smoke-radar.js && node tests/smoke-sw.js && node tests/smoke-push.js",
     "preview": "node tests/build-phone-preview.js index"
   }
 }

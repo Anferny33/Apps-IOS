@@ -210,7 +210,8 @@ function makeSandbox(opts) {
 
   const sb = {
     console, URLSearchParams, Date, Math, Object, Array, JSON,
-    isNaN, parseInt, Promise, setTimeout, clearTimeout,
+    isNaN, parseInt, Promise, setTimeout, clearTimeout, Uint8Array,
+    atob: (b) => Buffer.from(b, 'base64').toString('binary'), btoa: (b) => Buffer.from(b, 'binary').toString('base64'),
     document: {
       getElementById: id => nodes[id] || (dyn[id] = dyn[id] || el()),
       querySelectorAll: () => [],

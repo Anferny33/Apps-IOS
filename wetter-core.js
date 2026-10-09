@@ -108,11 +108,27 @@ function splitPastDay(fc) {
     return fc;
 }
 
-/* Metadaten des ICON-D2-Laufs (Open-Meteo): Zeitpunkt des letzten Laufs und seiner Verfügbarkeit,
-   Laufabstand; alles in Sekunden. Nur für das Herkunftsblatt, ein Fehler blendet dort die Zeile aus. */
+/* Metadaten der Modellläufe (Open-Meteo): Zeitpunkt des letzten Laufs und seiner Verfügbarkeit,
+   Laufabstand; alles in Sekunden. ICON-D2 trägt die Hauptzeile, die Vergleichsmodelle folgen in
+   einer Liste. Nur für das Herkunftsblatt; ein Fehler blendet dort die jeweilige Zeile aus. */
+const META_MODELS = [
+    { id: "icon_d2", name: "ICON-D2", dir: "dwd_icon_d2" },
+    { id: "icon_eu", name: "ICON-EU", dir: "dwd_icon_eu" },
+    { id: "ecmwf_ifs025", name: "ECMWF IFS", dir: "ecmwf_ifs025" },
+    { id: "ukmo_seamless", name: "UKMO", dir: "ukmo_global_deterministic_10km" },
+    { id: "gfs_seamless", name: "GFS", dir: "ncep_gfs025" }
+];
+
 function fetchModelMeta() {
-    return getJson("https://api.open-meteo.com/data/dwd_icon_d2/static/meta.json").then(function (m) {
-        return { run: m.last_run_initialisation_time, available: m.last_run_availability_time, interval: m.update_interval_seconds };
+    return Promise.allSettled(META_MODELS.map(function (m) {
+        return getJson("https://api.open-meteo.com/data/" + m.dir + "/static/meta.json").then(function (j) {
+            return { id: m.id, name: m.name, run: j.last_run_initialisation_time, available: j.last_run_availability_time, interval: j.update_interval_seconds };
+        });
+    })).then(function (results) {
+        const models = results.filter(function (r) { return r.status === "fulfilled" && r.value && isNum(r.value.run); }).map(function (r) { return r.value; });
+        if (!models.length) throw new Error("keine Metadaten");
+        const main = models.filter(function (m) { return m.id === "icon_d2"; })[0] || null;
+        return { run: main ? main.run : null, available: main ? main.available : null, interval: main ? main.interval : null, models: models };
     });
 }
 
@@ -201,6 +217,9 @@ function normalizeWarnings(data, now) {
    Cloudflare-Worker in proxy/, der die fehlenden CORS-Header ergänzt und den
    Kreis zum Punkt ermittelt. Leer gelassen = Funktion aus. */
 const NINA_PROXY = (typeof window !== "undefined" && window.NINA_PROXY) || "https://wetter-nina-proxy.anferny-wetter.workers.dev";
+/* Öffentlicher VAPID-Schlüssel des Regen-Alarms; das Gegenstück liegt als Geheimnis im Worker (proxy/README.md) */
+const PUSH_PUBLIC_KEY = "BLlIrCr2ZhfskoTzqOPMPkQTD5BKRVZ4idoQga8jMXCYHKln2VHfi7j6KJuDxggh_nYNaQaQHnCoYd9KKuO_-SM";
+function pushPublicKey() { return PUSH_PUBLIC_KEY; }
 
 function fetchNina(loc) {
     if (!NINA_PROXY) return Promise.resolve([]);
@@ -457,6 +476,59 @@ function loadActiveLoc() {
         if (!p || !isNum(p.lat) || !isNum(p.lon) || Math.abs(p.lat) > 90 || Math.abs(p.lon) > 180) return null;
         return { lat: p.lat, lon: p.lon, name: typeof p.name === "string" ? p.name : "", source: p.source === "search" ? "search" : "gps" };
     } catch (e) { return null; }
+}
+
+/* Einstellungen der App: Einheiten, Startansicht, Bewegung, Rausgehen-Toleranzen, Startseite,
+   Tagesfilm, Regen-Alarm. Intern bleibt alles in °C und km/h, nur die Anzeige rechnet um. */
+const SETTINGS_KEY = CACHE_PREFIX + "settings";
+const SETTINGS_DEFAULTS = { temp: "C", wind: "kmh", motion: "system", startView: "last", rainTol: 0, feelAdj: 0, hidden: [], order: [], dayfilm: true, push: false };
+
+function normalizeSettings(p) {
+    const s = Object.assign({}, SETTINGS_DEFAULTS, p && typeof p === "object" ? p : {});
+    if (["C", "F"].indexOf(s.temp) < 0) s.temp = "C";
+    if (["kmh", "ms", "kn", "bft"].indexOf(s.wind) < 0) s.wind = "kmh";
+    if (["system", "reduce"].indexOf(s.motion) < 0) s.motion = "system";
+    if (["last", "overview", "rain", "wind", "warm", "light"].indexOf(s.startView) < 0) s.startView = "last";
+    if ([-10, 0, 10].indexOf(s.rainTol) < 0) s.rainTol = 0;
+    if ([-2, 0, 2].indexOf(s.feelAdj) < 0) s.feelAdj = 0;
+    if (!Array.isArray(s.hidden)) s.hidden = [];
+    if (!Array.isArray(s.order)) s.order = [];
+    s.dayfilm = s.dayfilm !== false;
+    s.push = s.push === true;
+    const t = s.trip;
+    const isDate = function (x) { return typeof x === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x); };
+    s.trip = t && typeof t === "object" && typeof t.name === "string" && t.name && isNum(t.lat) && isNum(t.lon) && isDate(t.from) && isDate(t.to) && t.from <= t.to
+        ? { name: t.name, lat: t.lat, lon: t.lon, from: t.from, to: t.to } : null;
+    s.tripSwitched = isDate(s.tripSwitched) ? s.tripSwitched : null;
+    s.filmShown = isDate(s.filmShown) ? s.filmShown : null;
+    s.pushLoc = s.pushLoc && isNum(s.pushLoc.lat) && isNum(s.pushLoc.lon) ? { lat: s.pushLoc.lat, lon: s.pushLoc.lon } : null;
+    return s;
+}
+
+/* Reise: Phase und Tage bis zur Abreise bzw. bis zum Ende, bezogen auf ein Datum (JJJJ-MM-TT) */
+function tripState(trip, today) {
+    if (!trip || !today) return null;
+    const days = function (a, b) { return Math.round((Date.parse(b + "T12:00:00Z") - Date.parse(a + "T12:00:00Z")) / 86400000); };
+    if (today < trip.from) return { phase: "before", days: days(today, trip.from) };
+    if (today <= trip.to) return { phase: "during", days: days(today, trip.to) };
+    return { phase: "after", days: 0 };
+}
+
+/* Datum des Geräts als JJJJ-MM-TT */
+function localDate(d) {
+    const x = d || new Date();
+    return x.getFullYear() + "-" + String(x.getMonth() + 1).padStart(2, "0") + "-" + String(x.getDate()).padStart(2, "0");
+}
+
+function loadSettings() {
+    try {
+        const raw = localStorage.getItem(SETTINGS_KEY);
+        return normalizeSettings(raw ? JSON.parse(raw) : {});
+    } catch (e) { return normalizeSettings({}); }
+}
+
+function saveSettings(s) {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch (e) {}
 }
 
 /* Zuletzt gewählte Suchorte (höchstens drei, neuester zuerst): nur Name und Koordinaten, getrennt vom

@@ -27,3 +27,32 @@ Die URL aus der Ausgabe gehört in `wetter-core.js` (`NINA_PROXY`).
 Lokal testen mit `npx wrangler dev` (läuft auf http://localhost:8787).
 
 Erlaubte Aufrufer stehen in `ALLOWED_ORIGINS` in `src/worker.js`.
+
+## Regen-Alarm (Web Push)
+
+Der Worker nimmt Push-Abonnements der App entgegen und prüft alle 15 Minuten die
+15-Minuten-Vorhersage von Open-Meteo je Abonnement. Beginnt in der nächsten Stunde Regen
+(mindestens 0,1 mm in einer Viertelstunde, jetzt trocken), schickt er eine Nachricht; danach
+gilt eine Sperrfrist von drei Stunden. Verschlüsselung und VAPID stehen in `src/webpush.js`,
+ohne Bibliothek, mit WebCrypto. Kostenlos im freien Tarif (Cron, KV, wenige Anfragen).
+
+```
+POST /push/subscribe     { subscription, lat, lon, name }   Abonnement anlegen oder aktualisieren
+POST /push/unsubscribe   { endpoint }                        Abonnement löschen
+```
+
+Einrichten (einmalig):
+
+```bash
+cd proxy
+npx wrangler kv namespace create SUBS          # ID in wrangler.toml eintragen
+npx wrangler secret put VAPID_PRIVATE_KEY      # Wert aus .dev.vars (nicht committen)
+npx wrangler deploy
+```
+
+Der öffentliche VAPID-Schlüssel steht in `wrangler.toml` und in `wetter-core.js`
+(`PUSH_PUBLIC_KEY`); beide müssen zusammenpassen. Ein neues Schlüsselpaar erzeugt
+`node -e` mit WebCrypto (siehe Spezifikation `docs/superpowers/specs/2026-10-09-restliste-design.md`).
+
+Prüfen: `node tests/smoke-push.js` läuft Verschlüsselung, VAPID, Alarmregel und Routen
+mit einem KV-Stub durch, ohne Netz.

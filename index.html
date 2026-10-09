@@ -16,7 +16,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
 <!-- Nachtpalette vor dem ersten Zeichnen, damit die Seite nachts nicht hell aufblitzt -->
 <script>try { if (localStorage.getItem("wetter:night") === "1") document.documentElement.classList.add("night"); } catch (e) {}</script>
-<link rel="stylesheet" href="modern.css?v=20261009l" id="cssModern">
+<link rel="stylesheet" href="modern.css?v=20261009m" id="cssModern">
 <!-- Schriftgrenze: die Systemschriftgröße wirkt bis zum 1,6-Fachen (27,2 px), darüber hält das Raster nicht mehr -->
 <script>try { var fs0 = parseFloat(getComputedStyle(document.documentElement).fontSize); if (fs0 > 27.2) document.documentElement.style.fontSize = "27.2px"; } catch (e) {}</script>
 </head>
@@ -31,9 +31,10 @@
             <span id="locName">Standort …</span>
         </button>
         <div class="top-actions">
+            <button type="button" class="iconbtn a-pop" id="settingsBtn" aria-label="Einstellungen" aria-haspopup="dialog" aria-expanded="false" style="animation-delay:.02s"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
             <!-- Tag/Nacht-Schalter: Symbol und Zustand setzt die App (sonne.js) -->
-            <button type="button" class="iconbtn a-pop" id="modeBtn" aria-label="Nachtmodus" aria-pressed="false" title="Nachtmodus einschalten" style="animation-delay:.05s"></button>
-            <button type="button" class="iconbtn a-pop" id="refresh" aria-label="Aktualisieren" style="animation-delay:.1s">
+            <button type="button" class="iconbtn a-pop" id="modeBtn" aria-label="Nachtmodus" aria-pressed="false" title="Nachtmodus einschalten" style="animation-delay:.03s"></button>
+            <button type="button" class="iconbtn a-pop" id="refresh" aria-label="Aktualisieren" style="animation-delay:.06s">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
             </button>
         </div>
@@ -48,40 +49,48 @@
     </div>
 
     <section class="sec" id="sec-today">
-        <div class="field hero-field skel a-pop" id="hero" style="height:250px;animation-delay:.15s">&nbsp;</div>
+        <div class="field hero-field skel a-pop" id="hero" style="height:250px;animation-delay:.09s">&nbsp;</div>
         <!-- Live-Region: Ansagen für Vorleser (Laden, Fehler, Ansicht, Zeitreise) -->
         <div class="vh" id="live" aria-live="polite" aria-atomic="true"></div>
         <!-- Aktualität: wann die gezeigten Daten geladen wurden (nicht der Modelllauf); „Woher?“ öffnet das Herkunftsblatt -->
         <div class="fresh" id="fresh"><span id="freshTxt"></span><button type="button" class="src-link hidden" id="freshSrc" aria-haspopup="dialog" aria-expanded="false">Woher?</button></div>
 
         <!-- Amtliche Wetterwarnungen des DWD für den Standort: nur sichtbar, wenn es welche gibt -->
-        <div class="warnings a-up hidden" id="warnings" style="animation-delay:.6s"></div>
+        <div class="warnings a-up hidden" id="warnings" style="animation-delay:.36s"></div>
 
-        <div class="field dark insight a-up hidden" id="insight" style="animation-delay:.7s"></div>
+        <div class="field dark insight a-up hidden" id="insight" style="animation-delay:.42s"></div>
 
         <!-- Ansicht nach Frage: die Wahl färbt Stundenstreifen und Tagesliste um -->
-        <div class="views a-up" id="views" role="group" aria-label="Ansicht" style="animation-delay:.75s"></div>
+        <div class="views a-up" id="views" role="group" aria-label="Ansicht" style="animation-delay:.45s"></div>
 
-        <div class="field white a-up" style="animation-delay:.8s">
-            <h2>Nächste Stunden <span class="r" id="hourlyHint">48 h →</span></h2>
+        <div class="field white a-up" id="hoursField" style="animation-delay:.48s">
+            <h2>Nächste Stunden <span class="r" id="hourlyHint"><button type="button" class="trend-btn" id="trendBtn" aria-expanded="false" aria-controls="trend">Verlauf 48 h</button></span></h2>
             <div class="answer hidden" id="viewAnswer"></div>
             <div id="hourly" class="skel" style="height:112px">&nbsp;</div>
             <div class="note" id="hourlyNote">Blaue Felder: Regenrisiko ab 25 %</div>
+            <!-- Verlaufssicht: Temperatur, Regen, Wolkenband und Wind der nächsten 48 Stunden auf einer Achse -->
+            <div class="tpanel trend-panel" id="trend" role="region" aria-label="Verlauf der nächsten 48 Stunden"><div class="tpanel-in"><div class="tpanel-body" id="trendBody"></div></div></div>
         </div>
 
         <!-- Rausgehen: Zeitfenster für eine Aktivität, als Vorschlag aus festen Schwellen -->
-        <div class="field white a-up hidden" id="activityField" style="animation-delay:.9s">
+        <div class="field white a-up hidden" id="activityField" style="animation-delay:.54s">
             <h2>Rausgehen <span class="r">Vorschlag</span></h2>
             <div id="activity"></div>
         </div>
 
         <!-- Nächste Tage: was in den nächsten sieben Tagen auffällt, regelbasiert aus den Tageswerten -->
-        <div class="field white a-up hidden" id="highlightsField" style="animation-delay:.95s">
+        <div class="field white a-up hidden" id="highlightsField" style="animation-delay:.57s">
             <h2>Nächste Tage <span class="r">7 Tage</span></h2>
             <div id="highlights"></div>
         </div>
 
-        <div class="field white a-up hidden" id="nowcastCard" style="animation-delay:.9s">
+        <!-- Reise: Ziel mit Zeitraum und Countdown, Wechsel in die Vorhersage dort -->
+        <div class="field white a-up hidden" id="tripField" style="animation-delay:.57s">
+            <h2>Reise <span class="r">Countdown</span></h2>
+            <div id="trip"></div>
+        </div>
+
+        <div class="field white a-up hidden" id="nowcastCard" style="animation-delay:.54s">
             <h2>Regen in den nächsten 4 Stunden</h2>
             <div id="nowcast"></div>
         </div>
@@ -97,25 +106,25 @@
     </section>
 
     <section class="sec" id="sec-days">
-        <div class="field dark days-field a-up" id="daysField" style="animation-delay:1.3s">
+        <div class="field dark days-field a-up" id="daysField" style="animation-delay:.78s">
             <h2>14 Tage <span class="r" id="daysHint">Tief · Hoch</span></h2>
             <div id="days" class="skel" style="height:260px">&nbsp;</div>
         </div>
 
-        <div class="field white a-up" style="animation-delay:1.9s">
+        <div class="field white a-up" style="animation-delay:1.14s">
             <h2>Modellvergleich <span class="r">Regen mm · heute / morgen</span></h2>
             <div id="models" class="skel" style="height:90px">&nbsp;</div>
         </div>
     </section>
 
-    <footer class="a-up" style="animation-delay:2.2s">
+    <footer class="a-up" style="animation-delay:1.32s">
         <span id="updated"></span> · <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a> · Warnungen: <a href="https://www.dwd.de/" rel="noopener">DWD</a> · CC BY 4.0 · Ortsname: BigDataCloud<br>
         <a href="radar.html">Regenradar</a>
     </footer>
 </div>
 
 <div class="tabs">
-    <nav aria-label="Bereiche" class="a-nav" style="animation-delay:.45s">
+    <nav aria-label="Bereiche" class="a-nav" style="animation-delay:.27s">
         <span class="tab-ink" aria-hidden="true"></span>
         <a href="#sec-today" data-target="sec-today" class="on" aria-label="Heute">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Heute</span></a>
@@ -123,7 +132,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg><span>Details</span></a>
         <a href="#sec-days" data-target="sec-days" aria-label="Tage">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span>Tage</span></a>
-        <a href="radar.html" aria-label="Radar">
+        <a href="radar.html" id="radarTab" aria-label="Radar" aria-haspopup="dialog" aria-expanded="false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 3v9l6-6"/></svg><span>Radar</span></a>
     </nav>
 </div>
@@ -140,6 +149,39 @@
     <button type="button" class="gps hidden" id="gps">Zurück zu meinem Standort</button>
 </div>
 
+<!-- Tagesfilm: zehn Sekunden Animation aus den Tageswerten auf einer Zeichenfläche, teilbar als Video -->
+<div class="film hidden" id="film" role="dialog" aria-modal="true" aria-label="Tagesfilm">
+    <canvas id="filmCanvas" width="1080" height="1920" aria-hidden="true"></canvas>
+    <div class="film-bar">
+        <button type="button" class="film-btn" id="filmShare">Als Video teilen</button>
+        <button type="button" class="film-btn ghost" id="filmClose">Schließen</button>
+    </div>
+    <div class="film-status" id="filmStatus" aria-live="polite"></div>
+</div>
+
+<!-- Regenradar als Blatt über der Startseite (die Radarseite läuft eingebettet weiter, Vollbild bleibt erreichbar) -->
+<div class="sheet-bg" id="radarBg"></div>
+<div class="sheet radar" id="radarSheet" role="dialog" aria-modal="true" aria-label="Regenradar">
+    <div class="grip"></div>
+    <div class="sheet-head">
+        <button type="button" class="sheet-close" id="radarClose">Schließen</button>
+        <h2 class="src-title">Regenradar</h2>
+        <a class="src-link radar-full" href="radar.html">Vollbild</a>
+    </div>
+    <div class="radar-frame"><iframe id="radarFrame" title="Regenradar" allow="geolocation"></iframe></div>
+</div>
+
+<!-- Einstellungen: Einheiten, Start, Bewegung, Rausgehen, Startseite, Reise, Alarm, Tagesfilm -->
+<div class="sheet-bg" id="settingsBg"></div>
+<div class="sheet settings" id="settings" role="dialog" aria-modal="true" aria-label="Einstellungen">
+    <div class="grip"></div>
+    <div class="sheet-head">
+        <button type="button" class="sheet-close" id="settingsClose">Schließen</button>
+        <h2 class="src-title">Einstellungen</h2>
+    </div>
+    <div class="src-body" id="settingsBody"></div>
+</div>
+
 <!-- Woher kommt das? Quelle, Modell, Gitterpunkt, Rechenwege und Stand der gezeigten Zahlen -->
 <div class="sheet-bg" id="srcBg"></div>
 <div class="sheet src" id="src" role="dialog" aria-modal="true" aria-label="Woher kommt das?">
@@ -151,9 +193,9 @@
     <div class="src-body" id="srcBody"></div>
 </div>
 
-<script src="sonne.js?v=20261009l"></script>
-<script src="wetter-core.js?v=20261009l"></script>
-<script src="design.js?v=20261009l"></script>
+<script src="sonne.js?v=20261009m"></script>
+<script src="wetter-core.js?v=20261009m"></script>
+<script src="design.js?v=20261009m"></script>
 <script>initDesignApp();</script>
 <!-- Offline-Hülle: Seiten, Stylesheet, Skripte und Icons bleiben auch ohne Netz verfügbar -->
 <script>if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js").catch(function () {}); }</script>

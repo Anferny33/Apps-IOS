@@ -125,7 +125,7 @@ function boot(opts) {
   H.check('Abendmodus: Kachel Sonne nennt die nächste goldene Stunde, Feld ohne Phasenklasse um 14:15', G(sb,'details').innerHTML.includes('Aufgang 07:12<br>Goldene Stunde ab 18:24') && G(sb,'details').innerHTML.includes('<div class="tpanel-body">'), G(sb,'details').innerHTML.slice(G(sb,'details').innerHTML.indexOf('goldene') - 40, G(sb,'details').innerHTML.indexOf('goldene') + 40));
   // Zähler: Gedächtnis statt Hochzählen von null; Tipp startet keine Zähler
   H.check('Zähler: erster Wert zählt hoch, gleicher Wert bleibt, geänderter gleitet', sb.countMode('t:UV:0', 4.3) === 'first' && sb.countMode('t:UV:0', 4.3) === 'same' && sb.countMode('t:UV:0', 5.1) === 'glide' && sb.countMode('t:UV:0', 5.1) === 'same');
-  H.check('Zähler: Tipp-Delegat ruft keine Zähler mehr auf', !/else startCounters\(box\)/.test(DESIGN) && !/countUp\(box\.querySelector/.test(DESIGN) && /restartAnimations\(box\);\n\s*\}\);/.test(DESIGN));
+  H.check('Zähler: Tipp-Delegat ruft keine Zähler mehr auf', !/else startCounters\(box\)/.test(DESIGN) && !/countUp\(box\.querySelector/.test(DESIGN) && /Kein Neustart der Animationen beim Antippen/.test(DESIGN));
   // Regenaussicht: aus den Stundenwerten ab jetzt (+4 h Nowcast-Fenster), nicht aus dem Tagesmaximum
   const clone = () => JSON.parse(JSON.stringify(fc));
   const dd0 = sb.lastRendered();
@@ -229,7 +229,7 @@ function boot(opts) {
   sb.renderHero(fc);
 
   // Woher kommt das? Herkunftsblatt mit Quelle, Modell, Gitterpunkt, Rechenwegen und Stand
-  H.check('Herkunft: Abfrage holt die ICON-D2-Metadaten', sb._fetchLog.some(u => u.includes('/data/dwd_icon_d2/static/meta.json')), sb._fetchLog.filter(u => u.includes('meta')).join(' | '));
+  H.check('Herkunft: Abfrage holt die Metadaten von fünf Modellen', ['dwd_icon_d2', 'dwd_icon_eu', 'ecmwf_ifs025', 'ukmo_global_deterministic_10km', 'ncep_gfs025'].every(d => sb._fetchLog.some(u => u.includes('/data/' + d + '/static/meta.json'))), sb._fetchLog.filter(u => u.includes('meta')).join(' | '));
   H.check('Herkunft: Aktualitätszeile mit sichtbarem Knopf „Woher?“', G(sb,'freshTxt').textContent === 'Gerade eben aktualisiert' && !G(sb,'freshSrc').classList.contains('hidden'), G(sb,'freshTxt').textContent);
   H.check('Herkunft: Instrument-Felder enden mit „Woher kommt das?“', (G(sb,'details').innerHTML.match(/<button type="button" class="tp-src" data-src="(wind|rain|sun)">Woher kommt das\?<\/button><\/div><\/div><\/div>/g) || []).length === 3, (G(sb,'details').innerHTML.match(/tp-src/g) || []).length);
   sb.openSource('wind', null);
@@ -239,15 +239,17 @@ function boot(opts) {
   const runTxt = sb.stampAt(Date.UTC(2026, 8, 25, 9), Date.now(), 'Europe/Berlin'), availTxt = sb.stampAt(Date.UTC(2026, 8, 25, 10, 20), Date.now(), 'Europe/Berlin');
   H.check('Herkunft: ICON-D2-Lauf aus den Metadaten in Ortszeit', srcHtml.includes('ICON-D2-Lauf von ' + runTxt + ', verfügbar seit ' + availTxt + '. Neuer Lauf alle 3 Stunden.') && runTxt.includes('11:00'), srcHtml.slice(srcHtml.indexOf('ICON-D2-Lauf'), srcHtml.indexOf('ICON-D2-Lauf') + 140));
   H.check('Herkunft: Ladezeitpunkt wie in der Aktualitätszeile', srcHtml.includes('<p>Gerade eben aktualisiert.</p>'));
+  H.check('Herkunft: Läufe der Vergleichsmodelle mit Zeit', srcHtml.includes('Läufe der Vergleichsmodelle: ICON-EU ' + runTxt + ', ECMWF IFS ' + runTxt + ', UKMO ' + runTxt + ', GFS ' + runTxt + '.'), srcHtml.slice(srcHtml.indexOf('Läufe der Vergleichsmodelle'), srcHtml.indexOf('Läufe der Vergleichsmodelle') + 160));
+  H.check('Herkunft: Abschnitt Nächste Tage mit Regeln, Feld verlinkt dorthin', srcHtml.includes('<section class="src-sec" id="src-highlights"><h3>Nächste Tage</h3><p>Nächste Tage: Regeln auf den Tageswerten von morgen bis in sieben Tagen. Temperatursprung ab 5° zum Vortag') && G(sb,'highlights').innerHTML.endsWith('<button type="button" class="tp-src" data-src="highlights">Woher kommt das?</button>'), G(sb,'highlights').innerHTML.slice(-120));
   H.check('Herkunft: Regenrisiko als Anteil der Läufe', srcHtml.includes('Jetzt 15 von 21 Läufen, also 71 %.'), srcHtml.slice(srcHtml.indexOf('Regenrisiko je Stunde'), srcHtml.indexOf('Regenrisiko je Stunde') + 160));
   H.check('Herkunft: Nebelrisiko mit den aktuellen Zahlen', /Jetzt: Taupunktabstand 3,0°, Wind 18 km\/h, Bewölkung 45 %, Risiko gering\./.test(srcHtml), srcHtml.slice(srcHtml.indexOf('Jetzt: Taupunkt'), srcHtml.indexOf('Jetzt: Taupunkt') + 100));
   H.check('Herkunft: Vergleich mit gestern als Modellwert', srcHtml.includes('Vergleich mit gestern: Modellwert von gestern zur selben Uhrzeit') && srcHtml.includes('keine Messung'));
   H.check('Herkunft: Rausgehen-Schwellen aus der Tabelle', srcHtml.includes('Spaziergang: gefühlt 5 bis 28°, Regenrisiko unter 30 %, Böen unter 45 km/h, bis zur Dämmerung, mindestens 1 Stunde am Stück.') && srcHtml.includes('Draußen sitzen: gefühlt ab 17°, Regenrisiko unter 20 %, Wind unter 15 km/h, Böen unter 30 km/h, auch nachts, mindestens 2 Stunden am Stück.'), srcHtml.slice(srcHtml.indexOf('Spaziergang:'), srcHtml.indexOf('Spaziergang:') + 140));
-  H.check('Herkunft: zehn Abschnitte mit Überschriften', (srcHtml.match(/<section class="src-sec" id="src-/g) || []).length === 10 && ['ort','modelle','temp','regen','wind','sonne','sicht','rausgehen','luft','warn'].every(k => srcHtml.includes('id="src-' + k + '"')) && (srcHtml.match(/<h3>/g) || []).length === 10, (srcHtml.match(/<section class="src-sec" id="src-/g) || []).length);
+  H.check('Herkunft: elf Abschnitte mit Überschriften', (srcHtml.match(/<section class="src-sec" id="src-/g) || []).length === 11 && ['ort','modelle','temp','regen','wind','sonne','sicht','rausgehen','highlights','luft','warn'].every(k => srcHtml.includes('id="src-' + k + '"')) && (srcHtml.match(/<h3>/g) || []).length === 11, (srcHtml.match(/<section class="src-sec" id="src-/g) || []).length);
   sb.closeSource();
   H.check('Herkunft: Schließen nimmt die Körperklasse weg', !sb.document.body.classList.contains('src-open'));
   const srcBare = sb.sourceSheetHtml(sb.prepareData(clone(), null), null, null, null, null, false, Date.now());
-  H.check('Herkunft: ohne Metadaten, Luftdaten, Ort und Ensemble bleibt das Blatt vollständig', !srcBare.includes('ICON-D2-Lauf') && !srcBare.includes('Luft und Pollen: Punkt') && !srcBare.includes('Gewählter Ort') && srcBare.includes('ohne Ensemble der Modellwert') && srcBare.includes('Modellpunkt der Vorhersage: 48,14° N, 11,57° O, 520 m Höhe.') && (srcBare.match(/<section/g) || []).length === 10, srcBare.slice(0, 300));
+  H.check('Herkunft: ohne Metadaten, Luftdaten, Ort und Ensemble bleibt das Blatt vollständig', !srcBare.includes('ICON-D2-Lauf') && !srcBare.includes('Luft und Pollen: Punkt') && !srcBare.includes('Gewählter Ort') && srcBare.includes('ohne Ensemble der Modellwert') && srcBare.includes('Modellpunkt der Vorhersage: 48,14° N, 11,57° O, 520 m Höhe.') && (srcBare.match(/<section/g) || []).length === 11, srcBare.slice(0, 300));
   await wait(320);   /* Klicks innerhalb von 300 ms nach einem Zieh-Ende werden verworfen */
   sb.document.body.trigger('click', { target: { closest: sel => sel === '.tp-src' ? { getAttribute: () => 'sicht', focus() {} } : null } });
   H.check('Herkunft: „Woher kommt das?“ im Feld öffnet beim Abschnitt Sicht', sb.document.body.classList.contains('src-open') && G(sb,'src').getAttribute('data-section') === 'src-sicht', G(sb,'src').getAttribute('data-section'));
@@ -294,11 +296,14 @@ function boot(opts) {
   H.check('Schrift: 17-px-Grundschrift, unter WebKit auf Touch-Geräten die Systemgröße', cssA.includes('html { font-size: 17px; }') && /@supports \(font: -apple-system-body\)\s*\{\s*@media \(hover: none\) and \(pointer: coarse\)\s*\{\s*html \{ font: -apple-system-body; \}/.test(cssA) && cssA.includes('body {\n    font-family:') && /body \{[^}]*font-size: 1rem;/.test(cssA));
   const pxSizes = (cssA.match(/font-size: *[0-9.]+px/g) || []);
   const pxLines = cssA.split('\n').filter(l => /font-size: *[0-9.]+px/.test(l));
-  H.check('Schrift: alle Textgrößen in rem, Pixel nur für Text in SVG-Grafiken', pxSizes.length === 6 && pxLines.every(l => /^html \{ font-size: 17px; \}|\.compass text|\.sunbig \.t[ln]|\.mchart \.(lbl|end)/.test(l)) && (cssA.match(/font-size: *[0-9.]+rem/g) || []).length >= 70, pxSizes.length + ' px: ' + pxLines.map(l => l.trim().slice(0, 40)).join(' | '));
+  H.check('Schrift: alle Textgrößen in rem, auch in SVG-Grafiken; Pixel nur an der Wurzel', pxSizes.length === 1 && pxLines.every(l => /^html \{ font-size: 17px; \}/.test(l)) && (cssA.match(/font-size: *[0-9.]+rem/g) || []).length >= 70, pxSizes.length + ' px: ' + pxLines.map(l => l.trim().slice(0, 40)).join(' | '));
   H.check('Schrift: große Zahlen über die Bildschirmbreite gedeckelt', /\.hero-field \.temp \{[^}]*font-size: min\([0-9.]+rem, [0-9.]+vw\)/.test(cssA) && /\.tile \.big \{[^}]*font-size: min\([0-9.]+rem, [0-9.]+vw\)/.test(cssA) && /\.tile\.plain \.big \{[^}]*font-size: min\([0-9.]+rem, [0-9.]+vw\)/.test(cssA) && /\.wind-now \.big \{[^}]*font-size: min\([0-9.]+rem, [0-9.]+vw\)/.test(cssA));
   H.check('Schrift: Zeilenhöhen ohne Pixel, Textzeilen mit Mindest- statt Festhöhe', !/line-height: *[0-9.]+px/.test(cssA) && /\.drow \{[^}]*min-height: 48px/.test(cssA) && !/\.drow \{[^}]*[^-]height: 48px/.test(cssA) && /\.days-more \{[^}]*min-height: 48px/.test(cssA) && /\.loc \{[^}]*min-height: 46px/.test(cssA) && /\.banner button \{[^}]*min-height: 44px/.test(cssA) && /\.preview-bar \.pb-now \{[^}]*min-height: 36px/.test(cssA), (cssA.match(/line-height: *[0-9.]+px/g) || []).join(','));
   H.check('Schrift: Textspalten der Tagesliste und Stundenspalten skalieren mit', /\.drow \.n \{[^}]*width: [0-9.]+rem/.test(cssA) && /\.drow \.lo, \.drow \.hi \{[^}]*width: [0-9.]+rem/.test(cssA) && /\.hl-day \{[^}]*min-width: [0-9.]+rem/.test(cssA) && /\.hcol \{[^}]*flex: 0 0 [0-9.]+rem/.test(cssA) && /\.act-track i \{[^}]*flex: 0 0 [0-9.]+rem/.test(cssA));
   H.check('Schrift: Radarseite ohne Pixel-Schriftgrößen', !/font-size: *[0-9.]+px/.test(radarA), (radarA.match(/font-size: *[0-9.]+px/g) || []).join(','));
+  H.check('Breite Bildschirme: zwei Spalten ab 760 px, vier Kachelspalten', /@media \(min-width: 760px\) \{[\s\S]*#sec-today, #sec-days \{ display: block; columns: 2;[\s\S]*\.tiles \{ grid-template-columns: repeat\(4, minmax\(0, 1fr\)\); \}/.test(cssA) && idxA.includes('id="hoursField"'));
+  H.check('Bewegung: eine Kurve und drei Dauerstufen, keine losen Kurven mehr', cssA.includes('--ease: cubic-bezier(.2,.8,.2,1);') && cssA.includes('--d-fast: 0.3s; --d-base: 0.55s; --d-slow: 0.9s;') && (cssA.match(/cubic-bezier\(\.2,\.8,\.2,1\)/g) || []).length === 1 && (cssA.match(/var\(--d-(fast|base|slow)\) var\(--ease\)/g) || []).length >= 40 && cssA.includes('html.reduce *, html.reduce *::before, html.reduce *::after { animation: none !important; transition: none !important; }'), (cssA.match(/var\(--d-(fast|base|slow)\) var\(--ease\)/g) || []).length);
+  H.check('Bewegung: Startchoreografie gestaucht, Seite ohne Verzögerung über 1,4 s, kein Neustart beim Antippen', /const INTRO_SCALE = 0\.6;/.test(DESIGN) && idxA.split('\n').every(l => !/animation-delay:([2-9]|1\.[5-9])/.test(l)) && !/restartAnimations\(box\)/.test(DESIGN) && !/if \(panel\) \{ restartAnimations\(panel\); return; \}/.test(DESIGN), (idxA.match(/animation-delay:[0-9.]+s/g) || []).slice(-3).join(','));
   H.check('Schrift: Obergrenze 1,6-fach im Kopfskript', /fontSize[\s\S]{0,200}27\.2|27\.2[\s\S]{0,200}fontSize/.test(idxA) && idxA.includes('Schriftgrenze'), idxA.slice(idxA.indexOf('Schriftgrenze') - 80, idxA.indexOf('Schriftgrenze') + 120));
 
   // Zugänglichkeit, Stufe 2: Stundenspalten als Schaltflächen mit Satz je Stunde, Pfeiltasten
@@ -338,6 +343,37 @@ function boot(opts) {
   // Stufe 5: Live-Region
   H.check('Rückmeldungen: Live-Region in index.html', idxA.includes('<div class="vh" id="live" aria-live="polite" aria-atomic="true"></div>'));
   H.check('Rückmeldungen: Zeitreise und Rückkehr werden angesagt', (sb.selectHour(42), G(sb,'live').textContent === 'Vorschau Morgen, 18 Uhr.') && (sb.clearHour(), G(sb,'live').textContent === 'Zurück zum aktuellen Wetter.'), G(sb,'live').textContent);
+
+  // Einstellungen: Blatt, Einheiten, Start, Bewegung, Rausgehen-Toleranzen
+  H.check('Einstellungen: Knopf und Blatt in index.html, Ortsknopf lässt drei Knöpfen Platz', idxA.includes('id="settingsBtn"') && idxA.includes('id="settings" role="dialog"') && idxA.includes('id="settingsBody"') && cssA.includes('max-width: calc(100% - 170px)'));
+  sb.openSettings();
+  const setHtml = G(sb,'settingsBody').innerHTML;
+  H.check('Einstellungen: Blatt offen mit Einheiten, Start, Bewegung, Rausgehen und Vorgaben', sb.document.body.classList.contains('settings-open') && ['Einheiten', 'Beim Start', 'Bewegung', 'Rausgehen'].every(t => setHtml.includes('<h3>' + t + '</h3>')) && setHtml.includes('data-key="temp" data-val="C" aria-pressed="true"') && setHtml.includes('data-key="wind" data-val="kmh" aria-pressed="true"') && setHtml.includes('data-key="startView" data-val="last" aria-pressed="true"') && setHtml.includes('data-key="rainTol" data-val="0" aria-pressed="true"'), setHtml.slice(0, 240));
+  sb.setSetting('temp', 'F');
+  const heroF = G(sb,'hero').innerHTML, hhF = G(sb,'hourly').innerHTML, ddF = G(sb,'days').innerHTML;
+  H.check('Einstellungen: Fahrenheit im Hero, in Chips, Stundenspalten, Tagesliste und Highlights', heroF.includes('>63°</div>') && heroF.includes('>Hoch 64°<') && heroF.includes('>Tief 46°<') && heroF.includes('>Gefühlt 61°<') && /aria-label="Jetzt: [^,"]+, 63 Grad, gefühlt 61,/.test(hhF) && hhF.includes('<span class="v">64°</span>') && ddF.includes('<div class="lo">46°</div>') && ddF.includes('<div class="hi">64°</div>') && G(sb,'highlights').innerHTML.includes('9° wärmer, 73° statt 64°'), heroF.slice(heroF.indexOf('class="chips'), heroF.indexOf('class="chips') + 260) + ' | ' + G(sb,'highlights').innerHTML.slice(0, 120));
+  H.check('Einstellungen: Fahrenheit auch im Satz zur Wärme und im Herkunftsblatt', /Höchstens 68° morgen um 11 Uhr, gefühlt 66°, nachts bis 39°\./.test(sb.answerWarm(fc)) && sb.sourceSheetHtml(sb.prepareData(fc, data.ens), null, null, null, null, false, Date.now()).includes('Spaziergang: gefühlt 41 bis 82°, Regenrisiko unter 30 %, Böen unter 45 km/h'), sb.answerWarm(fc));
+  sb.setSetting('temp', 'C');
+  sb.setSetting('wind', 'ms');
+  const detW = G(sb,'details').innerHTML;
+  H.check('Einstellungen: Wind in m/s in der Kachel, im Feld und im Satz je Stunde', detW.includes('3<small>m/s</small>') && detW.includes('Böen 7 m/s') && /Wind \d+ m\/s" tabindex="0" class="hcol now"/.test(G(sb,'hourly').innerHTML) && G(sb,'daysHint').textContent === 'Tief · Hoch', detW.slice(detW.indexOf('class="tile wind"'), detW.indexOf('class="tile wind"') + 400));
+  sb.setSetting('wind', 'bft');
+  H.check('Einstellungen: Beaufort rechnet Stufen', sb.wnd(12) === '3' && sb.wnd(0) === '0' && sb.wnd(120) === '12' && sb.wunit() === 'Bft' && G(sb,'details').innerHTML.includes('3<small>Bft</small>'));
+  sb.setSetting('wind', 'kmh');
+  H.check('Einstellungen: zurück auf °C und km/h, Markup wie vorher, Wahl gespeichert', G(sb,'hero').innerHTML.includes('>Hoch 18°<') && G(sb,'details').innerHTML.includes('12<small>km/h</small>') && sb._store['wetter:settings'].includes('"temp":"C"') && sb._store['wetter:settings'].includes('"wind":"kmh"'), sb._store['wetter:settings']);
+  sb.document.documentElement = H.el();   /* Wurzelelement nur für diesen Check, die Nacht-Checks erwarten keins */
+  sb.setSetting('motion', 'reduce');
+  H.check('Einstellungen: Bewegung reduziert setzt die Klasse am Wurzelelement', sb.document.documentElement.classList.contains('reduce'));
+  sb.setSetting('motion', 'system');
+  const reduceOff = !sb.document.documentElement.classList.contains('reduce');
+  delete sb.document.documentElement;
+  H.check('Einstellungen: Rausgehen-Toleranzen verschieben die Schwellen', (sb.setSetting('rainTol', 10), sb.setSetting('feelAdj', 2), sb.actLimits({ feel: [5, 28], prob: 30, gust: 45 }).prob === 40 && sb.actLimits({ feel: [5, 28], prob: 30, gust: 45 }).feelMin === 7) && reduceOff, JSON.stringify(sb.actLimits({ feel: [5, 28], prob: 30, gust: 45 })));
+  sb.setSetting('rainTol', 0); sb.setSetting('feelAdj', 0);
+  G(sb,'settingsBody').trigger('click', { target: { closest: s => s === '.set-chip' ? { getAttribute: n => n === 'data-key' ? 'temp' : 'F' } : null } });
+  H.check('Einstellungen: Chip-Klick setzt den Wert und sagt es an', sb.settingsValue('temp') === 'F' && G(sb,'live').textContent === 'Einheiten geändert.', sb.settingsValue('temp'));
+  sb.setSetting('temp', 'C');
+  sb.closeSettings();
+  H.check('Einstellungen: Schließen', !sb.document.body.classList.contains('settings-open'));
 
   const wn = G(sb,'warnings').innerHTML;
   const dwdUrl = sb._fetchLog.find(u => u.includes('maps.dwd.de')) || '';
@@ -428,7 +464,7 @@ function boot(opts) {
   H.check('Luftfeuchte: Füllung liegt in einer beschnittenen Gruppe (Wasser bleibt im Tropfen)', /<g clip-path="url\(#dropclip\)"><rect x="0" y="9\.5"/.test(det), det.match(/<g clip-path[^>]*><rect[^>]*>/));
   H.check('Kacheln: Mini-Icons und Skalen (Wind, Regen, Sonnenbogen, Tropfen, Druck, UV-Meter)',
     det.includes('class="windflow"') && det.includes('class="rain-ico"') && det.includes('class="arc"') && det.includes('class="drop-ico"') && det.includes('class="gauge-ico"') && /class="tile uv"[\s\S]*?class="meter"/.test(det));
-  H.check('Einblend-Verzögerungen gestaffelt (Stunden, Tage, Kacheln)', /hcol now[^>]*animation-delay:0\.[89]\ds/.test(hh) && /drow[^>]*animation-delay:1\.[34]\ds/.test(dd) && /tile uv" style="animation-delay:(1\.00|0\.9\d)s/.test(det));
+  H.check('Einblend-Verzögerungen gestaffelt und gestaucht (Stunden 0,54 s, Tage 0,84 s, Kacheln 0,60 s)', /hcol now[^>]*animation-delay:0\.[45]\ds/.test(hh) && /drow[^>]*animation-delay:0\.[78]\ds/.test(dd) && /tile uv"[^>]*animation-delay:(0\.60|0\.5\d)s/.test(det));
 
   // Zeitreise: am selben Ort überlebt die gewählte Stunde (per Zeitstempel) ein Neurendern; Ortswechsel oder
   // fehlende Stunde setzen zurück. Das offene Detailfeld bleibt ebenfalls offen.
@@ -760,7 +796,7 @@ function boot(opts) {
   H.check('Shell: Rausgehen-Feld in index.html', idx.includes('id="activityField"') && idx.includes('id="activity"'));
   H.check('Shell: Ansicht nach Frage in index.html und Stylesheet mit Nacht-Token', idx.includes('id="views"') && idx.includes('id="viewAnswer"') && idx.includes('id="hourlyNote"') && idx.includes('id="daysHint"') && css.includes('.view-chip') && css.includes('--wfill: #BFE0C4') && css.includes('--wfill: #2F5A3A') && css.includes('.hcol.tc4:not(.now)') && css.includes('.days-field.v-light .drow .bar i') && css.includes('.vis24 i.fog') && css.includes('html.night .vis24 i.fog'));
   H.check('Shell: keine klassische Ansicht mehr verlinkt oder vorhanden', !idx.includes('klassisch.html') && !fs.existsSync(require('path').join(__dirname, '..', 'klassisch.html')) && !fs.existsSync(require('path').join(__dirname, '..', 'wetter.css')));
-  H.check('Shell: Versions-Query 20261009l an allen Asset-Links', (idx.match(/\?v=20261009l"/g) || []).length === 4 && (rad.match(/\?v=20261009l"/g) || []).length === 3, (idx.match(/\?v=\w+"/g) || []).join(','));
+  H.check('Shell: Versions-Query 20261009m an allen Asset-Links', (idx.match(/\?v=20261009m"/g) || []).length === 4 && (rad.match(/\?v=20261009m"/g) || []).length === 3, (idx.match(/\?v=\w+"/g) || []).join(','));
   H.check('Shell: Sonnenrechnung vor den App-Skripten, Nachtklasse vor dem ersten Zeichnen', [idx, rad].every(h => h.includes('<script src="sonne.js?v=') && /wetter:night[\s\S]{0,120}classList\.add\("night"\)/.test(h) && h.indexOf('wetter:night') < h.indexOf('<link rel="stylesheet" href="modern.css')));
   H.check('Shell: Nachtpalette im Stylesheet mit Token, Hero-Farben, Fade und Kachel-Einblendung', css.includes('html.night {') && css.includes('--card:') && css.includes('--soft:') && css.includes('--wet:') && css.includes('html.night .theme-rain') && css.includes('html.fade') && css.includes('.tile.swap') && css.includes('.field.white { background: var(--card); }') && /\.tile \{[^}]*background: var\(--card\)/.test(css) && /\.hcol\.wet \{ background: var\(--wet\)/.test(css), css.match(/\.field\.white[^\n]*/));
 
@@ -770,5 +806,90 @@ function boot(opts) {
       days: G(sb,'days').innerHTML, details: G(sb,'details').innerHTML, models: G(sb,'models').innerHTML
     }));
   }
+  // Startseite anpassen: Reihenfolge und Sichtbarkeit der Felder, Kacheln ausblenden
+  H.check('Startseite: Kacheln tragen Namen zum Ausblenden', ['uv', 'wind', 'rain', 'sun', 'humidity', 'pressure', 'air', 'pollen'].every(n => G(sb,'details').innerHTML.includes('data-name="' + n + '"')), (G(sb,'details').innerHTML.match(/data-name="[a-z]+"/g) || []).join(','));
+  H.check('Startseite: Vorgabe-Reihenfolge der Felder', sb.layoutOrder().join(',') === 'insight,views,hoursField,activityField,highlightsField,nowcastCard', sb.layoutOrder().join(','));
+  sb.setSetting('order', ['nowcastCard', 'unbekannt', 'insight']);
+  H.check('Startseite: gespeicherte Reihenfolge zuerst, Unbekanntes raus, Fehlendes hinten', sb.layoutOrder().join(',') === 'nowcastCard,insight,views,hoursField,activityField,highlightsField', sb.layoutOrder().join(','));
+  sb.setSetting('hidden', ['insight', 'uv']);
+  H.check('Startseite: ausgeblendetes Feld trägt die Klasse, Einstellung gespeichert', G(sb,'insight').classList.contains('user-hidden') && !G(sb,'views').classList.contains('user-hidden') && sb._store['wetter:settings'].includes('"hidden":["insight","uv"]'), sb._store['wetter:settings']);
+  sb.openSettings();
+  const setL = G(sb,'settingsBody').innerHTML;
+  H.check('Startseite: Abschnitt mit Pfeilen je Feld und Sichtbar-Knöpfen, Zustand abgebildet', setL.includes('<h3>Startseite</h3>') && (setL.match(/class="set-mv"/g) || []).length === 12 && (setL.match(/class="set-vis"/g) || []).length === 14 && setL.includes('class="set-vis" data-id="insight" aria-pressed="false">Ausgeblendet</button>') && setL.includes('class="set-vis" data-id="uv" aria-pressed="false">Ausgeblendet</button>') && setL.indexOf('data-id="nowcardCard"') < 0 && setL.indexOf('Regen in 4 Stunden') < setL.indexOf('>Hinweis<'), setL.slice(setL.indexOf('Startseite'), setL.indexOf('Startseite') + 300));
+  G(sb,'settingsBody').trigger('click', { target: { closest: s => s === '.set-mv' ? { getAttribute: n => n === 'data-id' ? 'views' : 'up' } : null } });
+  H.check('Startseite: Pfeil nach oben verschiebt das Feld und sagt es an', sb.layoutOrder().join(',') === 'nowcardCard,views,insight,hoursField,activityField,highlightsField'.replace('nowcardCard', 'nowcastCard') && G(sb,'live').textContent === 'Reihenfolge geändert.', sb.layoutOrder().join(','));
+  G(sb,'settingsBody').trigger('click', { target: { closest: s => s === '.set-vis' ? { getAttribute: () => 'insight' } : null } });
+  H.check('Startseite: Sichtbar-Knopf blendet wieder ein', !G(sb,'insight').classList.contains('user-hidden') && sb.settingsValue('hidden').join(',') === 'uv' && G(sb,'live').textContent === 'Eingeblendet.');
+  sb.setSetting('order', []); sb.setSetting('hidden', []);
+  // Reise: Zustand, Feld mit Countdown, Einstellungen, automatischer Wechsel
+  const dayAt = (n) => sb.localDate(new Date(Date.now() + n * 86400000));
+  H.check('Reise: Phasen vorher, unterwegs, vorbei', JSON.stringify(sb.tripState({ from: '2026-10-14', to: '2026-10-21' }, '2026-10-09')) === '{"phase":"before","days":5}' && JSON.stringify(sb.tripState({ from: '2026-10-14', to: '2026-10-21' }, '2026-10-16')) === '{"phase":"during","days":5}' && sb.tripState({ from: '2026-10-14', to: '2026-10-21' }, '2026-10-22').phase === 'after' && sb.tripState(null, '2026-10-09') === null);
+  H.check('Reise: ungültige Angaben werden verworfen', sb.normalizeSettings({ trip: { name: 'X', lat: 1, lon: 2, from: '2026-10-21', to: '2026-10-14' } }).trip === null && sb.normalizeSettings({ trip: { name: 'Lignano', lat: 45.69, lon: 13.12, from: '2026-10-14', to: '2026-10-21' } }).trip.name === 'Lignano');
+  sb.setSetting('trip', { name: 'Lignano', lat: 45.69, lon: 13.12, from: dayAt(5), to: dayAt(12) });
+  sb.renderTrip();
+  const tripA = G(sb,'trip').innerHTML;
+  H.check('Reise: Feld mit Ziel, Zeitraum, Countdown und Knopf', !G(sb,'tripField').classList.contains('hidden') && tripA.includes('<b>Lignano</b>') && tripA.includes('In 5 Tagen geht es los.') && tripA.includes('data-trip="go">Wetter in Lignano ansehen</button>'), tripA);
+  sb.setSetting('trip', { name: 'Lignano', lat: 45.69, lon: 13.12, from: dayAt(-1), to: dayAt(6) });
+  sb.renderTrip();
+  H.check('Reise: unterwegs mit Resttagen', G(sb,'trip').innerHTML.includes('Du bist unterwegs, noch 6 Tage.'), G(sb,'trip').innerHTML);
+  sb.openSettings();
+  const setT = G(sb,'settingsBody').innerHTML;
+  H.check('Reise: Einstellungen mit Ort, Datumsfeldern und Löschen', setT.includes('<h3>Reise</h3>') && setT.includes('id="tripPick">Ort ändern</button>') && setT.includes('id="tripFrom" data-k="from" value="' + dayAt(-1) + '"') && setT.includes('id="tripDel">Reise löschen</button>'), setT.slice(setT.indexOf('<h3>Reise'), setT.indexOf('<h3>Reise') + 300));
+  G(sb,'settingsBody').trigger('change', { target: { closest: s => s === '.trip-date' ? { getAttribute: () => 'to', value: dayAt(2) } : null } });
+  H.check('Reise: Datumsänderung wird übernommen', sb.settingsValue('trip').to === dayAt(2) && G(sb,'trip').innerHTML.includes('noch 2 Tage.'), G(sb,'trip').innerHTML);
+  G(sb,'settingsBody').trigger('click', { target: { closest: s => s === '#tripDel' ? {} : null } });
+  H.check('Reise: Löschen leert Einstellung und Feld', sb.settingsValue('trip') === null && G(sb,'tripField').classList.contains('hidden') && G(sb,'live').textContent === 'Reise gelöscht.');
+  sb.closeSettings();
+  const sbTrip = boot({ fetchImpl: H.okFetch(data), geolocation: granted, storage: { 'wetter:settings': JSON.stringify({ trip: { name: 'Lignano', lat: 45.69, lon: 13.12, from: dayAt(-1), to: dayAt(3) } }) } });
+  await wait(300);
+  H.check('Reise: beim Start wechselt die App einmal am Tag in die Reisevorhersage', G(sbTrip,'locName').textContent === '🔍 Lignano' && JSON.parse(sbTrip._store['wetter:settings']).tripSwitched === dayAt(0) && G(sbTrip,'trip').innerHTML.includes('data-trip="home">Zurück zu meinem Standort</button>') && sbTrip._fetchLog.some(u => u.includes('latitude=45.69')), G(sbTrip,'locName').textContent + ' | ' + G(sbTrip,'trip').innerHTML.slice(-80));
+  H.check('Shell: Reise-Feld in index.html, Stile für Startseite und Reise', idxA.includes('id="tripField"') && idxA.includes('id="trip"') && cssA.includes('.user-hidden { display: none !important; }') && cssA.includes('.trip-btn'));
+  // Verlaufssicht: Meteogramm der nächsten 48 Stunden
+  const trendA = sb.trendSvg(fc, sb.prepareData(fc, data.ens));
+  H.check('Verlauf: Wolkenband, Temperaturlinie mit Extremen, Windpfeile, Regenbalken, Achse mit Tagesgrenzen', (trendA.match(/<rect class="cloud"/g) || []).length === 48 && /<polyline class="tline" points="(\d+\.\d,\d+\.\d ){47}\d+\.\d,\d+\.\d"\/>/.test(trendA) && trendA.includes('>20°</text>') && trendA.includes('>4°</text>') && (trendA.match(/<path class="wa"/g) || []).length === 16 && (trendA.match(/<rect class="rb"/g) || []).length === 7 && (trendA.match(/<line class="day"/g) || []).length === 2 && trendA.includes('>Sa</text>') && trendA.includes('>So</text>') && (trendA.match(/y="150" text-anchor="middle">\d\d<\/text>/g) || []).length === 8, trendA.slice(0, 200));
+  H.check('Verlauf: verborgener Satz mit Spanne, Regen, Bewölkung und Wind', /<div class="vh">Verlauf der nächsten 48 Stunden: Temperatur zwischen 4 und 20 Grad, Regen insgesamt 8,4 mm, Bewölkung im Mittel \d+ %, Wind bis \d+ km\/h\.<\/div>/.test(trendA), trendA.slice(trendA.indexOf('class="vh"'), trendA.indexOf('class="vh"') + 160));
+  sb.toggleTrend();
+  H.check('Verlauf: Knopf klappt das Feld auf, rendert und sagt es an', G(sb,'trend').classList.contains('open') && G(sb,'trendBtn').getAttribute('aria-expanded') === 'true' && G(sb,'trendBody').innerHTML.includes('<svg class="trend"') && G(sb,'live').textContent === 'Verlauf geöffnet.', G(sb,'trendBody').innerHTML.slice(0, 60));
+  sb.toggleTrend();
+  H.check('Verlauf: wieder zu', !G(sb,'trend').classList.contains('open') && G(sb,'trendBtn').getAttribute('aria-expanded') === 'false');
+  H.check('Shell: Verlaufsknopf und Feld in index.html, Stile', idxA.includes('id="trendBtn" aria-expanded="false" aria-controls="trend"') && idxA.includes('id="trend" role="region"') && cssA.includes('.trend .tline'));
+  // Regenradar als Blatt
+  H.check('Radar: Blatt mit Rahmen in index.html, Tab als Dialogöffner, Vollbild-Link, Radarseite kennt den Einbettungsmodus', idxA.includes('id="radarSheet" role="dialog"') && idxA.includes('<iframe id="radarFrame" title="Regenradar"') && idxA.includes('id="radarTab" aria-label="Radar" aria-haspopup="dialog"') && idxA.includes('class="src-link radar-full" href="radar.html">Vollbild</a>') && radarA.includes('document.documentElement.classList.add("embed")') && radarA.includes('html.embed .rshell .top, html.embed .tabs { display: none; }') && cssA.includes('body.radar-open #radarSheet { transform: none; }'));
+  G(sb,'radarTab').trigger('click', { preventDefault() { this.prevented = true; } });
+  H.check('Radar: Tipp auf den Tab öffnet das Blatt, der Rahmen lädt die eingebettete Radarseite, Ansage', sb.document.body.classList.contains('radar-open') && G(sb,'radarFrame').src === 'radar.html?embed=1' && G(sb,'radarTab').getAttribute('aria-expanded') === 'true' && G(sb,'live').textContent === 'Regenradar geöffnet.', G(sb,'radarFrame').src);
+  sb.closeRadar();
+  H.check('Radar: Schließen, Fokus zurück auf den Tab', !sb.document.body.classList.contains('radar-open') && G(sb,'radarTab').focused === true);
+
+  // Regen-Alarm: Abschnitt, Unterstützung, Abonnement-Nutzlast, Schlüssel
+  sb.openSettings();
+  const setP = G(sb,'settingsBody').innerHTML;
+  H.check('Regen-Alarm: Abschnitt mit Hinweis, ohne Push-Unterstützung im Harness nur die Erklärung', setP.includes('<h3>Regen-Alarm</h3>') && !sb.pushSupported() && setP.includes('Dein Browser unterstützt keine Push-Nachrichten.') && setP.includes('Prüft alle 15 Minuten'), setP.slice(setP.indexOf('Regen-Alarm'), setP.indexOf('Regen-Alarm') + 200));
+  sb.closeSettings();
+  H.check('Regen-Alarm: Nutzlast für den Worker und Schlüsselumwandlung', JSON.stringify(sb.pushBody({ endpoint: 'https://x', keys: { p256dh: 'a', auth: 'b' } }, { lat: 45.69, lon: 13.12, name: 'Lignano' })) === '{"subscription":{"endpoint":"https://x","keys":{"p256dh":"a","auth":"b"}},"lat":45.69,"lon":13.12,"name":"Lignano"}' && sb.urlBase64ToUint8Array(sb.pushPublicKey()).length === 65 && sb.urlBase64ToUint8Array(sb.pushPublicKey())[0] === 4, sb.pushPublicKey());
+  H.check('Regen-Alarm: öffentlicher Schlüssel in App und Worker-Konfiguration identisch', fs.readFileSync(require('path').join(__dirname, '..', 'proxy', 'wrangler.toml'), 'utf8').includes('VAPID_PUBLIC_KEY = "' + sb.pushPublicKey() + '"') && /crons = \["\*\/15 \* \* \* \*"\]/.test(fs.readFileSync(require('path').join(__dirname, '..', 'proxy', 'wrangler.toml'), 'utf8')));
+
+  // Tagesfilm: Szene, Zeitplan, Begrüßung, Einstellungen, Aufnahmeformat
+  const scF = sb.filmScene(fc, { name: 'München' });
+  H.check('Tagesfilm: Szene aus den Tageswerten (24 Stunden, Sonnenzeiten, Regen, Hoch und Tief, Abschlusszeile)', scF.place === 'München' && scF.dateLabel === 'Freitag, 25. September' && scF.temps.length === 24 && scF.rain.length === 24 && scF.rise === 432 && scF.set === 1145 && scF.riseLabel === '07:12' && scF.hi === 18 && scF.lo === 8 && Math.abs(scF.rainTotal - 4.8) < 0.01 && scF.outro === 'Mo: Gewitter möglich', JSON.stringify(scF).slice(0, 240));
+  const tl0 = sb.filmTimeline(0), tl5 = sb.filmTimeline(5), tl10 = sb.filmTimeline(10);
+  H.check('Tagesfilm: Zeitplan, Szenen überlagern sich weich und enden nach zehn Sekunden', tl0.title === 0 && tl0.arc === 0 && tl5.title === 1 && tl5.arc === 1 && tl5.temp > 0 && tl5.temp < 1 && tl5.rain === 0 && tl10.outro === 1 && tl10.done === true && !tl5.done, JSON.stringify(tl5));
+  H.check('Tagesfilm: Format nach Unterstützung, Safari MP4 vor WebM, sonst nichts', sb.filmMime(m => m === 'video/mp4') === 'video/mp4' && sb.filmMime(m => m.startsWith('video/webm')) === 'video/webm;codecs=vp9' && sb.filmMime(() => false) === null && sb.filmMime(m => m === 'video/mp4;codecs=avc1' || m === 'video/webm') === 'video/mp4;codecs=avc1');
+  H.check('Tagesfilm: ohne Zeichenfläche kein Film, keine Begrüßung, kein Fehler', sb.openFilm() === false && sb.maybeAutoFilm() === false);
+  sb.setSetting('dayfilm', false);
+  H.check('Tagesfilm: Begrüßung aus, Einstellung gespeichert', sb.maybeAutoFilm() === false && sb._store['wetter:settings'].includes('"dayfilm":false'));
+  sb.setSetting('dayfilm', true);
+  sb.openSettings();
+  const setF = G(sb,'settingsBody').innerHTML;
+  H.check('Tagesfilm: Abschnitt mit Schalter, Abspielknopf und Erklärung', setF.includes('<h3>Tagesfilm</h3>') && setF.includes('data-key="dayfilm" data-val="1" aria-pressed="true"') && setF.includes('id="filmPlay">Jetzt abspielen</button>') && setF.includes('nicht bei reduzierter Bewegung'), setF.slice(setF.indexOf('Tagesfilm'), setF.indexOf('Tagesfilm') + 200));
+  G(sb,'settingsBody').trigger('click', { target: { closest: s => s === '.set-chip' ? { getAttribute: n => n === 'data-key' ? 'dayfilm' : '0' } : null } });
+  H.check('Tagesfilm: Chip schaltet die Begrüßung aus und sagt es an', sb.settingsValue('dayfilm') === false && G(sb,'live').textContent === 'Tagesfilm morgens aus.');
+  sb.setSetting('dayfilm', true);
+  sb.closeSettings();
+  H.check('Shell: Tagesfilm-Overlay mit Zeichenfläche 1080 × 1920, Teilen und Schließen', idxA.includes('<canvas id="filmCanvas" width="1080" height="1920"') && idxA.includes('id="filmShare">Als Video teilen</button>') && idxA.includes('id="filmClose">Schließen</button>') && cssA.includes('.film canvas'));
+
+  const sbSV = boot({ fetchImpl: H.okFetch(data), geolocation: granted, storage: { 'wetter:view': 'wind', 'wetter:settings': JSON.stringify({ startView: 'rain', motion: 'reduce' }) } });
+  await wait(300);
+  sbSV.document.documentElement = H.el(); sbSV.applySettings();
+  H.check('Einstellungen: Startansicht überstimmt die gespeicherte Ansicht, Bewegung beim Start aus dem Speicher', sbSV.currentView() === 'rain' && sbSV.document.documentElement.classList.contains('reduce') && G(sbSV,'views').innerHTML.includes('data-view="rain" aria-pressed="true"'), sbSV.currentView());
   H.finish();
 })();
