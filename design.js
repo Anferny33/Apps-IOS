@@ -1388,7 +1388,7 @@ function tpItem(i, inner) {
     return '<div class="tp-item" data-stagger="' + d + '" style="animation-delay:' + d + '">' + inner + '</div>';
 }
 
-const TILE_NAMES = { wind: "Wind", rain: "Regen", sun: "Sonne" };
+const TILE_NAMES = { wind: "Wind", rain: "Regen", sun: "Sonne", sicht: "Sicht" };
 
 function tilePanelHtml(key, inner, bodyClass) {
     return '<div class="tpanel tp-' + key + '" data-for="' + key + '" id="tpanel-' + key + '" role="region" aria-label="' + (TILE_NAMES[key] || key) + ' im Detail"><div class="tpanel-in"><div class="tpanel-body' + (bodyClass ? ' ' + bodyClass : '') + '">' + inner + '</div></div></div>';
@@ -1643,27 +1643,78 @@ function moonIcon(mp) {
 
 const FOG_ICON = '<svg class="fog-ico" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 9h13"/><path class="f2" d="M3 14h18"/><path d="M6 19h12"/></svg>';
 
-/* Sichtweite der aktuellen Stunde, nächster Nebel in 24 h, Taupunkt und Nebelneigung */
+/* Nebelrisiko einer Stunde: Taupunktabstand, Wind und Bewölkung als Punkte; vorhergesagte Sicht unter 1 km
+   ist immer „hoch“, unter 4 km mindestens „mittel“ */
+function fogRisk(vis, spread, wind, cloud) {
+    if (isNum(vis) && vis < 1000) return "hoch";
+    let score = 0;
+    if (isNum(spread)) score += spread <= 1.5 ? 2 : (spread <= 3 ? 1 : 0);
+    if (isNum(wind)) score += wind <= 8 ? 1 : (wind > 20 ? -1 : 0);
+    if (isNum(cloud)) score += cloud <= 30 ? 1 : (cloud >= 80 ? -1 : 0);
+    let lvl = score >= 3 ? "hoch" : (score >= 2 ? "mittel" : "gering");
+    if (isNum(vis) && vis < 4000 && lvl === "gering") lvl = "mittel";
+    return lvl;
+}
+function fogRiskAt(fc, gi) {
+    const h = fc.hourly;
+    const t = h.temperature_2m ? h.temperature_2m[gi] : null, td = h.dew_point_2m ? h.dew_point_2m[gi] : null;
+    return fogRisk(h.visibility ? h.visibility[gi] : null, isNum(t) && isNum(td) ? t - td : null, h.wind_speed_10m ? h.wind_speed_10m[gi] : null, h.cloud_cover ? h.cloud_cover[gi] : null);
+}
+/* Gründe für hohes Risiko in einer Stunde, als kurze Aufzählung */
+function fogReasons(fc, gi) {
+    const h = fc.hourly, out = [];
+    const t = h.temperature_2m ? h.temperature_2m[gi] : null, td = h.dew_point_2m ? h.dew_point_2m[gi] : null;
+    if (isNum(t) && isNum(td) && t - td <= 1.5) out.push("Taupunktabstand " + Math.round(t - td) + "°");
+    if (h.wind_speed_10m && isNum(h.wind_speed_10m[gi]) && h.wind_speed_10m[gi] <= 8) out.push("kaum Wind");
+    if (h.cloud_cover && isNum(h.cloud_cover[gi]) && h.cloud_cover[gi] <= 30) out.push("klarer Himmel");
+    return out;
+}
+
+/* Sichtweite der aktuellen Stunde, Nebelrisiko jetzt und die nächste Stunde mit hohem Risiko in 24 h */
 function visibilityInfo(fc) {
     const h = fc.hourly;
     if (!h || !h.visibility || !h.time) return null;
     const i = hourlyWindow(fc, 24).start, vis = h.visibility[i];
     if (!isNum(vis)) return null;
     const word = vis < 1000 ? "Nebel" : (vis < 4000 ? "diesig" : (vis < 10000 ? "mäßig" : "klar"));
-    let fogAt = null;
+    const risk = fogRiskAt(fc, i);
+    let riskAt = null;
     for (let gi = i + 1; gi <= i + 24 && gi < h.time.length; gi++) {
-        if (isNum(h.visibility[gi]) && h.visibility[gi] < 1000) { fogAt = h.time[gi]; break; }
+        if (fogRiskAt(fc, gi) === "hoch") { riskAt = h.time[gi]; break; }
     }
-    const td = h.dew_point_2m ? h.dew_point_2m[i] : null, t = h.temperature_2m ? h.temperature_2m[i] : null;
-    let sub = "";
-    if (fogAt) {
-        const dw = dayWordFor(fc, fogAt);
-        sub = "Nebel möglich " + (dw === "Heute" || dw === "Morgen" ? dw.toLowerCase() : dw) + " gegen " + parseInt(fogAt.slice(11, 13), 10) + " Uhr";
-    } else if (isNum(td)) {
-        sub = "Taupunkt " + Math.round(td) + "°" + (vis >= 1000 ? (isNum(t) && t - td <= 2.5 ? " · Nebelneigung" : " · kein Nebel in Sicht") : "");
-    }
+    const td = h.dew_point_2m ? h.dew_point_2m[i] : null;
+    const sub = risk !== "hoch" && riskAt ? "Nebelrisiko hoch " + whenHour(fc, riskAt, "gegen") : "Nebelrisiko " + risk + (isNum(td) ? " · Taupunkt " + Math.round(td) + "°" : "");
     const km = vis >= 1000, val = km ? vis / 1000 : Math.round(vis), dec = km && vis < 10000 ? 1 : 0;
-    return { vis: vis, word: word, fogAt: fogAt, sub: sub, count: val, decimals: dec, big: (km ? fmtNum(val, dec) : String(val)) + '<small>' + (km ? 'km' : 'm') + '</small>' };
+    return { vis: vis, word: word, risk: risk, riskAt: riskAt, sub: sub, count: val, decimals: dec, big: (km ? fmtNum(val, dec) : String(val)) + '<small>' + (km ? 'km' : 'm') + '</small>' };
+}
+
+/* Instrument-Feld Sicht: Säulen der Sichtweite (bis 20 km) für 24 Stunden, Nebelstunden grau, Satz zum Risiko */
+function sichtPanelHtml(fc) {
+    const h = fc.hourly, w = hourlyWindow(fc, 24);
+    let bars = "", labels = "", first = -1, last = -1, worst = -1;
+    for (let i = w.start; i < w.end; i++) {
+        const v = h.visibility && isNum(h.visibility[i]) ? h.visibility[i] : null;
+        const cls = v !== null && v < 1000 ? "fog " : (v !== null && v < 4000 ? "haze " : "");
+        bars += '<i class="' + cls + 'vb" style="height:' + (v === null ? 3 : Math.max(6, Math.round(Math.min(v, 20000) / 20000 * 100))) + '%"></i>';
+        if ((i - w.start) % 3 === 0) labels += '<span><b>' + hhmm(h.time[i]).slice(0, 2) + '</b>' + (v === null ? '–' : (v >= 1000 ? Math.round(v / 1000) + ' km' : Math.round(v) + ' m')) + '</span>';
+        if (fogRiskAt(fc, i) === "hoch") { if (first < 0) first = i; if (first >= 0 && last === i - 1 || last < 0) last = i; if (worst < 0) worst = i; }
+    }
+    let sentence;
+    if (first < 0) {
+        let minV = Infinity;
+        for (let i = w.start; i < w.end; i++) if (h.visibility && isNum(h.visibility[i])) minV = Math.min(minV, h.visibility[i]);
+        sentence = "Kein hohes Nebelrisiko in den nächsten 24 Stunden" + (isFinite(minV) ? ", Sicht mindestens " + (minV >= 1000 ? Math.round(minV / 1000) + " km" : Math.round(minV) + " m") : "") + ".";
+    } else {
+        const dw = dayWordFor(fc, h.time[first]);
+        const day = dw === "Heute" ? "heute" : (dw === "Morgen" ? "morgen" : dw);
+        const endH = (parseInt(h.time[last].slice(11, 13), 10) + 1) % 24;
+        const why = fogReasons(fc, first);
+        const visLow = h.visibility && isNum(h.visibility[first]) && h.visibility[first] < 1000;
+        const parts = (visLow ? ["Sicht unter 1 km"] : []).concat(why);
+        sentence = "Nebelrisiko hoch " + day + " von " + parseInt(h.time[first].slice(11, 13), 10) + " bis " + endH + " Uhr" + (parts.length ? ": " + parts.join(", ") : "") + ".";
+    }
+    return tpItem(0, '<div class="vis24">' + bars + '</div><div class="rain-axis">' + labels + '</div>') +
+        tpItem(1, '<div class="tp-note">' + sentence + '</div>');
 }
 
 /* Zählerziele der frisch gebauten Kacheln als „schon gesehen“ eintragen: kein Neustart, kein Gleiten */
@@ -1735,7 +1786,8 @@ function renderDetails(fc, air, opts) {
     const vi = visibilityInfo(fc);
     const sichtTile = function () {
         return tile("plain", "Sicht", vi.big + '<span class="word">' + vi.word + '</span>', vi.sub || null,
-            { delay: next(), count: vi.count, decimals: vi.decimals, icon: FOG_ICON, still: still });
+            { delay: next(), count: vi.count, decimals: vi.decimals, icon: FOG_ICON, key: "sicht", still: still }) +
+            tilePanelHtml("sicht", sichtPanelHtml(fc));
     };
 
     if (air && air.current) {
