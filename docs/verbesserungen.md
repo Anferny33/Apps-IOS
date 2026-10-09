@@ -13,7 +13,8 @@ und neue Ideen aus der Arbeit. Nach jeder Änderung wird die Liste nachgezogen u
 - [x] Rausgehen-Zeile mit vier Feldern und Piktogrammen – `1a5e19c`, `95768e4`
 - [x] Schirm-Schwelle: Rat in drei Stufen nach Menge, Intensität und Risiko – `e11cd5b`
 - [x] Vergleich mit gestern (8) als vierter Hero-Chip – `e11cd5b`
-- [x] Woher kommt das? (1): Herkunftsblatt aus Aktualitätszeile und Instrument-Feldern – 09.10.2026
+- [x] Woher kommt das? (1): Herkunftsblatt aus Aktualitätszeile und Instrument-Feldern – `99a5e13`
+- [x] Highlights der nächsten Tage (9): Feld „Nächste Tage“ mit bis zu drei Regel-Highlights – 09.10.2026
 
 ## Offen, aus den Claude-Prinzipien
 
@@ -23,7 +24,6 @@ und neue Ideen aus der Arbeit. Nach jeder Änderung wird die Liste nachgezogen u
 
 ## Offen, aus anderen Apps
 
-- [ ] Highlights der nächsten Tage (9): ein Satz je auffälligem Ereignis (Temperatursturz, Böen, erster Frost). Mittel.
 - [ ] Reise-Ort (10): Ort mit Datum und Countdown, wechselt in die Vorhersage, sobald die Tage im Fenster liegen. Mittel.
 - [ ] Verlaufssicht (11): aufklappbares 48-Stunden-Meteogramm mit Temperatur, Regen, Wolkenband und Wind auf einer Achse. Mittel.
 - [ ] Regen-Alarm per Push (12): über den Cloudflare-Worker alle 15 Minuten prüfen, Web-Push an die installierte App. Groß.
@@ -39,3 +39,4 @@ und neue Ideen aus der Arbeit. Nach jeder Änderung wird die Liste nachgezogen u
 
 - [x] Vortagswerte im Feld „Woher kommt das?“ als Modellwerte kennzeichnen – mit Punkt 1 erledigt
 - [ ] Läufe der Vergleichsmodelle (ICON-EU, ECMWF, GFS, UKMO) im Herkunftsblatt nennen; Open-Meteo hat Metadaten je Modell, nur die des Ensembles sind veraltet. Klein.
+- [ ] Highlights im Herkunftsblatt erklären (Regeln und Schwellen), passt zu „Woher kommt das?“. Klein.

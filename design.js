@@ -1278,6 +1278,131 @@ function setPause(minutes) {
     updatePause();
 }
 
+/* ------------------------------------------------------------------ *
+ * Nächste Tage: regelbasierte Highlights aus den Tageswerten (Tag 1 bis 7)
+ * ------------------------------------------------------------------ */
+const DAYS_SHOWN = 7;      /* sichtbare Zeilen der Tagesliste, der Rest klappt auf */
+const HL_DAYS = 7;
+const HL_PRIO = { sturm75: 9, schnee: 8, frost: 8, gewitter: 7, hitze: 7, sturm: 6, nass: 6, sprung: 5, nebel: 4, trocken: 3, sonne: 3 };
+const SNOW_CODES = [71, 73, 75, 77, 85, 86];
+
+/* Alle Kandidaten: { day, dayTo (Zeitraum), kind, prio, text }. Heute bleibt außen vor. */
+function dayHighlights(fc) {
+    const d = fc.daily;
+    if (!d || !Array.isArray(d.time) || d.time.length < 2) return [];
+    const last = Math.min(HL_DAYS, d.time.length - 1);
+    const at = function (arr, i) { return arr && isNum(arr[i]) ? arr[i] : null; };
+    const out = [];
+    const add = function (day, kind, prio, text, dayTo) { out.push({ day: day, dayTo: dayTo || null, kind: kind, prio: prio, text: text }); };
+
+    /* Größter Temperatursprung zum Vortag, mit gerundeten Höchstwerten gerechnet, damit der Satz stimmt */
+    let best = null;
+    for (let i = 1; i <= last; i++) {
+        const a = at(d.temperature_2m_max, i - 1), b = at(d.temperature_2m_max, i);
+        if (a === null || b === null) continue;
+        const diff = Math.round(b) - Math.round(a);
+        if (Math.abs(diff) >= 5 && (!best || Math.abs(diff) > Math.abs(best.diff))) best = { i: i, diff: diff, a: Math.round(a), b: Math.round(b) };
+    }
+    if (best) add(best.i, "sprung", HL_PRIO.sprung, Math.abs(best.diff) + "° " + (best.diff > 0 ? "wärmer" : "kühler") + ", " + best.b + "° statt " + best.a + "°");
+
+    /* Erster Frost: nur wenn heute und gestern (Vortag, falls geladen) frostfrei waren */
+    const pm = fc.past && fc.past.daily && Array.isArray(fc.past.daily.temperature_2m_min) ? fc.past.daily.temperature_2m_min : null;
+    const yMin = pm ? at(pm, pm.length - 1) : null, tMin = at(d.temperature_2m_min, 0);
+    if (!(tMin !== null && tMin <= 0) && !(yMin !== null && yMin <= 0)) {
+        for (let i = 1; i <= last; i++) {
+            const m = at(d.temperature_2m_min, i);
+            if (m !== null && m <= 0) { add(i, "frost", HL_PRIO.frost, "Erster Frost, morgens " + Math.round(m) + "°"); break; }
+        }
+    }
+
+    /* Je Tag: Sturm, Nass, Schnee, Gewitter, Nebel, Hitze */
+    for (let i = 1; i <= last; i++) {
+        const g = at(d.wind_gusts_10m_max, i), sum = at(d.precipitation_sum, i), prob = at(d.precipitation_probability_max, i);
+        const code = at(d.weather_code, i), hi = at(d.temperature_2m_max, i);
+        if (g !== null && g >= 75) add(i, "sturm", HL_PRIO.sturm75, "Sturmböen bis " + Math.round(g) + " km/h");
+        else if (g !== null && g >= 60) add(i, "sturm", HL_PRIO.sturm, "Stürmisch, Böen bis " + Math.round(g) + " km/h");
+        if (sum !== null && sum >= 10) add(i, "nass", HL_PRIO.nass, "Nass, rund " + Math.round(sum) + " mm" + (prob !== null && prob >= 70 ? " bei " + Math.round(prob) + " % Risiko" : ""));
+        if (code !== null && SNOW_CODES.indexOf(code) >= 0) add(i, "schnee", HL_PRIO.schnee, "Schnee");
+        if (code !== null && code >= 95) add(i, "gewitter", HL_PRIO.gewitter, "Gewitter möglich");
+        if (code === 45 || code === 48) add(i, "nebel", HL_PRIO.nebel, "Nebel");
+        if (hi !== null && hi >= 30) add(i, "hitze", HL_PRIO.hitze, "Hitze, " + Math.round(hi) + "°");
+    }
+
+    /* Längste Trockenphase ab drei Tagen am Stück */
+    let run = null, longest = null;
+    for (let i = 1; i <= last + 1; i++) {
+        const sum = i <= last ? at(d.precipitation_sum, i) : null, prob = i <= last ? at(d.precipitation_probability_max, i) : null;
+        const dry = i <= last && sum !== null && sum < 0.5 && (prob === null || prob < 30);
+        if (dry) { if (!run) run = { s: i, e: i }; else run.e = i; }
+        else if (run) {
+            if (run.e - run.s + 1 >= 3 && (!longest || run.e - run.s > longest.e - longest.s)) longest = run;
+            run = null;
+        }
+    }
+    if (longest) add(longest.s, "trocken", HL_PRIO.trocken, "Trocken", longest.e);
+
+    /* Sonnigster Tag: ab 7 Stunden Sonne und 70 % des Tageslichts */
+    let sunny = null;
+    for (let i = 1; i <= last; i++) {
+        const sun = at(d.sunshine_duration, i), day = at(d.daylight_duration, i);
+        if (sun !== null && day !== null && day > 0 && sun >= 7 * 3600 && sun / day >= 0.7 && (!sunny || sun > sunny.sun)) sunny = { i: i, sun: sun };
+    }
+    if (sunny) add(sunny.i, "sonne", HL_PRIO.sonne, "Sonnig, " + Math.round(sunny.sun / 3600) + " Stunden Sonne");
+    return out;
+}
+
+/* Pro Tag der wichtigste Kandidat (Zeiträume zählen getrennt), dann die wichtigsten max, nach Tagen sortiert */
+function pickHighlights(list, max) {
+    const byDay = {}, ranges = [];
+    list.forEach(function (c) {
+        if (c.dayTo) { ranges.push(c); return; }
+        if (!byDay[c.day] || c.prio > byDay[c.day].prio) byDay[c.day] = c;
+    });
+    const all = Object.keys(byDay).map(function (k) { return byDay[k]; }).concat(ranges);
+    all.sort(function (a, b) { return b.prio - a.prio || a.day - b.day; });
+    return all.slice(0, max).sort(function (a, b) { return a.day - b.day; });
+}
+
+function hlLabel(fc, c) {
+    const t = fc.daily.time;
+    return c.dayTo ? weekday(t[c.day]) + "–" + weekday(t[c.dayTo]) : weekday(t[c.day]);
+}
+
+function highlightsHtml(fc) {
+    const picked = pickHighlights(dayHighlights(fc), 3);
+    if (!picked.length) return '<div class="hl-none">Die nächsten sieben Tage ohne Auffälligkeiten.</div>';
+    const t = fc.daily.time;
+    return picked.map(function (c) {
+        const long = c.dayTo ? longWeekday(t[c.day]) + " bis " + longWeekday(t[c.dayTo]) : longWeekday(t[c.day]);
+        return '<button type="button" class="hl-row" data-day="' + c.day + '" aria-label="' + long + ': ' + c.text + '">' +
+            '<span class="hl-day">' + hlLabel(fc, c) + '</span><span class="hl-txt">' + c.text + '</span></button>';
+    }).join('');
+}
+
+function renderHighlights(fc) {
+    const box = D("highlights"), field = D("highlightsField");
+    if (!box) return;
+    box.innerHTML = highlightsHtml(fc);
+    if (field && field.classList) field.classList.remove("hidden");
+}
+
+/* Aus den Highlights zur Zeile des Tags in der Tagesliste: bei Bedarf aufklappen, in die Mitte rollen, aufleuchten */
+function jumpToDay(i) {
+    const field = D("daysField"), box = D("days");
+    if (!field || !box || !isNum(i)) return;
+    const unfold = i >= DAYS_SHOWN && field.classList && !field.classList.contains("all");
+    if (unfold) {
+        field.classList.add("all");
+        if (D("daysMoreLabel")) D("daysMoreLabel").textContent = "Weniger anzeigen";
+    }
+    const row = box.querySelector ? box.querySelector('.drow[data-day="' + i + '"]') : null;
+    if (!row || !row.scrollIntoView) return;
+    setTimeout(function () {
+        row.scrollIntoView({ behavior: "smooth", block: "center" });
+        if (row.classList) { row.classList.remove("flash"); void row.offsetWidth; row.classList.add("flash"); }
+    }, unfold ? 350 : 0);
+}
+
 function renderDays(fc, opts) {
     const quiet = !!(opts && opts.quiet);
     const box = D("days");
@@ -1291,7 +1416,7 @@ function renderDays(fc, opts) {
     const tHi = Math.max.apply(null, d.temperature_2m_max.filter(isNum));
     const span = Math.max(1, tHi - tLo);
     const cur = fc.current.temperature_2m;
-    const SHOWN = 7;
+    const SHOWN = DAYS_SHOWN;
     let rows = "", moreRows = "";
     for (let i = 0; i < n; i++) {
         const lo = d.temperature_2m_min[i], hi = d.temperature_2m_max[i];
@@ -1325,7 +1450,7 @@ function renderDays(fc, opts) {
         }
         const barAnim = quiet ? 'animation:none' : 'animation-delay:' + (more ? '0.5' : (+delay + 0.2).toFixed(2)) + 's';
         const row =
-            '<div class="drow' + (i === 0 ? ' today' : '') + mood + (more ? ' more' : '') + '"' + (quiet ? ' style="animation:none"' : (more ? '' : ' style="animation-delay:' + delay + 's"')) + '>' +
+            '<div class="drow' + (i === 0 ? ' today' : '') + mood + (more ? ' more' : '') + '" data-day="' + i + '"' + (quiet ? ' style="animation:none"' : (more ? '' : ' style="animation-delay:' + delay + 's"')) + '>' +
                 '<div class="n">' + (i === 0 ? "Heute" : weekday(d.time[i])) + '</div>' +
                 ic +
                 '<div class="pp">' + first + '</div>' +
@@ -2157,6 +2282,7 @@ function renderWarnings(dwd, nina) {
 /* Inhalte des vorherigen Orts entfernen, wenn für den neuen keine Daten kommen:
    Kopfzeile und Daten müssen immer zum selben Ort gehören. */
 function clearRendered() {
+    if (D("highlightsField") && D("highlightsField").classList) D("highlightsField").classList.add("hidden");
     lastTemp = null;
     lastCounts = {};
     lastData = null;
@@ -2335,6 +2461,7 @@ function renderAllDesign(payload) {
     dActivity();
     dNowcast(payload.fc);
     renderDays(payload.fc);
+    renderHighlights(payload.fc);
     renderViewText();
     renderDetails(payload.fc, payload.air);
     dModels(payload.md, payload.fc, payload.ens);
@@ -2783,6 +2910,8 @@ function initDesignApp() {
                 if (tile) { toggleTile(tile.getAttribute("data-tile")); restartAnimations(tile); }
                 return;
             }
+            const hl = t.closest(".hl-row");
+            if (hl) { jumpToDay(parseInt(hl.getAttribute("data-day"), 10)); return; }
             const srcBtn = t.closest(".tp-src");
             if (srcBtn) { openSource(srcBtn.getAttribute("data-src"), srcBtn); return; }
             if (t.closest("a, button, input")) return;

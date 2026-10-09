@@ -253,6 +253,40 @@ function boot(opts) {
   H.check('Herkunft: „Woher kommt das?“ im Feld öffnet beim Abschnitt Sicht', sb.document.body.classList.contains('src-open') && G(sb,'src').getAttribute('data-section') === 'src-sicht', G(sb,'src').getAttribute('data-section'));
   sb.closeSource();
 
+  // Highlights der nächsten Tage: Kandidaten, Auswahl, Markup, Sprung in die Tagesliste
+  const hlOf = (mut) => { const f = clone(); mut(f.daily, f); return f; };
+  const cand = sb.dayHighlights(fc);
+  const kinds = cand.map(c => c.kind + '@' + c.day + (c.dayTo ? '-' + c.dayTo : '')).join(',');
+  H.check('Highlights: Kandidaten am Mock (Sprung, Nass, Gewitter, Trockenphase)', kinds === 'sprung@1,nass@2,nass@3,gewitter@3,trocken@4-7', kinds);
+  H.check('Highlights: Texte der Kandidaten', cand[0].text === '5° wärmer, 23° statt 18°' && cand[1].text === 'Nass, rund 13 mm bei 80 % Risiko' && cand[3].text === 'Gewitter möglich' && cand[4].text === 'Trocken', cand.map(c => c.text).join(' | '));
+  const picked = sb.pickHighlights(cand, 3);
+  H.check('Highlights: Auswahl pro Tag die wichtigste, drei nach Priorität, nach Tagen sortiert', picked.map(c => c.kind + '@' + c.day).join(',') === 'sprung@1,nass@2,gewitter@3', picked.map(c => c.kind + '@' + c.day).join(','));
+  const hlHtml = G(sb,'highlights').innerHTML;
+  H.check('Highlights: drei Zeilen als Schaltflächen mit Tag und langem Wochentag', (hlHtml.match(/class="hl-row"/g) || []).length === 3 && hlHtml.includes('<button type="button" class="hl-row" data-day="2" aria-label="Sonntag: Nass, rund 13 mm bei 80 % Risiko"><span class="hl-day">' + sb.weekday('2026-09-27') + '</span><span class="hl-txt">Nass, rund 13 mm bei 80 % Risiko</span></button>') && !hlHtml.includes('hl-none'), hlHtml.slice(0, 300));
+  const fFrost = hlOf(d => { d.temperature_2m_min[3] = -1; d.temperature_2m_min[5] = -2; });
+  const cFrost = sb.dayHighlights(fFrost).filter(c => c.kind === 'frost');
+  H.check('Highlights: erster Frost nur am ersten Frosttag', cFrost.length === 1 && cFrost[0].day === 3 && cFrost[0].text === 'Erster Frost, morgens -1°' && cFrost[0].prio === 8, JSON.stringify(cFrost));
+  const fFrostToday = hlOf(d => { d.temperature_2m_min[0] = -0.5; d.temperature_2m_min[3] = -1; });
+  const fFrostYday = hlOf((d, f) => { d.temperature_2m_min[3] = -1; f.past = { daily: { time: ['2026-09-24'], temperature_2m_min: [-2] } }; });
+  H.check('Highlights: kein „erster Frost“, wenn heute oder gestern schon Frost war', !sb.dayHighlights(fFrostToday).some(c => c.kind === 'frost') && !sb.dayHighlights(fFrostYday).some(c => c.kind === 'frost'));
+  const fWind = hlOf(d => { d.wind_gusts_10m_max[2] = 62; d.wind_gusts_10m_max[4] = 80; });
+  const cWind = sb.dayHighlights(fWind).filter(c => c.kind === 'sturm');
+  H.check('Highlights: Sturm in zwei Stufen', cWind.length === 2 && cWind[0].text === 'Stürmisch, Böen bis 62 km/h' && cWind[0].prio === 6 && cWind[1].text === 'Sturmböen bis 80 km/h' && cWind[1].prio === 9, JSON.stringify(cWind));
+  H.check('Highlights: Sturmböen verdrängen schwächere Kandidaten', sb.pickHighlights(sb.dayHighlights(fWind), 3).some(c => c.kind === 'sturm' && c.day === 4));
+  const fMix = hlOf(d => { d.weather_code[2] = 73; d.weather_code[4] = 45; d.temperature_2m_max[6] = 31; d.sunshine_duration[5] = 30000; });
+  const cMix = sb.dayHighlights(fMix);
+  const kindAt = (k) => cMix.find(c => c.kind === k);
+  H.check('Highlights: Schnee, Nebel, Hitze, sonnigster Tag', kindAt('schnee') && kindAt('schnee').day === 2 && kindAt('schnee').text === 'Schnee' && kindAt('nebel') && kindAt('nebel').day === 4 && kindAt('nebel').text === 'Nebel' && kindAt('hitze') && kindAt('hitze').day === 6 && kindAt('hitze').text === 'Hitze, 31°' && kindAt('sonne') && kindAt('sonne').day === 5 && kindAt('sonne').text === 'Sonnig, 8 Stunden Sonne', cMix.map(c => c.kind + '@' + c.day + ':' + c.text).join(' | '));
+  H.check('Highlights: Sonne unter 7 Stunden oder unter 70 % des Tageslichts zählt nicht', !sb.dayHighlights(hlOf(d => { d.sunshine_duration[5] = 28800; })).some(c => c.kind === 'sonne'));
+  H.check('Highlights: Zeitraum-Beschriftung für die Trockenphase', sb.hlLabel(fc, cand[4]) === sb.weekday('2026-09-29') + '–' + sb.weekday('2026-10-02') && sb.hlLabel(fc, cand[0]) === sb.weekday('2026-09-26'), sb.hlLabel(fc, cand[4]));
+  const fCalm = hlOf(d => { for (let i = 0; i < d.time.length; i++) { d.weather_code[i] = 2; d.precipitation_sum[i] = 0; d.precipitation_probability_max[i] = 40; d.temperature_2m_max[i] = 18; d.temperature_2m_min[i] = 8; d.wind_gusts_10m_max[i] = 30; d.sunshine_duration[i] = 21600; } });
+  H.check('Highlights: ruhige Woche als ruhiger Satz', sb.dayHighlights(fCalm).length === 0 && sb.highlightsHtml(fCalm) === '<div class="hl-none">Die nächsten sieben Tage ohne Auffälligkeiten.</div>', sb.highlightsHtml(fCalm));
+  H.check('Tage: Zeilen tragen data-day für den Sprung aus den Highlights', (G(sb,'days').innerHTML.match(/class="drow[^"]*" data-day="\d+"/g) || []).length === 14, (G(sb,'days').innerHTML.match(/data-day=/g) || []).length);
+  sb.document.body.trigger('click', { target: { closest: sel => sel === '.hl-row' ? { getAttribute: () => '7' } : null } });
+  H.check('Highlights: Tipp auf Tag 7 klappt die weiteren Tage auf', G(sb,'daysField').classList.contains('all') && G(sb,'daysMoreLabel').textContent === 'Weniger anzeigen', G(sb,'daysMoreLabel').textContent);
+  G(sb,'daysField').classList.remove('all');
+  H.check('Shell: Feld „Nächste Tage“ in index.html und Stile im Stylesheet', fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8').includes('id="highlights"') && fs.readFileSync(require('path').join(__dirname, '..', 'modern.css'), 'utf8').includes('.hl-row') && fs.readFileSync(require('path').join(__dirname, '..', 'modern.css'), 'utf8').includes('.drow.flash'));
+
   const wn = G(sb,'warnings').innerHTML;
   const dwdUrl = sb._fetchLog.find(u => u.includes('maps.dwd.de')) || '';
   H.check('Warnungen: DWD-WFS mit Punkt in Breite/Länge-Reihenfolge abgefragt', decodeURIComponent(dwdUrl).replace(/\+/g, ' ').includes('INTERSECTS(THE_GEOM,POINT(48.137 11.575))') && dwdUrl.includes('typeName=dwd%3AWarnungen_Gemeinden'), decodeURIComponent(dwdUrl));
@@ -282,7 +316,7 @@ function boot(opts) {
 
   const dd = G(sb,'days').innerHTML;
   H.check('Tage: 14 Zeilen', (dd.match(/class="drow/g) || []).length === 14, (dd.match(/class="drow/g) || []).length);
-  H.check('Tage: weitere 7 in aufklappbarem Container, ohne eigene Einblend-Verzögerung', /<div class="more-wrap"><div class="more-inner">(<div class="drow[^"]* more">[\s\S]*?){7}<\/div><\/div><button/.test(dd), dd.indexOf('more-wrap'));
+  H.check('Tage: weitere 7 in aufklappbarem Container, ohne eigene Einblend-Verzögerung', /<div class="more-wrap"><div class="more-inner">(<div class="drow[^"]* more" data-day="\d+">[\s\S]*?){7}<\/div><\/div><button/.test(dd), dd.indexOf('more-wrap'));
   H.check('Tage: 7 sichtbar, 7 aufklappbar', (dd.match(/ more"/g) || []).length === 7 && dd.includes('Weitere 7 Tage'), (dd.match(/ more"/g) || []).length);
   H.check('Tage: Heute mit Jetzt-Punkt', /Heute[\s\S]*?<b style="left:/.test(dd));
   H.check('Tage: Spannen auf gemeinsamer Skala', (dd.match(/<i style="left:/g) || []).length === 14);
@@ -671,7 +705,7 @@ function boot(opts) {
   H.check('Shell: Rausgehen-Feld in index.html', idx.includes('id="activityField"') && idx.includes('id="activity"'));
   H.check('Shell: Ansicht nach Frage in index.html und Stylesheet mit Nacht-Token', idx.includes('id="views"') && idx.includes('id="viewAnswer"') && idx.includes('id="hourlyNote"') && idx.includes('id="daysHint"') && css.includes('.view-chip') && css.includes('--wfill: #BFE0C4') && css.includes('--wfill: #2F5A3A') && css.includes('.hcol.tc4:not(.now)') && css.includes('.days-field.v-light .drow .bar i') && css.includes('.vis24 i.fog') && css.includes('html.night .vis24 i.fog'));
   H.check('Shell: keine klassische Ansicht mehr verlinkt oder vorhanden', !idx.includes('klassisch.html') && !fs.existsSync(require('path').join(__dirname, '..', 'klassisch.html')) && !fs.existsSync(require('path').join(__dirname, '..', 'wetter.css')));
-  H.check('Shell: Versions-Query 20261009i an allen Asset-Links', (idx.match(/\?v=20261009i"/g) || []).length === 4 && (rad.match(/\?v=20261009i"/g) || []).length === 3, (idx.match(/\?v=\w+"/g) || []).join(','));
+  H.check('Shell: Versions-Query 20261009j an allen Asset-Links', (idx.match(/\?v=20261009j"/g) || []).length === 4 && (rad.match(/\?v=20261009j"/g) || []).length === 3, (idx.match(/\?v=\w+"/g) || []).join(','));
   H.check('Shell: Sonnenrechnung vor den App-Skripten, Nachtklasse vor dem ersten Zeichnen', [idx, rad].every(h => h.includes('<script src="sonne.js?v=') && /wetter:night[\s\S]{0,120}classList\.add\("night"\)/.test(h) && h.indexOf('wetter:night') < h.indexOf('<link rel="stylesheet" href="modern.css')));
   H.check('Shell: Nachtpalette im Stylesheet mit Token, Hero-Farben, Fade und Kachel-Einblendung', css.includes('html.night {') && css.includes('--card:') && css.includes('--soft:') && css.includes('--wet:') && css.includes('html.night .theme-rain') && css.includes('html.fade') && css.includes('.tile.swap') && css.includes('.field.white { background: var(--card); }') && /\.tile \{[^}]*background: var\(--card\)/.test(css) && /\.hcol\.wet \{ background: var\(--wet\)/.test(css), css.match(/\.field\.white[^\n]*/));
 

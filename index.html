@@ -16,7 +16,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
 <!-- Nachtpalette vor dem ersten Zeichnen, damit die Seite nachts nicht hell aufblitzt -->
 <script>try { if (localStorage.getItem("wetter:night") === "1") document.documentElement.classList.add("night"); } catch (e) {}</script>
-<link rel="stylesheet" href="modern.css?v=20261009i" id="cssModern">
+<link rel="stylesheet" href="modern.css?v=20261009j" id="cssModern">
 </head>
 <body class="theme-partly-day">
 
@@ -69,6 +69,12 @@
         <div class="field white a-up hidden" id="activityField" style="animation-delay:.9s">
             <h2>Rausgehen <span class="r">Vorschlag</span></h2>
             <div id="activity"></div>
+        </div>
+
+        <!-- Nächste Tage: was in den nächsten sieben Tagen auffällt, regelbasiert aus den Tageswerten -->
+        <div class="field white a-up hidden" id="highlightsField" style="animation-delay:.95s">
+            <h2>Nächste Tage <span class="r">7 Tage</span></h2>
+            <div id="highlights"></div>
         </div>
 
         <div class="field white a-up hidden" id="nowcastCard" style="animation-delay:.9s">
@@ -141,9 +147,9 @@
     <div class="src-body" id="srcBody"></div>
 </div>
 
-<script src="sonne.js?v=20261009i"></script>
-<script src="wetter-core.js?v=20261009i"></script>
-<script src="design.js?v=20261009i"></script>
+<script src="sonne.js?v=20261009j"></script>
+<script src="wetter-core.js?v=20261009j"></script>
+<script src="design.js?v=20261009j"></script>
 <script>initDesignApp();</script>
 <!-- Offline-Hülle: Seiten, Stylesheet, Skripte und Icons bleiben auch ohne Netz verfügbar -->
 <script>if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js").catch(function () {}); }</script>

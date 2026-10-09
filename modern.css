@@ -478,6 +478,18 @@ body.sheet-open #sheet { transform: none; }
 .src-link { min-height: 18px; padding: 0; border: 0; background: none; font: inherit; font-size: 12px; font-weight: 700; line-height: 18px; color: var(--ink); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .src-link.hidden { display: none; }
 
+/* ---------- Nächste Tage (Highlights): Zeilen als Schaltflächen, Tipp springt in die Tagesliste ---------- */
+.hl-row { display: flex; align-items: baseline; gap: 12px; width: 100%; padding: 9px 0; border: 0; border-top: 1px solid var(--line); background: none; font: inherit; text-align: left; color: var(--ink); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.hl-row:first-child { border-top: 0; padding-top: 2px; }
+.hl-row:last-child { padding-bottom: 2px; }
+.hl-row:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; border-radius: 8px; }
+.hl-day { flex: none; min-width: 44px; font-size: 14px; font-weight: 800; }
+.hl-txt { flex: 1; font-size: 14px; font-weight: 500; line-height: 1.35; }
+.hl-none { padding: 2px 0; font-size: 13px; font-weight: 500; color: var(--ink-2); }
+/* Zeile der Tagesliste leuchtet nach dem Sprung kurz auf */
+.drow.flash { animation: rowFlash 1.6s ease-out both; border-radius: 10px; }
+@keyframes rowFlash { 0% { background: rgba(255,255,255,0.22); } 100% { background: transparent; } }
+
 /* ---------- Woher kommt das? (zweites Blatt, unabhängig von der Ortssuche) ---------- */
 #srcBg { z-index: 52; }
 .sheet.src { z-index: 53; }
