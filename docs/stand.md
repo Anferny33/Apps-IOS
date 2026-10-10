@@ -173,11 +173,11 @@ Veröffentlichung: Bis auf den Rückkanal ist alles offen. Im Repo fehlen lokale
 | Großer Sprint | 2026-10-08 | 69 | Bento-Design, Versions-Query, Worker, Zeitreise, Rausgehen, Modelle, Regenpausen, Kacheln, MapLibre-Radar, Nachtpalette, Offline-Hülle; klassisches Design entfernt |
 | Abschluss | 2026-10-09 | 16 | Ansicht nach Frage, Nebelrisiko, Schirm/Gestern, Woher, Nächste Tage, Zugänglichkeit, Restliste, Push-Test, Checklisten, VoiceOver, Rückkanal |
 
-Insgesamt 96 Commits bis 402a367, keine Tags; 50f1e2d hat dieses Dokument ergänzt. Autoren: Anferny Nash (51), Michael Knodt (39), Claude (6). short-url-qr und bayern-forest sind unabhängige Mini-Projekte auf demselben Wurzel-Commit. PR 1 ist offen, mergeable_state clean. Die Bereinigung vom 10. Oktober liegt uncommittet im Arbeitsbaum.
+Insgesamt 96 Commits bis 402a367, keine Tags; 50f1e2d hat dieses Dokument ergänzt. Autoren: Anferny Nash (51), Michael Knodt (39), Claude (6). short-url-qr und bayern-forest sind unabhängige Mini-Projekte auf demselben Wurzel-Commit. PR 1 ist offen, mergeable_state clean. Die Bereinigung vom 10. Oktober liegt in den Commits 12cd4e6 (Tests), acdd802 (Datenschicht und Worker), 14300f6 (Startseite), 77466d1 (Styles und Hülle), 5a5c916 (Radar) und 777a7b3 (Dokumentation).
 
 ## 12 Auffälligkeiten und offene Punkte
 
-Stand nach der Bereinigung vom 10. Oktober 2026. Die Befunde der Bestandsaufnahme stehen unter „Behoben“ mit ihrer Korrektur und unter „Weiterhin offen“ mit dem Grund, warum sie bleiben. Alle Änderungen liegen uncommittet im Arbeitsbaum.
+Stand nach der Bereinigung vom 10. Oktober 2026. Die Befunde der Bestandsaufnahme stehen unter „Behoben“ mit ihrer Korrektur und unter „Weiterhin offen“ mit dem Grund, warum sie bleiben. Die Änderungen liegen in sechs Commits von 12cd4e6 bis 777a7b3 auf dem Branch.
 
 ### Behoben am 10. Oktober
 
