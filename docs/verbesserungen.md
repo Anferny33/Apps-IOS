@@ -23,7 +23,7 @@ und neue Ideen aus der Arbeit. Nach jeder Änderung wird die Liste nachgezogen u
 - [x] Bewegungssystem (5): Kurve, drei Stufen, Startchoreografie ×0,6, kein Neustart beim Antippen
 - [x] Reise-Ort (10)
 - [x] Verlaufssicht (11): Meteogramm 48 h
-- [x] Regen-Alarm per Push (12): Code fertig, Deployment und KV-Namespace stehen aus
+- [x] Regen-Alarm per Push (12): Code fertig; Worker am selben Tag mit KV-Namespace und Schlüssel deployt und unter `wetter-nina-proxy.anferny-wetter.workers.dev` in Betrieb (siehe unten, 09.10.2026)
 - [x] Radar ohne Seitenwechsel (13): Blatt mit eingebetteter Radarseite; Blitzortung entfällt (keine freie Quelle ohne Dienst)
 - [x] Zwei Spalten ab 760 px (16)
 - [x] Einstellungen (17)

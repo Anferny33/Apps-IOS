@@ -26,7 +26,7 @@ Die App läuft als Homescreen-Web-App weiter, ohne Store, ohne Konto.
 
 - [ ] Apple Developer Program abschließen, 99 US-Dollar im Jahr, als Einzelperson (keine D-U-N-S-Nummer nötig). Apple-ID mit Zwei-Faktor-Anmeldung.
 - [ ] App Store Connect: App anlegen mit Name, Bundle-ID, Sprache Deutsch, Kategorie Wetter.
-- [ ] Datenschutzerklärung schreiben und unter einer festen Adresse veröffentlichen, zum Beispiel als Seite im selben GitHub-Pages-Repo. Inhalt: Standort (nur zur Vorhersage, lokal), Wetterabfragen an Open-Meteo, DWD, NINA-Proxy, BigDataCloud, basemap.de; Regen-Alarm speichert Push-Abonnement und gerundete Koordinaten beim Cloudflare-Worker; kein Tracking, keine Werbung.
+- [ ] Datenschutzerklärung schreiben und unter einer festen Adresse veröffentlichen, zum Beispiel als Seite im selben GitHub-Pages-Repo. Inhalt: Standort (nur zur Vorhersage, lokal), Wetterabfragen an Open-Meteo, DWD, NINA-Proxy, BigDataCloud, OpenFreeMap (Radarkarte); Regen-Alarm speichert Push-Abonnement und gerundete Koordinaten beim Cloudflare-Worker; kein Tracking, keine Werbung.
 - [ ] Support-Adresse: E-Mail oder Seite, wird im Store angezeigt.
 - [ ] Impressum prüfen: für eine kostenlose private App ohne Geschäftszweck meist nicht nötig, Datenschutzerklärung aber immer. Im Zweifel kurz nachlesen oder fragen.
 - [ ] Auftragsverarbeitung mit Cloudflare: Standardvertrag im Cloudflare-Konto akzeptieren; Koordinaten im Worker gröber runden (heute 100 m, für die Vorhersage reicht etwa 1 km).
