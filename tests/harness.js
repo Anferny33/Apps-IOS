@@ -1,9 +1,23 @@
-// Gemeinsamer Harness: lädt wetter-core.js in eine Sandbox mit DOM-/Fetch-Stubs.
+// Gemeinsamer Harness: lädt wetter-core.js in eine Sandbox mit DOM-/Fetch-Stubs,
+// stellt check/finish, feste Testzeit und die Versions-Query der Seiten für alle Suiten bereit.
+// Bewusste Einschränkung: Die Suiten synchronisieren über feste Waits (300 bis 1100 ms nach boot(),
+// Klicks auf refresh/gps und Klick-Sperren) statt über Haltepunkte aus der Sandbox. Ein Ladezähler in
+// design.js plus Polling hier wäre ein Umbau an über 60 Stellen und ersetzt die Waits für Klick-Sperren
+// und Animationen nicht; npm test braucht so rund eine halbe Minute, auf sehr langsamen Rechnern
+// können einzelne Checks flattern. Dann die Waits erhöhen, nicht die Checks lockern.
+// Feste Gerätezone, bevor irgendwo ein Date entsteht: design.js hängt „ Ortszeit“ an, sobald
+// Intl.DateTimeFormat().resolvedOptions().timeZone von der Ortszone abweicht; Node übernimmt
+// process.env.TZ auch für Intl. So laufen die Suiten in jeder Umgebung gleich (TZ=UTC, New York …).
+process.env.TZ = 'Europe/Berlin';
 const fs = require('fs');
 const vm = require('vm');
+const path = require('path');
 
-const SUN = fs.readFileSync(require('path').join(__dirname, '..', 'sonne.js'), 'utf8');
-const CORE = fs.readFileSync(require('path').join(__dirname, '..', 'wetter-core.js'), 'utf8');
+// Haltepunkt der Tests (window.TEST_NOW in der Sandbox): 25.09.2026, 14:15 Ortszeit wie in den Mock-Daten
+const TEST_NOW = Date.parse('2026-09-25T12:15:00Z');
+
+const SUN = fs.readFileSync(path.join(__dirname, '..', 'sonne.js'), 'utf8');
+const CORE = fs.readFileSync(path.join(__dirname, '..', 'wetter-core.js'), 'utf8');
 
 function el() {
   const children = {};
@@ -160,9 +174,12 @@ function mockAir() {
 }
 
 // DWD-WFS-Antwort: eine markante Warnung (aktiv), eine Wetterwarnung (bevorstehend),
-// eine abgelaufene und eine aufgehobene Meldung (beide müssen wegfallen)
-function mockWarnings() {
-  const h = 3600 * 1000, now = Date.now();
+// eine abgelaufene und eine aufgehobene Meldung (beide müssen wegfallen).
+// Zeiten relativ zur Testzeit: normalizeWarnings (wetter-core.js) filtert Abgelaufenes gegen coreNow(),
+// fmtWarnTime (design.js) rechnet mit nowMs(); beide lesen window.TEST_NOW, die Mocks laufen also mit derselben Uhr.
+function mockWarnings(now) {
+  const h = 3600 * 1000;
+  now = now || TEST_NOW;
   const iso = t => new Date(t).toISOString().replace(/\.\d{3}Z$/, 'Z');
   const feat = (p) => ({ type: 'Feature', geometry: null, properties: p });
   return { type: 'FeatureCollection', features: [
@@ -180,14 +197,16 @@ function mockWarnings() {
 }
 
 // Antwort des NINA-Proxys: eine Katastrophenschutz-Meldung (Stufe 2) und eine DWD-Doppelung, die wegfallen muss
+// Zeiten fest relativ zu TEST_NOW: NINA-Meldungen werden nicht nach Ablauf gefiltert
 function mockNina() {
-  return { ars: '091620000000', kreis: 'Kreisfreie Stadt München', fetchedAt: new Date().toISOString(), warnings: [
+  const iso = t => new Date(t).toISOString();
+  return { ars: '091620000000', kreis: 'Kreisfreie Stadt München', fetchedAt: iso(TEST_NOW), warnings: [
     { id: 'mow.TEST-1', provider: 'MOWAS', providerLabel: 'Katastrophenschutz', level: 2, severity: 'Moderate', msgType: 'Alert',
       event: 'Gefahreninformation', headline: 'Großbrand im Gewerbegebiet: Fenster und Türen geschlossen halten',
       description: 'Starke Rauchentwicklung.\nBetroffen ist der Stadtteil Nord.', instruction: 'Fenster und Türen schließen.\nLüftung abschalten.',
-      sent: new Date(Date.now() - 1800 * 1000).toISOString(), onset: null, expires: null, area: 'Stadt München' },
+      sent: iso(TEST_NOW - 1800 * 1000), onset: null, expires: null, area: 'Stadt München' },
     { id: 'dwd.TEST-2', provider: 'DWD', providerLabel: 'Deutscher Wetterdienst', level: 1, severity: 'Minor', msgType: 'Alert',
-      headline: 'Amtliche WARNUNG vor FROST', description: '', instruction: '', sent: new Date().toISOString(), area: 'Stadt München' }
+      headline: 'Amtliche WARNUNG vor FROST', description: '', instruction: '', sent: iso(TEST_NOW), area: 'Stadt München' }
   ] };
 }
 
@@ -256,6 +275,24 @@ function okFetch(data) {
   };
 }
 
+// --- Versions-Query der Seiten ---------------------------------------
+// Referenz ist das erste ?v= am Stylesheet modern.css in index.html. Gesammelt werden alle lokalen
+// css/js-Verweise und Icon-Links (icons/…) aus index.html und radar.html (auch ohne Query, damit ein
+// vergessenes ?v= auffällt) sowie SW_VERSION aus sw.js.
+const ASSET_RE = /(?:href|src)="([\w-]+\.(?:css|js)|icons\/[\w.-]+)(?:\?v=(\w+))?"/g;
+function assetVersion() {
+  const read = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const idx = read('index.html');
+  const version = (idx.match(/href="modern\.css\?v=(\w+)"/) || [])[1] || null;
+  const refs = [];
+  [['index.html', idx], ['radar.html', read('radar.html')]].forEach(([file, html]) => {
+    for (const m of html.matchAll(ASSET_RE)) refs.push({ file, asset: m[1], v: m[2] || null });
+  });
+  refs.push({ file: 'sw.js', asset: 'SW_VERSION', v: (read('sw.js').match(/const SW_VERSION = "(\w+)"/) || [])[1] || null });
+  return { version, refs, mismatches: refs.filter(r => r.v !== version) };
+}
+
+// --- Checks: „  ok   …“, „  FAIL … :: …“, am Ende „Alle Checks bestanden.“ -------
 let failCount = 0;
 function check(name, cond, extra) {
   console.log((cond ? '  ok   ' : '  FAIL ') + name + (cond ? '' : ' :: ' + String(extra).slice(0, 240)));
@@ -266,4 +303,4 @@ function finish() {
   process.exit(failCount ? 1 : 0);
 }
 
-module.exports = { makeSandbox, okFetch, mockForecast, mockEnsemble, mockModels, mockAir, mockGeocode, mockWarnings, mockNina, check, finish, el };
+module.exports = { makeSandbox, okFetch, mockForecast, mockEnsemble, mockModels, mockAir, mockGeocode, mockWarnings, mockNina, check, finish, el, TEST_NOW, assetVersion };

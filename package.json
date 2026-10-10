@@ -3,9 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "description": "Wetter-App für den aktuellen Standort – statische Web-App ohne Build-Schritt",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "python3 -m http.server 8000",
-    "test": "DUMP=1 node tests/smoke-design.js && node tests/smoke-radar.js && node tests/smoke-sw.js && node tests/smoke-push.js",
+    "test": "node tests/run.js",
     "preview": "node tests/build-phone-preview.js index"
   }
 }

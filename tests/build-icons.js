@@ -1,5 +1,8 @@
 // Rendert icons/icon.svg zu den PNG-Größen für Homescreen und Manifest.
-// Aufruf: node tests/build-icons.js   (braucht Playwright mit Chromium)
+// Braucht Playwright mit Chromium. Das Projekt hat bewusst keine Abhängigkeiten in package.json,
+// deshalb einmalig ohne Eintrag bereitstellen:
+//   npm install --no-save playwright && npx playwright install chromium
+// Aufruf: node tests/build-icons.js
 const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
