@@ -1,0 +1,10 @@
+# Lokale Werkzeug-Caches und Betriebssystem-Dateien
+.wrangler/
+node_modules/
+.DS_Store
+# Lokale Geheimnisse des Workers (VAPID-Schlüssel)
+proxy/.dev.vars
+# Bedienungshilfen-Dump (tests/ax-dump): erzeugtes Xcode-Projekt, Build und Ausgaben
+tests/ax-dump/AXDump.xcodeproj/
+tests/ax-dump/dd/
+tests/ax-dump/dump-*.txt

@@ -1,749 +1,218 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Box Breathing</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            overflow: hidden;
-        }
-
-        /* Header */
-        .header {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 20px 30px;
-        }
-
-        .header-icon {
-            width: 28px;
-            height: 28px;
-            opacity: 0.8;
-            cursor: pointer;
-            transition: opacity 0.3s;
-        }
-
-        .header-icon:hover {
-            opacity: 1;
-        }
-
-        .logo {
-            width: 36px;
-            height: 36px;
-        }
-
-        /* Main Container */
-        .container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 30px;
-        }
-
-        /* Breathing Box */
-        .breathing-box {
-            position: relative;
-            width: 280px;
-            height: 280px;
-        }
-
-        /* Corner paths */
-        .box-path {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-        }
-
-        .box-path svg {
-            width: 100%;
-            height: 100%;
-        }
-
-        /* Segments container */
-        .segments-container {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-        }
-
-        .segment {
-            position: absolute;
-            border-radius: 4px;
-            opacity: 0.3;
-            transition: opacity 0.15s ease;
-        }
-
-        .segment.active {
-            opacity: 1;
-        }
-
-        /* Top segments (Inhale) - Red */
-        .segment.top {
-            background: #e74c3c;
-            width: 20px;
-            height: 12px;
-            top: 8px;
-        }
-
-        /* Right segments (Hold) - Orange */
-        .segment.right {
-            background: #f39c12;
-            width: 12px;
-            height: 20px;
-            right: 8px;
-        }
-
-        /* Bottom segments (Exhale) - Blue */
-        .segment.bottom {
-            background: #3498db;
-            width: 20px;
-            height: 12px;
-            bottom: 8px;
-        }
-
-        /* Left segments (Hold) - Gray */
-        .segment.left {
-            background: #5d6d7e;
-            width: 12px;
-            height: 20px;
-            left: 8px;
-        }
-
-        /* Center content */
-        .center-content {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .mountain-icon {
-            width: 100px;
-            height: 80px;
-            opacity: 0.9;
-        }
-
-        .phase-text {
-            font-size: 24px;
-            font-weight: 300;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            color: rgba(255, 255, 255, 0.9);
-        }
-
-        .timer {
-            font-size: 48px;
-            font-weight: 200;
-            color: rgba(255, 255, 255, 0.95);
-        }
-
-        /* Info Section */
-        .info-section {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            width: 280px;
-            margin-top: 20px;
-        }
-
-        .level-info {
-            text-align: center;
-        }
-
-        .level-label {
-            font-size: 14px;
-            color: rgba(255, 255, 255, 0.6);
-            margin-bottom: 8px;
-        }
-
-        .level-value {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            font-size: 28px;
-            font-weight: 300;
-        }
-
-        .arrow {
-            font-size: 18px;
-            opacity: 0.5;
-            cursor: pointer;
-            transition: opacity 0.3s;
-        }
-
-        .arrow:hover {
-            opacity: 1;
-        }
-
-        /* Round indicator */
-        .round-indicator {
-            position: relative;
-            width: 70px;
-            height: 70px;
-        }
-
-        .round-circle {
-            width: 100%;
-            height: 100%;
-            transform: rotate(-90deg);
-        }
-
-        .round-bg {
-            fill: none;
-            stroke: rgba(255, 255, 255, 0.1);
-            stroke-width: 4;
-        }
-
-        .round-progress {
-            fill: none;
-            stroke: rgba(255, 255, 255, 0.8);
-            stroke-width: 4;
-            stroke-linecap: round;
-            transition: stroke-dashoffset 0.5s ease;
-        }
-
-        .round-text {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            text-align: center;
-        }
-
-        .round-label {
-            font-size: 10px;
-            color: rgba(255, 255, 255, 0.5);
-            display: block;
-        }
-
-        .round-value {
-            font-size: 16px;
-            font-weight: 500;
-        }
-
-        /* Start button */
-        .start-btn {
-            margin-top: 30px;
-            padding: 15px 50px;
-            font-size: 18px;
-            font-weight: 500;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            background: linear-gradient(135deg, #3498db, #2980b9);
-            color: white;
-            border: none;
-            border-radius: 30px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4);
-        }
-
-        .start-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(52, 152, 219, 0.5);
-        }
-
-        .start-btn:active {
-            transform: translateY(0);
-        }
-
-        .start-btn.running {
-            background: linear-gradient(135deg, #e74c3c, #c0392b);
-            box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4);
-        }
-
-        /* Settings Modal */
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.7);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 100;
-        }
-
-        .modal-overlay.active {
-            display: flex;
-        }
-
-        .modal {
-            background: #1a1a2e;
-            padding: 30px;
-            border-radius: 20px;
-            max-width: 320px;
-            width: 90%;
-        }
-
-        .modal h2 {
-            margin-bottom: 20px;
-            font-weight: 400;
-        }
-
-        .setting-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        .setting-label {
-            font-size: 14px;
-            color: rgba(255, 255, 255, 0.8);
-        }
-
-        .setting-control {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .setting-btn {
-            width: 30px;
-            height: 30px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            background: transparent;
-            color: white;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 18px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .setting-value {
-            font-size: 18px;
-            min-width: 30px;
-            text-align: center;
-        }
-
-        .modal-close {
-            width: 100%;
-            padding: 12px;
-            margin-top: 10px;
-            background: #3498db;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-
-        /* Box frame SVG */
-        .box-frame {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Wetter">
+<meta name="theme-color" content="#ECEAF4">
+<!-- Icon-Links tragen dieselbe Versions-Query wie Stylesheet und Skripte; die Offline-Hülle (sw.js) führt sie so -->
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=20261010a">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=20261010a">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Wetter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Nachtpalette und Farbschema vor dem ersten Zeichnen, damit die Seite nachts nicht hell aufblitzt und beim Start nichts umspringt;
+     die Statusleiste (theme-color) folgt sofort mit, design.js setzt sie später nur noch bei Wechseln -->
+<script>try { if (localStorage.getItem("wetter:night") === "1") document.documentElement.classList.add("night"); } catch (e) {}</script>
+<script>try { var s0 = JSON.parse(localStorage.getItem("wetter:settings") || "{}"), nil0 = !!(s0 && s0.scheme === "nil"), n0 = document.documentElement.classList.contains("night"), m0 = document.querySelector('meta[name="theme-color"]'); if (nil0) document.documentElement.classList.add("scheme-nil"); if (m0) m0.setAttribute("content", nil0 ? (n0 ? "#051230" : "#bce4e5") : (n0 ? "#14121F" : "#ECEAF4")); } catch (e) {}</script>
+<link rel="stylesheet" href="modern.css?v=20261010a" id="cssModern">
+<!-- Schriftgrenze: die Systemschriftgröße wirkt bis zum 1,6-Fachen (27,2 px), darüber hält das Raster nicht mehr -->
+<script>try { var fs0 = parseFloat(getComputedStyle(document.documentElement).fontSize); if (fs0 > 27.2) document.documentElement.style.fontSize = "27.2px"; } catch (e) {}</script>
 </head>
-<body>
-    <!-- Header -->
-    <div class="header">
-        <svg class="header-icon" viewBox="0 0 24 24" fill="white">
-            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
-        </svg>
-        <svg class="logo" viewBox="0 0 100 80" fill="white">
-            <polygon points="50,5 90,75 10,75" fill="none" stroke="white" stroke-width="3"/>
-            <polygon points="50,25 75,65 25,65" fill="none" stroke="white" stroke-width="2"/>
-            <polygon points="50,40 62,60 38,60" fill="none" stroke="white" stroke-width="1.5"/>
-        </svg>
-        <svg class="header-icon" id="settingsBtn" viewBox="0 0 24 24" fill="white">
-            <path d="M19.14,12.94c0.04-0.31,0.06-0.63,0.06-0.94c0-0.31-0.02-0.63-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.37,4.82,11.69,4.82,12s0.02,0.63,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
-        </svg>
+<body class="theme-partly-day">
+
+
+<div class="page">
+
+    <header class="top">
+        <button type="button" class="loc a-left" id="locBtn" aria-label="Ort wählen" aria-haspopup="dialog" aria-expanded="false">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+            <span id="locName">Standort …</span>
+        </button>
+        <div class="top-actions">
+            <button type="button" class="iconbtn a-pop" id="settingsBtn" aria-label="Einstellungen" aria-haspopup="dialog" aria-expanded="false" style="animation-delay:.02s"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+            <!-- Tag/Nacht-Schalter: Symbol und Zustand setzt die App (sonne.js) -->
+            <button type="button" class="iconbtn a-pop" id="modeBtn" aria-label="Nachtmodus" aria-pressed="false" title="Nachtmodus einschalten" style="animation-delay:.03s"></button>
+            <button type="button" class="iconbtn a-pop" id="refresh" aria-label="Aktualisieren" style="animation-delay:.06s">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <div class="banner hidden" id="banner"></div>
+
+    <!-- Zeitreise: feste Leiste, sobald der Hero aus dem Bild gescrollt ist; „Jetzt“ führt zurück -->
+    <div class="preview-bar hidden" id="previewBar" role="status">
+        <div class="pb-txt"><b id="previewLabel">Vorschau</b><span>Kacheln und Felder zeigen jetzt</span></div>
+        <button type="button" class="pb-now" id="previewNow" aria-label="Zurück zum aktuellen Wetter">Jetzt</button>
     </div>
 
-    <!-- Main Container -->
-    <div class="container">
-        <!-- Breathing Box -->
-        <div class="breathing-box">
-            <!-- Box Frame -->
-            <svg class="box-frame" viewBox="0 0 280 280">
-                <!-- Rounded rectangle path -->
-                <rect x="20" y="20" width="240" height="240" rx="40" ry="40"
-                      fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="8"/>
-            </svg>
+    <section class="sec" id="sec-today">
+        <div class="field hero-field skel a-pop" id="hero" style="height:250px;animation-delay:.09s">&nbsp;</div>
+        <!-- Aktualität: wann die gezeigten Daten geladen wurden (nicht der Modelllauf); „Woher?“ öffnet das Herkunftsblatt -->
+        <div class="fresh" id="fresh"><span id="freshTxt"></span><button type="button" class="src-link hidden" id="freshSrc" aria-haspopup="dialog" aria-expanded="false">Woher?</button></div>
 
-            <!-- Segments Container -->
-            <div class="segments-container" id="segmentsContainer">
-                <!-- Segments will be generated by JavaScript -->
-            </div>
+        <!-- Amtliche Wetterwarnungen des DWD für den Standort: nur sichtbar, wenn es welche gibt -->
+        <div class="warnings a-up hidden" id="warnings" style="animation-delay:.36s"></div>
 
-            <!-- Center Content -->
-            <div class="center-content">
-                <svg class="mountain-icon" viewBox="0 0 100 80" fill="white">
-                    <polygon points="50,5 90,75 10,75" fill="none" stroke="white" stroke-width="2.5"/>
-                    <polygon points="50,20 72,65 28,65" fill="none" stroke="white" stroke-width="2"/>
-                    <polygon points="50,35 60,58 40,58" fill="none" stroke="white" stroke-width="1.5"/>
-                </svg>
-                <div class="phase-text" id="phaseText">Bereit</div>
-                <div class="timer" id="timer">4</div>
-            </div>
+        <div class="field dark insight a-up hidden" id="insight" style="animation-delay:.42s"></div>
+
+        <!-- Ansicht nach Frage: die Wahl färbt Stundenstreifen und Tagesliste um -->
+        <div class="views a-up" id="views" role="group" aria-label="Ansicht" style="animation-delay:.45s"></div>
+
+        <div class="field white a-up" id="hoursField" style="animation-delay:.48s">
+            <h2>Nächste Stunden <span class="r"><button type="button" class="trend-btn" id="trendBtn" aria-expanded="false" aria-controls="trend">Verlauf 48 h</button></span></h2>
+            <div class="answer hidden" id="viewAnswer"></div>
+            <div id="hourly" class="skel" style="height:112px">&nbsp;</div>
+            <div class="note" id="hourlyNote">Blaue Felder: Regenrisiko ab 25 %</div>
+            <!-- Verlaufssicht: Temperatur, Regen, Wolkenband und Wind der nächsten 48 Stunden auf einer Achse -->
+            <div class="tpanel trend-panel" id="trend" role="region" aria-label="Verlauf der nächsten 48 Stunden"><div class="tpanel-in"><div class="tpanel-body" id="trendBody"></div></div></div>
         </div>
 
-        <!-- Info Section -->
-        <div class="info-section">
-            <div class="level-info">
-                <div class="level-label">Sekunden pro Phase</div>
-                <div class="level-value">
-                    <span class="arrow" id="decreaseTime">◀</span>
-                    <span id="timeValue">4</span>
-                    <span class="arrow" id="increaseTime">▶</span>
-                </div>
-            </div>
-
-            <div class="round-indicator">
-                <svg class="round-circle" viewBox="0 0 70 70">
-                    <circle class="round-bg" cx="35" cy="35" r="30"/>
-                    <circle class="round-progress" id="roundProgress" cx="35" cy="35" r="30"
-                            stroke-dasharray="188.5" stroke-dashoffset="188.5"/>
-                </svg>
-                <div class="round-text">
-                    <span class="round-label">Runde</span>
-                    <span class="round-value" id="roundValue">0/10</span>
-                </div>
-            </div>
+        <!-- Rausgehen: Zeitfenster für eine Aktivität, als Vorschlag aus festen Schwellen -->
+        <div class="field white a-up hidden" id="activityField" style="animation-delay:.54s">
+            <h2>Rausgehen <span class="r">Vorschlag</span></h2>
+            <div id="activity"></div>
         </div>
 
-        <!-- Start Button -->
-        <button class="start-btn" id="startBtn">Start</button>
+        <!-- Nächste Tage: was in den nächsten sieben Tagen auffällt, regelbasiert aus den Tageswerten -->
+        <div class="field white a-up hidden" id="highlightsField" style="animation-delay:.57s">
+            <h2>Nächste Tage <span class="r">7 Tage</span></h2>
+            <div id="highlights"></div>
+        </div>
+
+        <!-- Reise: Ziel mit Zeitraum und Countdown, Wechsel in die Vorhersage dort -->
+        <div class="field white a-up hidden" id="tripField" style="animation-delay:.57s">
+            <h2>Reise <span class="r">Countdown</span></h2>
+            <div id="trip"></div>
+        </div>
+
+        <div class="field white a-up hidden" id="nowcastCard" style="animation-delay:.54s">
+            <h2>Regen in den nächsten 4 Stunden</h2>
+            <div id="nowcast"></div>
+        </div>
+    </section>
+
+    <section class="sec" id="sec-details">
+        <div class="tiles" id="details">
+            <div class="tile skel" style="height:150px"></div>
+            <div class="tile skel" style="height:150px"></div>
+            <div class="tile skel" style="height:150px"></div>
+            <div class="tile skel" style="height:150px"></div>
+        </div>
+    </section>
+
+    <section class="sec" id="sec-days">
+        <div class="field dark days-field a-up" id="daysField" style="animation-delay:.78s">
+            <h2>14 Tage <span class="r" id="daysHint">Tief · Hoch</span></h2>
+            <div id="days" class="skel" style="height:260px">&nbsp;</div>
+        </div>
+
+        <div class="field white a-up" style="animation-delay:1.14s">
+            <h2>Modellvergleich <span class="r">Regen mm · heute / morgen</span></h2>
+            <div id="models" class="skel" style="height:90px">&nbsp;</div>
+        </div>
+    </section>
+
+    <footer class="a-up" style="animation-delay:1.32s">
+        <span id="updated"></span><span aria-hidden="true"> · </span><a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a><span aria-hidden="true"> · </span>Warnungen: <a href="https://www.dwd.de/" rel="noopener">DWD</a>, <a href="https://warnung.bund.de/" rel="noopener">NINA</a><span aria-hidden="true"> · </span>CC BY 4.0<br>
+        Karte: <a href="https://openfreemap.org/" rel="noopener">OpenFreeMap</a>, © <a href="https://www.openstreetmap.org/copyright" rel="noopener">OpenStreetMap</a>-Mitwirkende<span aria-hidden="true"> · </span>Ortsname: BigDataCloud<br>
+        <a href="radar.html">Regenradar</a><span aria-hidden="true"> · </span><button type="button" class="src-link" id="fbLink" aria-haspopup="dialog" aria-expanded="false">Rückmeldung</button>
+    </footer>
+    <!-- Live-Region: Ansagen für Vorleser (Laden, Fehler, Ansicht, Zeitreise); am Seitenende, damit sie nicht mitten in der Lesereihenfolge steht -->
+    <div class="vh" id="live" aria-live="polite" aria-atomic="true"></div>
+</div>
+
+<div class="tabs">
+    <nav aria-label="Bereiche" class="a-nav" style="animation-delay:.27s">
+        <span class="tab-ink" aria-hidden="true"></span>
+        <a href="#sec-today" data-target="sec-today" class="on" aria-label="Heute">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Heute</span></a>
+        <a href="#sec-details" data-target="sec-details" aria-label="Details">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg><span>Details</span></a>
+        <a href="#sec-days" data-target="sec-days" aria-label="Tage">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span>Tage</span></a>
+        <a href="radar.html" id="radarTab" aria-label="Radar" aria-haspopup="dialog" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 3v9l6-6"/></svg><span>Radar</span></a>
+    </nav>
+</div>
+
+<div class="sheet-bg" id="sheetBg"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Ort suchen">
+    <div class="grip"></div>
+    <!-- Abbrechen steht im Markup vor dem Feld (Tab vom Feld führt zu den Treffern), sichtbar rechts daneben -->
+    <div class="sheet-head">
+        <button type="button" class="sheet-close" id="sheetClose">Abbrechen</button>
+        <input type="search" id="q" placeholder="Ort suchen …" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Ort suchen">
     </div>
+    <div class="res" id="res"></div>
+    <button type="button" class="gps hidden" id="gps">Zurück zu meinem Standort</button>
+</div>
 
-    <!-- Settings Modal -->
-    <div class="modal-overlay" id="modalOverlay">
-        <div class="modal">
-            <h2>Einstellungen</h2>
-            <div class="setting-item">
-                <span class="setting-label">Runden</span>
-                <div class="setting-control">
-                    <button class="setting-btn" id="decreaseRounds">−</button>
-                    <span class="setting-value" id="roundsValue">10</span>
-                    <button class="setting-btn" id="increaseRounds">+</button>
-                </div>
-            </div>
-            <div class="setting-item">
-                <span class="setting-label">Sekunden</span>
-                <div class="setting-control">
-                    <button class="setting-btn" id="decreaseSeconds">−</button>
-                    <span class="setting-value" id="secondsValue">4</span>
-                    <button class="setting-btn" id="increaseSeconds">+</button>
-                </div>
-            </div>
-            <button class="modal-close" id="modalClose">Schließen</button>
-        </div>
+<!-- Tagesfilm: zehn Sekunden Animation aus den Tageswerten auf einer Zeichenfläche, teilbar als Video -->
+<div class="film hidden" id="film" role="dialog" aria-modal="true" aria-label="Tagesfilm">
+    <canvas id="filmCanvas" width="1080" height="1920" aria-hidden="true"></canvas>
+    <div class="film-bar">
+        <button type="button" class="film-btn" id="filmShare">Als Video teilen</button>
+        <button type="button" class="film-btn ghost" id="filmClose">Schließen</button>
     </div>
+    <div class="film-status" id="filmStatus" aria-live="polite"></div>
+</div>
 
-    <script>
-        // Configuration
-        let config = {
-            secondsPerPhase: 4,
-            totalRounds: 10,
-            currentRound: 0,
-            segmentsPerSide: 8
-        };
+<!-- Regenradar als Blatt über der Startseite (die Radarseite läuft eingebettet weiter, Vollbild bleibt erreichbar) -->
+<div class="sheet-bg" id="radarBg"></div>
+<div class="sheet radar" id="radarSheet" role="dialog" aria-modal="true" aria-label="Regenradar">
+    <div class="grip"></div>
+    <div class="sheet-head">
+        <button type="button" class="sheet-close" id="radarClose">Schließen</button>
+        <h2 class="src-title">Regenradar</h2>
+        <a class="src-link radar-full" href="radar.html">Vollbild</a>
+    </div>
+    <div class="radar-frame"><iframe id="radarFrame" title="Regenradar" allow="geolocation"></iframe></div>
+</div>
 
-        // State
-        let state = {
-            isRunning: false,
-            currentPhase: 0, // 0: inhale, 1: hold1, 2: exhale, 3: hold2
-            currentSecond: 0,
-            intervalId: null
-        };
+<!-- Einstellungen: Einheiten, Start, Bewegung, Rausgehen, Startseite, Reise, Alarm, Tagesfilm -->
+<div class="sheet-bg" id="settingsBg"></div>
+<div class="sheet settings" id="settings" role="dialog" aria-modal="true" aria-label="Einstellungen">
+    <div class="grip"></div>
+    <div class="sheet-head">
+        <button type="button" class="sheet-close" id="settingsClose">Schließen</button>
+        <h2 class="src-title">Einstellungen</h2>
+    </div>
+    <div class="src-body" id="settingsBody"></div>
+</div>
 
-        const phases = [
-            { name: 'Einatmen', side: 'top', color: '#e74c3c' },
-            { name: 'Halten', side: 'right', color: '#f39c12' },
-            { name: 'Ausatmen', side: 'bottom', color: '#3498db' },
-            { name: 'Halten', side: 'left', color: '#5d6d7e' }
-        ];
+<!-- Woher kommt das? Quelle, Modell, Gitterpunkt, Rechenwege und Stand der gezeigten Zahlen -->
+<div class="sheet-bg" id="srcBg"></div>
+<div class="sheet src" id="src" role="dialog" aria-modal="true" aria-label="Woher kommt das?">
+    <div class="grip"></div>
+    <div class="sheet-head">
+        <button type="button" class="sheet-close" id="srcClose">Schließen</button>
+        <h2 class="src-title">Woher kommt das?</h2>
+    </div>
+    <div class="src-body" id="srcBody"></div>
+</div>
 
-        // DOM Elements
-        const segmentsContainer = document.getElementById('segmentsContainer');
-        const phaseText = document.getElementById('phaseText');
-        const timer = document.getElementById('timer');
-        const startBtn = document.getElementById('startBtn');
-        const roundProgress = document.getElementById('roundProgress');
-        const roundValue = document.getElementById('roundValue');
-        const timeValue = document.getElementById('timeValue');
+<!-- Rückmeldung: Fehler, Idee oder Lob an den eigenen Worker, ohne Konto; Version und Gerätedaten werden mitgeschickt, kein Ort -->
+<div class="sheet-bg" id="fbBg"></div>
+<div class="sheet fb" id="fb" role="dialog" aria-modal="true" aria-label="Rückmeldung">
+    <div class="grip"></div>
+    <div class="sheet-head">
+        <button type="button" class="sheet-close" id="fbClose">Schließen</button>
+        <h2 class="src-title">Rückmeldung</h2>
+    </div>
+    <div class="src-body" id="fbBody"></div>
+</div>
 
-        // Generate segments
-        function generateSegments() {
-            segmentsContainer.innerHTML = '';
-            const n = config.segmentsPerSide;
-
-            // Calculate positions
-            const boxSize = 280;
-            const padding = 30;
-            const cornerRadius = 40;
-            const segmentGap = 6;
-
-            // Available length for segments on each side (excluding corners)
-            const sideLength = boxSize - 2 * padding - 2 * cornerRadius;
-            const segmentWidth = (sideLength - (n - 1) * segmentGap) / n;
-
-            // Top segments (left to right)
-            for (let i = 0; i < n; i++) {
-                const segment = document.createElement('div');
-                segment.className = 'segment top';
-                segment.dataset.side = 'top';
-                segment.dataset.index = i;
-                segment.style.left = `${padding + cornerRadius + i * (segmentWidth + segmentGap)}px`;
-                segment.style.width = `${segmentWidth}px`;
-                segmentsContainer.appendChild(segment);
-            }
-
-            // Right segments (top to bottom)
-            for (let i = 0; i < n; i++) {
-                const segment = document.createElement('div');
-                segment.className = 'segment right';
-                segment.dataset.side = 'right';
-                segment.dataset.index = i;
-                segment.style.top = `${padding + cornerRadius + i * (segmentWidth + segmentGap)}px`;
-                segment.style.height = `${segmentWidth}px`;
-                segmentsContainer.appendChild(segment);
-            }
-
-            // Bottom segments (right to left)
-            for (let i = 0; i < n; i++) {
-                const segment = document.createElement('div');
-                segment.className = 'segment bottom';
-                segment.dataset.side = 'bottom';
-                segment.dataset.index = i;
-                segment.style.right = `${padding + cornerRadius + i * (segmentWidth + segmentGap)}px`;
-                segment.style.width = `${segmentWidth}px`;
-                segmentsContainer.appendChild(segment);
-            }
-
-            // Left segments (bottom to top)
-            for (let i = 0; i < n; i++) {
-                const segment = document.createElement('div');
-                segment.className = 'segment left';
-                segment.dataset.side = 'left';
-                segment.dataset.index = i;
-                segment.style.bottom = `${padding + cornerRadius + i * (segmentWidth + segmentGap)}px`;
-                segment.style.height = `${segmentWidth}px`;
-                segmentsContainer.appendChild(segment);
-            }
-        }
-
-        // Update segments based on current phase and progress
-        function updateSegments() {
-            const segments = segmentsContainer.querySelectorAll('.segment');
-            const currentSide = phases[state.currentPhase].side;
-            const progress = (state.currentSecond + 1) / config.secondsPerPhase;
-            const activeCount = Math.ceil(progress * config.segmentsPerSide);
-
-            segments.forEach(segment => {
-                const side = segment.dataset.side;
-                const index = parseInt(segment.dataset.index);
-
-                // Keep previous phases lit
-                const phaseIndex = phases.findIndex(p => p.side === side);
-
-                if (phaseIndex < state.currentPhase) {
-                    segment.classList.add('active');
-                } else if (phaseIndex === state.currentPhase) {
-                    segment.classList.toggle('active', index < activeCount);
-                } else {
-                    segment.classList.remove('active');
-                }
-            });
-        }
-
-        // Reset segments
-        function resetSegments() {
-            const segments = segmentsContainer.querySelectorAll('.segment');
-            segments.forEach(segment => segment.classList.remove('active'));
-        }
-
-        // Update round progress
-        function updateRoundProgress() {
-            const circumference = 2 * Math.PI * 30;
-            const progress = config.currentRound / config.totalRounds;
-            const offset = circumference * (1 - progress);
-            roundProgress.style.strokeDashoffset = offset;
-            roundValue.textContent = `${config.currentRound}/${config.totalRounds}`;
-        }
-
-        // Breathing cycle tick
-        function tick() {
-            state.currentSecond++;
-
-            if (state.currentSecond >= config.secondsPerPhase) {
-                state.currentSecond = 0;
-                state.currentPhase++;
-
-                if (state.currentPhase >= 4) {
-                    state.currentPhase = 0;
-                    config.currentRound++;
-                    updateRoundProgress();
-                    resetSegments();
-
-                    if (config.currentRound >= config.totalRounds) {
-                        stopBreathing();
-                        phaseText.textContent = 'Fertig!';
-                        timer.textContent = '✓';
-                        return;
-                    }
-                }
-            }
-
-            updateDisplay();
-            updateSegments();
-        }
-
-        // Update display
-        function updateDisplay() {
-            phaseText.textContent = phases[state.currentPhase].name;
-            timer.textContent = config.secondsPerPhase - state.currentSecond;
-        }
-
-        // Start breathing
-        function startBreathing() {
-            state.isRunning = true;
-            state.currentPhase = 0;
-            state.currentSecond = -1;
-            config.currentRound = 0;
-
-            startBtn.textContent = 'Stop';
-            startBtn.classList.add('running');
-
-            resetSegments();
-            updateRoundProgress();
-            tick();
-
-            state.intervalId = setInterval(tick, 1000);
-        }
-
-        // Stop breathing
-        function stopBreathing() {
-            state.isRunning = false;
-            clearInterval(state.intervalId);
-
-            startBtn.textContent = 'Start';
-            startBtn.classList.remove('running');
-        }
-
-        // Reset to initial state
-        function resetState() {
-            stopBreathing();
-            resetSegments();
-            phaseText.textContent = 'Bereit';
-            timer.textContent = config.secondsPerPhase;
-            config.currentRound = 0;
-            updateRoundProgress();
-        }
-
-        // Event listeners
-        startBtn.addEventListener('click', () => {
-            if (state.isRunning) {
-                resetState();
-            } else {
-                startBreathing();
-            }
-        });
-
-        // Time controls
-        document.getElementById('increaseTime').addEventListener('click', () => {
-            if (config.secondsPerPhase < 10) {
-                config.secondsPerPhase++;
-                timeValue.textContent = config.secondsPerPhase;
-                document.getElementById('secondsValue').textContent = config.secondsPerPhase;
-                if (!state.isRunning) timer.textContent = config.secondsPerPhase;
-            }
-        });
-
-        document.getElementById('decreaseTime').addEventListener('click', () => {
-            if (config.secondsPerPhase > 2) {
-                config.secondsPerPhase--;
-                timeValue.textContent = config.secondsPerPhase;
-                document.getElementById('secondsValue').textContent = config.secondsPerPhase;
-                if (!state.isRunning) timer.textContent = config.secondsPerPhase;
-            }
-        });
-
-        // Settings modal
-        document.getElementById('settingsBtn').addEventListener('click', () => {
-            document.getElementById('modalOverlay').classList.add('active');
-        });
-
-        document.getElementById('modalClose').addEventListener('click', () => {
-            document.getElementById('modalOverlay').classList.remove('active');
-        });
-
-        document.getElementById('modalOverlay').addEventListener('click', (e) => {
-            if (e.target === e.currentTarget) {
-                e.currentTarget.classList.remove('active');
-            }
-        });
-
-        // Settings controls
-        document.getElementById('increaseRounds').addEventListener('click', () => {
-            if (config.totalRounds < 20) {
-                config.totalRounds++;
-                document.getElementById('roundsValue').textContent = config.totalRounds;
-                updateRoundProgress();
-            }
-        });
-
-        document.getElementById('decreaseRounds').addEventListener('click', () => {
-            if (config.totalRounds > 1) {
-                config.totalRounds--;
-                document.getElementById('roundsValue').textContent = config.totalRounds;
-                updateRoundProgress();
-            }
-        });
-
-        document.getElementById('increaseSeconds').addEventListener('click', () => {
-            if (config.secondsPerPhase < 10) {
-                config.secondsPerPhase++;
-                document.getElementById('secondsValue').textContent = config.secondsPerPhase;
-                timeValue.textContent = config.secondsPerPhase;
-                if (!state.isRunning) timer.textContent = config.secondsPerPhase;
-            }
-        });
-
-        document.getElementById('decreaseSeconds').addEventListener('click', () => {
-            if (config.secondsPerPhase > 2) {
-                config.secondsPerPhase--;
-                document.getElementById('secondsValue').textContent = config.secondsPerPhase;
-                timeValue.textContent = config.secondsPerPhase;
-                if (!state.isRunning) timer.textContent = config.secondsPerPhase;
-            }
-        });
-
-        // Initialize
-        generateSegments();
-        updateRoundProgress();
-    </script>
+<script src="sonne.js?v=20261010a"></script>
+<script src="wetter-core.js?v=20261010a"></script>
+<script src="design.js?v=20261010a"></script>
+<script>initDesignApp();</script>
+<!-- Offline-Hülle: Seiten, Stylesheet, Skripte und Icons bleiben auch ohne Netz verfügbar -->
+<script>if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js").catch(function () {}); }</script>
 </body>
 </html>

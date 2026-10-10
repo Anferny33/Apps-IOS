@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<!-- Homescreen-App wie die Startseite: gleicher App-Name und dasselbe Manifest, damit ein Radar-Icon
+     nicht zur zweiten App ohne Manifest wird; der Seitentitel unten bleibt „Regenradar“ -->
+<meta name="apple-mobile-web-app-title" content="Wetter">
+<meta name="theme-color" content="#ECEAF4">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=20261010a">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Regenradar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css">
+<!-- Nachtpalette und Farbschema wie auf der Startseite: die dort gespeicherte Wahl gilt auch hier, gelesen vor dem Stylesheet
+     (im Radar-Blatt lädt die Startseite diese Seite bei jedem Wechsel neu); die Statusleiste (theme-color) folgt sofort mit -->
+<script>try { if (localStorage.getItem("wetter:night") === "1") document.documentElement.classList.add("night"); } catch (e) {}</script>
+<script>try { var s0 = JSON.parse(localStorage.getItem("wetter:settings") || "{}"), nil0 = !!(s0 && s0.scheme === "nil"), n0 = document.documentElement.classList.contains("night"), m0 = document.querySelector('meta[name="theme-color"]'); if (nil0) document.documentElement.classList.add("scheme-nil"); if (m0) m0.setAttribute("content", nil0 ? (n0 ? "#051230" : "#bce4e5") : (n0 ? "#14121F" : "#ECEAF4")); } catch (e) {}</script>
+<link rel="stylesheet" href="modern.css?v=20261010a" id="cssModern">
+<!-- Schriftgrenze: die Systemschriftgröße wirkt bis zum 1,6-Fachen (27,2 px), darüber hält das Raster nicht mehr -->
+<script>try { var fs0 = parseFloat(getComputedStyle(document.documentElement).fontSize); if (fs0 > 27.2) document.documentElement.style.fontSize = "27.2px"; } catch (e) {}</script>
+<!-- Eingebettet im Radar-Blatt der Startseite (?embed=1): Kopfzeile und Tab-Leiste bleiben weg -->
+<script>if (/[?&]embed=1(&|$)/.test(location.search)) document.documentElement.classList.add("embed");</script>
+<style>
+    html.embed .rshell .top, html.embed .tabs { display: none; }
+    html.embed .rshell { padding: 0 6px; }
+    html.embed .rbar { padding-bottom: calc(env(safe-area-inset-bottom) + 10px); }
+    html.embed .rshell > .rmap { margin-top: 6px; }
+    /* ---------- Radar-Seite: Karte füllt den Platz zwischen Kopfzeile und Navigation ---------- */
+    html, body { height: 100%; }
+    body.radar { overflow: hidden; min-height: 0; }
+    .rshell {
+        height: 100vh; height: 100dvh;
+        display: grid; grid-template-rows: auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr);
+        max-width: 640px; margin: 0 auto;
+        padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+    }
+    /* Grid-Elemente dürfen nicht breiter als die Spalte werden (das Legendenbild ist breit und wird gewischt) */
+    .rshell > * { min-width: 0; }
+    .rshell .top { padding-bottom: 10px; }
+    a.loc { text-decoration: none; }
+
+    .rmap { position: relative; border-radius: var(--radius, 22px); overflow: hidden; background: var(--white, #10213a); min-height: 140px; }
+    #map { position: absolute; inset: 0; }
+    #map .maplibregl-canvas { outline: none; }
+    .maplibregl-ctrl-bottom-right { bottom: 6px; right: 6px; }
+    .maplibregl-ctrl-attrib { font-family: inherit !important; font-size: 0.529rem !important; background: rgba(255,255,255,0.75) !important; color: #5c5a55 !important; border-radius: 10px !important; }
+    .maplibregl-ctrl-attrib a { color: var(--ink, #1E1B2E) !important; }
+    .maplibregl-ctrl-attrib-button { background-color: rgba(255,255,255,0.75) !important; border-radius: 10px !important; }
+
+    /* Zeit-Badge oben links: Uhrzeit und Beobachtung/Prognose eindeutig */
+    .badge {
+        position: absolute; top: 10px; left: 10px; z-index: 5;
+        display: flex; align-items: center; gap: 8px;
+        padding: 8px 12px; border-radius: 999px;
+        background: var(--dark, rgba(11,26,51,0.85)); color: var(--white, #fff);
+        font-size: 0.765rem; font-weight: 700; box-shadow: 0 6px 18px rgba(30,27,46,0.2);
+        font-variant-numeric: tabular-nums;
+    }
+    .badge .pill { font-size: 0.647rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--rain, #BFD6F6); color: var(--rain-ink, #3A4A6B); transition: background-color 0.6s, color 0.6s; }
+    .badge .pill.fc { background: var(--sun, #F6D35B); color: var(--ink, #1E1B2E); }
+    .badge .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--white, #fff); opacity: 0; transition: opacity 0.3s; }
+    .badge.loading .dot { opacity: 1; animation: pulse 0.9s ease-in-out infinite; }
+    @keyframes pulse { 0%, 100% { transform: scale(0.6); opacity: 0.4; } 50% { transform: scale(1); opacity: 1; } }
+    .badge.tick { animation: tick 0.5s ease-out; }
+    @keyframes tick { from { transform: translateY(-3px); opacity: 0.6; } to { transform: none; opacity: 1; } }
+
+    /* Knöpfe rechts: Zoom und Zurückzentrieren */
+    .mapbtns { position: absolute; top: 10px; right: 10px; z-index: 5; display: flex; flex-direction: column; gap: 6px; }
+    .mapbtn {
+        width: 40px; height: 40px; border-radius: 14px; border: none; cursor: pointer;
+        background: var(--card, #141c30); color: var(--ink, #fff);
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 6px 18px rgba(30,27,46,0.18); font: inherit; font-size: 1.176rem; font-weight: 700;
+    }
+    .mapbtn svg { width: 18px; height: 18px; }
+    .mapbtn:active { transform: scale(0.94); }
+
+    /* Status unten in der Karte: Ladefehler, Hinweise */
+    .status {
+        position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 5;
+        padding: 7px 12px; border-radius: 999px; max-width: calc(100% - 24px);
+        background: var(--dark, rgba(11,26,51,0.85)); color: var(--white, #fff);
+        font-size: 0.706rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .status.hidden { display: none; }
+
+    .map-msg {
+        position: absolute; inset: 0; z-index: 6;
+        display: flex; align-items: center; justify-content: center;
+        text-align: center; padding: 24px;
+        font-size: 0.824rem; font-weight: 500; line-height: 1.6;
+        color: var(--ink, #fff); background: var(--ground, rgba(11,26,51,0.85));
+    }
+    .map-msg.hidden { display: none; }
+
+    .site-pin {
+        width: 16px; height: 16px; border-radius: 50%;
+        background: var(--dark, #7cc4ff); border: 3px solid var(--white, #0b1a33);
+        box-shadow: 0 0 0 2px var(--dark, #7cc4ff), 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    /* ---------- Leiste unter der Karte: Play, Zeitachse, Legende ---------- */
+    .rbar { padding: 10px 0 calc(var(--tab-h, 68px) + env(safe-area-inset-bottom) + 14px); display: flex; flex-direction: column; gap: 6px; }
+    .rrow { display: flex; align-items: center; gap: 12px; }
+    .play {
+        width: 46px; height: 46px; flex: none; border-radius: 50%; border: none; cursor: pointer;
+        background: var(--dark, #2563b0); color: var(--white, #fff);
+        font-size: 0.941rem; font-family: inherit; display: flex; align-items: center; justify-content: center;
+    }
+    .play.pop { animation: playPop 0.6s cubic-bezier(.2,.8,.2,1); }
+    @keyframes playPop { 0% { transform: scale(0.86); } 60% { transform: scale(1.06); } 100% { transform: none; } }
+    .play:active { transform: scale(0.92); }
+    .timeline { flex: 1; min-width: 0; }
+    input[type="range"] { width: 100%; -webkit-appearance: none; appearance: none; height: 8px; border-radius: 4px; background: var(--card, rgba(255,255,255,0.14)); outline: none; display: block; }
+    input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none; appearance: none; width: 26px; height: 26px; border-radius: 50%;
+        background: var(--dark, #7cc4ff); border: 3px solid var(--white, #0b1a33); box-shadow: 0 2px 8px rgba(30,27,46,0.25);
+    }
+    /* Zeitachse unter dem Regler: Beobachtung links dunkler, Prognose rechts heller; Marker an der Grenze */
+    :root { --tl-obs: rgba(30,27,46,0.34); --tl-fc: #ffffff; }
+    html.night { --tl-obs: rgba(241,239,248,0.45); --tl-fc: #3A3553; }
+    /* Schema Nil: Beobachtung in Deep Indigo bzw. Nile Blue mit Deckkraft, Prognose nachts Slate Color (das dunkle Feld des Schemas) */
+    html.scheme-nil { --tl-obs: rgba(5,18,48,0.34); }
+    html.scheme-nil.night { --tl-obs: rgba(188,228,229,0.45); --tl-fc: #34454c; }
+    .tl-axis { position: relative; height: 36px; margin-top: 4px; }
+    .tl-axis.hidden { display: none; }
+    .tl-lbl { position: absolute; top: 4px; font-size: 0.647rem; font-weight: 600; color: var(--ink-2, #9fb3d1); }
+    .tl-lbl.obs { left: 0; } .tl-lbl.fc { right: 0; } .tl-lbl.hidden { display: none; }
+    .tl-mark { position: absolute; top: -18px; transform: translateX(-50%); width: 48px; height: 52px; padding: 0; border: 0; background: transparent; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 2px; color: var(--ink, #fff); font: inherit; }
+    .tl-mark i { width: 2px; height: 16px; border-radius: 1px; background: var(--ink, #fff); }
+    .tl-mark span { font-size: 0.647rem; font-weight: 700; white-space: nowrap; padding: 2px 7px; border-radius: 8px; background: var(--card, rgba(11,26,51,0.85)); font-variant-numeric: tabular-nums; }
+    .tl-mark:focus-visible { outline: 3px solid var(--ink, #fff); outline-offset: 2px; border-radius: 10px; }
+
+    /* Legende: kompakte Farbleiste mit unteren Klassengrenzen, ausführliche Liste aufklappbar */
+    .legend { display: flex; flex-direction: column; gap: 4px; font-size: 0.647rem; font-weight: 600; color: var(--ink-2, #9fb3d1); }
+    .lg-row { display: flex; align-items: center; gap: 8px; }
+    .lg-unit { flex: none; }
+    .lg-bar { flex: 1; display: flex; height: 12px; border-radius: 6px; overflow: hidden; }
+    .lg-bar i { flex: 1; display: block; }
+    .lg-nodata { flex: none; display: inline-flex; align-items: center; gap: 4px; font-weight: 500; }
+    .lg-nodata i { width: 12px; height: 12px; border-radius: 3px; background: #7d7d7d; opacity: 0.5; display: inline-block; }
+    .lg-ticks { display: flex; padding-left: 40px; font-size: 0.588rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .lg-ticks span { flex: 1; min-width: 0; white-space: nowrap; }
+    @media (max-width: 440px) { .lg-ticks span.alt { visibility: hidden; } }
+    .lg-more { font-weight: 500; }
+    .lg-more summary { cursor: pointer; font-weight: 600; color: var(--ink, #fff); }
+    .lg-more ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 4px 12px; }
+    .lg-more li { display: flex; align-items: center; gap: 6px; }
+    .lg-more li i { width: 14px; height: 14px; border-radius: 4px; flex: none; display: inline-block; }
+    .lg-more p { margin: 6px 0 0; font-weight: 500; }
+    .legend img { height: 16px; max-width: 100%; display: block; }
+    .lg-note { font-weight: 500; }
+    .rnote { font-size: 0.647rem; color: var(--ink-2, #9fb3d1); line-height: 1.4; }
+
+    /* Querformat auf dem Telefon: alles in einer Zeile, Karte bekommt die Höhe */
+    @media (orientation: landscape) and (max-height: 520px) {
+        .rshell .top { padding: calc(env(safe-area-inset-top) + 6px) 0 6px; }
+        .rshell .loc, .rshell .iconbtn { height: 36px; }
+        .rshell .loc { padding: 0 12px; }
+        .rbar { flex-direction: row; align-items: center; gap: 12px; padding-top: 6px; padding-bottom: calc(var(--tab-h, 68px) + env(safe-area-inset-bottom) + 16px); }
+        .rrow { flex: 1; min-width: 0; }
+        .timeline { flex: 1; }
+        .tl-axis { height: 30px; }
+        /* Legende als kleines Raster: Einheit | Balken, darunter Skala, darunter „keine Daten“ */
+        .legend { flex: 0 0 auto; width: 236px; display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 2px 8px; align-items: center; }
+        .lg-row { display: contents; }
+        .lg-unit { grid-column: 1; grid-row: 1; }
+        .lg-bar, .legend img { grid-column: 2; grid-row: 1; }
+        .lg-ticks { grid-column: 2; grid-row: 2; padding-left: 0; font-size: 0.529rem; }
+        .lg-ticks span.alt { visibility: hidden; }
+        .lg-nodata { grid-column: 2; grid-row: 3; }
+        .lg-note { grid-column: 1 / -1; }
+        /* Absicht (Platz): bei höchstens 520 px Höhe bekommt die Karte die Höhe; die aufklappbare Liste
+           „Alle Stufen“ (16 Zeilen) und der Hinweistext passen nicht in die eine Zeile. Hochkant sind beide da. */
+        .lg-more { display: none; }
+        .rnote { display: none; }
+        .play { width: 40px; height: 40px; }
+    }
+    /* Desktop: breitere Karte */
+    @media (min-width: 900px) and (min-height: 600px) {
+        .rshell { max-width: 960px; }
+        .rmap { min-height: 420px; }
+    }
+</style>
+</head>
+<body class="theme-rain radar">
+
+
+<div class="rshell">
+
+    <header class="top">
+        <a class="loc a-left" href="index.html" aria-label="Zurück zur Wetter-App">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+            <span>Regenradar</span>
+        </a>
+        <div class="top-actions">
+            <button type="button" class="iconbtn a-pop" id="modeBtn" aria-label="Nachtmodus" aria-pressed="false" title="Nachtmodus einschalten" style="animation-delay:.05s"></button>
+            <button type="button" class="iconbtn a-pop" id="refresh" aria-label="Radar aktualisieren" style="animation-delay:.1s">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <div class="rmap a-pop" style="animation-delay:.15s">
+        <div id="map" role="application" aria-label="Regenradar-Karte"></div>
+        <div class="badge" id="badge" aria-live="polite">
+            <span class="dot" aria-hidden="true"></span>
+            <span id="frameTime">–:–</span>
+            <span class="pill" id="framePill">Beobachtung</span>
+        </div>
+        <div class="mapbtns">
+            <button type="button" class="mapbtn" id="zoomIn" aria-label="Hineinzoomen">+</button>
+            <button type="button" class="mapbtn" id="zoomOut" aria-label="Herauszoomen">−</button>
+            <button type="button" class="mapbtn" id="recenter" aria-label="Auf den gewählten Ort zentrieren" title="Zum Ort">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+            </button>
+        </div>
+        <div class="status hidden" id="status" role="status"></div>
+        <div class="map-msg" id="mapMsg">Radar wird geladen …</div>
+    </div>
+
+    <div class="rbar a-up" style="animation-delay:.4s">
+        <div class="rrow">
+            <button class="play" id="play" aria-label="Abspielen">▶</button>
+            <div class="timeline">
+                <input type="range" id="slider" min="0" max="0" value="0" step="1" aria-label="Zeitpunkt">
+                <!-- Zeitachse: Marker an der echten Grenze Beobachtung/Prognose (Position = Slider-Index), Beschriftung zusätzlich zur Farbe -->
+                <div class="tl-axis hidden" id="tlAxis">
+                    <span class="tl-lbl obs" id="tlObs">Beobachtung</span>
+                    <button type="button" class="tl-mark" id="tlMark" aria-label="Zur jüngsten Beobachtung springen"><i aria-hidden="true"></i><span id="tlMarkTime">–:–</span></button>
+                    <span class="tl-lbl fc" id="tlFc">Prognose</span>
+                </div>
+            </div>
+        </div>
+        <!-- Legende aus der Stildefinition des DWD-Dienstes (Klassen in mm/h); ohne Stil das DWD-Legendenbild, sonst ein Hinweis -->
+        <div class="legend" id="legend"><span class="lg-note">Legende lädt …</span></div>
+        <div class="rnote" id="note">DWD-Radar alle 5 Minuten, Prognose (RADOLAN RV) bis zwei Stunden voraus. Karte: OpenFreeMap, Daten © OpenStreetMap-Mitwirkende.</div>
+    </div>
+</div>
+
+<div class="tabs">
+    <nav aria-label="Bereiche" class="a-nav" style="animation-delay:.45s">
+        <span class="tab-ink" aria-hidden="true"></span>
+        <a href="index.html#sec-today" aria-label="Heute">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Heute</span></a>
+        <a href="index.html#sec-details" aria-label="Details">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg><span>Details</span></a>
+        <a href="index.html#sec-days" aria-label="Tage">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span>Tage</span></a>
+        <a href="radar.html" class="on" aria-label="Radar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 3v9l6-6"/></svg><span>Radar</span></a>
+    </nav>
+</div>
+
+<script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
+<script src="sonne.js?v=20261010a"></script>
+<script src="radar.js?v=20261010a"></script>
+<script>if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js").catch(function () {}); }</script>
+</body>
+</html>
