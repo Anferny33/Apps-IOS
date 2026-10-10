@@ -5,7 +5,7 @@ const fs = require('fs');
 
 const DESIGN = fs.readFileSync(require('path').join(__dirname, '..', 'design.js'), 'utf8');
 const fc = H.mockForecast();
-const data = { fc, ens: H.mockEnsemble(fc), md: H.mockModels(), air: H.mockAir(), geo: H.mockGeocode(), warn: H.mockWarnings(), nina: H.mockNina(),
+const data = { fc, ens: H.mockEnsemble(fc), md: H.mockModels(), air: H.mockAir(), geo: H.mockGeocode(), warn: H.mockWarnings(H.TEST_NOW), nina: H.mockNina(),
                meta: { last_run_initialisation_time: Date.UTC(2026, 8, 25, 9) / 1000, last_run_availability_time: Date.UTC(2026, 8, 25, 10, 20) / 1000, update_interval_seconds: 10800 },
                place: { city: 'München', principalSubdivision: 'Bayern' } };
 const granted = { getCurrentPosition: ok => ok({ coords: { latitude: 48.137, longitude: 11.575 } }) };
@@ -14,11 +14,14 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 // Knoten liegen je nach ID im festen Satz oder im dynamischen Fallback
 const G = (s, id) => s._nodes[id] || s._dyn[id];
 
+// opts.IntersectionObserver: Stub für die Vorschauleiste; opts.docEvents: Objekt, in dem die Dokument-Listener je Ereignis als Liste landen
 function boot(opts) {
   const sb = H.makeSandbox(opts);
   sb.Math = Math;
+  if (opts && opts.IntersectionObserver) sb.IntersectionObserver = opts.IntersectionObserver;
+  if (opts && opts.docEvents) sb.document.addEventListener = function (ev, fn) { (opts.docEvents[ev] = opts.docEvents[ev] || []).push(fn); };
   vm.runInContext(DESIGN, sb);
-  sb.TEST_NOW = Date.parse('2026-09-25T12:15:00Z');   // 14:15 Ortszeit wie in den Mock-Daten: Nachtzustand bleibt deterministisch
+  sb.TEST_NOW = H.TEST_NOW;   // 14:15 Ortszeit wie in den Mock-Daten: Nachtzustand bleibt deterministisch
   sb.initDesignApp();
   return sb;
 }
@@ -56,6 +59,10 @@ function boot(opts) {
   sb.clearHour();
   const hb = G(sb,'hero').innerHTML;
   H.check('Zeitreise: Jetzt stellt Hoch/Tief/Gefühlt wieder her, kein Knopf mehr', hb.includes('Hoch 18°') && hb.includes('Tief 8°') && hb.includes('Gefühlt 16°') && hb.includes('>17°<') && !hb.includes('heroNow') && body.classList.contains('theme-partly-day'), hb.slice(0, 200));
+  // Fehlende Werte: kein „Tief 0°“ und kein „Gefühlt 0°“, die vorhandenen Chips bleiben
+  const fcGap = JSON.parse(JSON.stringify(fc)); fcGap.current.apparent_temperature = null; fcGap.daily.temperature_2m_min[0] = null;
+  const heroGap = sb.heroHtml(sb.nowFacts(fcGap), false);
+  H.check('Hero: fehlendes Tief und fehlendes Gefühlt werden weggelassen statt als 0° gezeigt', heroGap.includes('>Hoch 18°<') && !heroGap.includes('Tief') && !heroGap.includes('Gefühlt') && !heroGap.includes('0°<'), heroGap.slice(heroGap.indexOf('class="chips'), heroGap.indexOf('class="chips') + 160));
   // Rausgehen: Bewertung gegen die Mock-Daten (Jetzt = 25.09. 14:15)
   const actOf = id => sb.activityById(id);
   const walk = sb.activityWindows(sb.lastRendered(), actOf('walk'));
@@ -86,8 +93,18 @@ function boot(opts) {
   H.check('Modelle: Ensemble-Zeile für morgen mit Zählwerten', /ICON-D2-Ensemble, morgen: 0 bis [\d,]+ mm, Median [\d,]+ mm · 15 von 21 Läufen mit Regen\./.test(mm) && !/% der/.test(mm), mm.slice(mm.indexOf('ICON-D2-Ensemble'), mm.indexOf('ICON-D2-Ensemble') + 100));
   H.check('Modelle: Temperaturspanne morgen als zweiter Satz', mm.includes('<div class="agree">Für morgen sind sich die Modelle weitgehend einig: Regen, aber die Menge schwankt zwischen 2,0 und 6,0 mm. <span class="tspan">Höchstwert morgen 17 bis 21°, die Modelle liegen 4° auseinander.</span></div>'), mm.slice(0, 260));
   H.check('Modelle: Temperatursatz bei Einigkeit und ohne Daten', sb.tempSpanText('morgen', [19, 19.4, 18.8]) === 'Höchstwert morgen um 19°, da sind sich die Modelle einig.' && sb.tempSpanText('morgen', [21]) === '' && sb.tempSpanText('morgen', [null, 20, 23]) === 'Höchstwert morgen 20 bis 23°, die Modelle liegen 3° auseinander.', sb.tempSpanText('morgen', [19, 19.4, 18.8]));
-  sb.highlightModel('gfs_seamless');
-  H.check('Modelle: Hervorhebung wechselbar ohne Fehler', true);
+  // Hervorhebung wechseln: Linien, Chips und Band im Feld; die Knoten liefert hier ein Stub statt des DOM
+  H.check('Modelle: Hervorhebung wechselt auf GFS (Linie hl, Chip gedrückt, Band aus, ICON-D2 frei)', (() => {
+    const box = G(sb,'models');
+    const line = id => { const e = H.el(); e.classList.add('ml'); e.classList.add('m-' + id); if (id === 'icon_d2') e.classList.add('hl'); return e; };
+    const chip = id => { const e = H.el(); e.setAttribute('data-model', id); e.setAttribute('aria-pressed', id === 'icon_d2' ? 'true' : 'false'); if (id === 'icon_d2') e.classList.add('hl'); return e; };
+    const lines = [line('icon_d2'), line('gfs_seamless')], chips = [chip('icon_d2'), chip('gfs_seamless')], band = H.el();
+    const orig = box.querySelectorAll;
+    box.querySelectorAll = sel => sel === '.ml' ? lines : sel === '.mchip' ? chips : sel === '.band' ? [band] : [];
+    sb.highlightModel('gfs_seamless');
+    box.querySelectorAll = orig;
+    return lines[1].classList.contains('hl') && !lines[0].classList.contains('hl') && chips[1].classList.contains('hl') && chips[1].getAttribute('aria-pressed') === 'true' && !chips[0].classList.contains('hl') && chips[0].getAttribute('aria-pressed') === 'false' && band.classList.contains('off');
+  })());
   // Regenpausen (Mock: Jetzt 14:15, Regen 14:45–16:15)
   const ncs = sb.nowcastSummary(fc);
   const p30 = sb.pauseInfo(ncs, 30), p60 = sb.pauseInfo(ncs, 60);
@@ -150,11 +167,25 @@ function boot(opts) {
   const detA = G(sb,'details').innerHTML;
   H.check('Kacheln: nur Wind, Regen, Sonne tragen Chevron und Disclosure-Schaltfläche', (detA.match(/class="chev"/g) || []).length === 3 && (detA.match(/class="t-toggle"/g) || []).length === 3 && detA.includes('<button type="button" class="t-toggle" aria-expanded="false" aria-controls="tpanel-wind" aria-label="Wind: Details anzeigen"></button>') && detA.includes('id="tpanel-wind" role="region" aria-label="Wind im Detail"') && !/class="tile uv"[^>]*>[\s\S]*?class="chev"[\s\S]*?class="tile wind"/.test(detA.replace(/<div class="tile wind"[\s\S]*/, '')), (detA.match(/class="t-toggle"/g) || []).length);
   H.check('Kacheln: keine verschachtelten Schaltflächen in den Kacheln (3 Disclosure, 3 Herkunft)', !/<button[^>]*>[^<]*<button/.test(detA) && (detA.match(/<\/button>/g) || []).length === 6, (detA.match(/<\/button>/g) || []).length);
-  // Vorschauleiste: sichtbar während der Vorschau (Harness ohne IntersectionObserver = Hero nicht im Bild)
+  // Vorschauleiste: ohne IntersectionObserver gilt der Hero als im Bild, die Leiste bleibt zu (sie würde sonst das Hero doppeln);
+  // mit Beobachter folgt sie dem Hero. Der Stub reicht die Rückruffunktion heraus, damit der Test „Hero aus dem Bild“ melden kann.
   sb.selectHour(42);
-  H.check('Vorschauleiste: zeigt „Vorschau · Morgen, 18 Uhr“, solange eine Stunde gewählt ist', !G(sb,'previewBar').classList.contains('hidden') && G(sb,'previewLabel').textContent === 'Vorschau · Morgen, 18 Uhr', G(sb,'previewLabel').textContent);
+  H.check('Vorschauleiste: ohne IntersectionObserver bleibt sie zu, die Beschriftung steht bereit', G(sb,'previewBar').classList.contains('hidden') && G(sb,'previewLabel').textContent === 'Vorschau · Morgen, 18 Uhr', G(sb,'previewLabel').textContent);
   sb.backToNow();
-  H.check('Vorschauleiste: „Jetzt“ blendet sie aus und stellt das aktuelle Wetter her', G(sb,'previewBar').classList.contains('hidden') && G(sb,'hero').innerHTML.includes('Hoch 18°'));
+  H.check('Vorschauleiste: „Jetzt“ stellt das aktuelle Wetter her', G(sb,'previewBar').classList.contains('hidden') && G(sb,'hero').innerHTML.includes('Hoch 18°'));
+  let ioCb = null;
+  const IOStub = function (cb) { ioCb = cb; this.observe = function () {}; };
+  const sbIO = boot({ fetchImpl: H.okFetch(data), geolocation: granted, IntersectionObserver: IOStub });
+  await wait(300);
+  sbIO.selectHour(42);
+  H.check('Vorschauleiste: mit Beobachter zu, solange der Hero im Bild ist', typeof ioCb === 'function' && G(sbIO,'previewBar').classList.contains('hidden'));
+  ioCb([{ isIntersecting: false }]);
+  H.check('Vorschauleiste: Hero aus dem Bild gescrollt → „Vorschau · Morgen, 18 Uhr“', !G(sbIO,'previewBar').classList.contains('hidden') && G(sbIO,'previewLabel').textContent === 'Vorschau · Morgen, 18 Uhr', G(sbIO,'previewLabel').textContent);
+  ioCb([{ isIntersecting: true }]);
+  H.check('Vorschauleiste: Hero wieder im Bild → Leiste zu, Vorschau bleibt', G(sbIO,'previewBar').classList.contains('hidden') && G(sbIO,'hero').innerHTML.includes('Morgen, 18 Uhr'));
+  ioCb([{ isIntersecting: false }]);
+  sbIO.backToNow();
+  H.check('Vorschauleiste: „Jetzt“ blendet sie aus und stellt das aktuelle Wetter her', G(sbIO,'previewBar').classList.contains('hidden') && G(sbIO,'hero').innerHTML.includes('Hoch 18°'));
   H.check('Shell: Vorschauleiste mit Jetzt-Knopf in index.html', fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8').includes('id="previewBar"') && fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8').includes('id="previewNow"'));
   // Stufe 2: Ziehen vom Griff. Harness ohne Touch/Layout → Zustandsmaschine direkt, columnAt als Stub
   const colStub = (i, sel) => ({ classList: { contains: c => c === 'sel' && sel }, getAttribute: a => a === 'data-i' ? i : null });
@@ -229,17 +260,22 @@ function boot(opts) {
   sb.renderHero(fc);
 
   // Woher kommt das? Herkunftsblatt mit Quelle, Modell, Gitterpunkt, Rechenwegen und Stand
-  H.check('Herkunft: Abfrage holt die Metadaten von fünf Modellen', ['dwd_icon_d2', 'dwd_icon_eu', 'ecmwf_ifs025', 'ukmo_global_deterministic_10km', 'ncep_gfs025'].every(d => sb._fetchLog.some(u => u.includes('/data/' + d + '/static/meta.json'))), sb._fetchLog.filter(u => u.includes('meta')).join(' | '));
+  // Verzeichnisse aus META_MODELS der Sandbox, damit die Liste nicht veraltet; genau ein Abruf je Modell
+  const metaDirs = vm.runInContext('META_MODELS', sb).map(m => m.dir), metaFetches = sb._fetchLog.filter(u => u.includes('/static/meta.json'));
+  H.check('Herkunft: Abfrage holt die Metadaten aller sechs Modelle aus META_MODELS, auch ARPEGE', metaDirs.length === 6 && metaDirs.includes('meteofrance_arpege_europe') && metaFetches.length === metaDirs.length && metaDirs.every(d => metaFetches.some(u => u.includes('/data/' + d + '/static/meta.json'))), metaFetches.join(' | '));
   H.check('Herkunft: Aktualitätszeile mit sichtbarem Knopf „Woher?“', G(sb,'freshTxt').textContent === 'Gerade eben aktualisiert' && !G(sb,'freshSrc').classList.contains('hidden'), G(sb,'freshTxt').textContent);
   H.check('Herkunft: Instrument-Felder enden mit „Woher kommt das?“', (G(sb,'details').innerHTML.match(/<button type="button" class="tp-src" data-src="(wind|rain|sun)">Woher kommt das\?<\/button><\/div><\/div><\/div>/g) || []).length === 3, (G(sb,'details').innerHTML.match(/tp-src/g) || []).length);
   sb.openSource('wind', null);
   const srcHtml = G(sb,'srcBody').innerHTML;
   H.check('Herkunft: Blatt öffnet beim Abschnitt Wind', sb.document.body.classList.contains('src-open') && G(sb,'src').getAttribute('data-section') === 'src-wind', G(sb,'src').getAttribute('data-section'));
   H.check('Herkunft: Ort und Modellpunkt mit Entfernung und Höhe', /Gewählter Ort: München[^(]*\(48,14° N, 11,57° O\)\./.test(srcHtml) && srcHtml.includes('Modellpunkt der Vorhersage: 48,14° N, 11,57° O, 0,0 km entfernt, 520 m Höhe.') && /Luft und Pollen: Punkt [\d,]+ km entfernt, Raster etwa 11 km\./.test(srcHtml), srcHtml.slice(srcHtml.indexOf('src-ort'), srcHtml.indexOf('src-ort') + 400));
-  const runTxt = sb.stampAt(Date.UTC(2026, 8, 25, 9), Date.now(), 'Europe/Berlin'), availTxt = sb.stampAt(Date.UTC(2026, 8, 25, 10, 20), Date.now(), 'Europe/Berlin');
-  H.check('Herkunft: ICON-D2-Lauf aus den Metadaten in Ortszeit', srcHtml.includes('ICON-D2-Lauf von ' + runTxt + ', verfügbar seit ' + availTxt + '. Neuer Lauf alle 3 Stunden.') && runTxt.includes('11:00'), srcHtml.slice(srcHtml.indexOf('ICON-D2-Lauf'), srcHtml.indexOf('ICON-D2-Lauf') + 140));
+  // openSource stempelt das Blatt mit nowMs(), also mit TEST_NOW: der Lauf von 11:00 Ortszeit ist „heute“
+  const runTxt = sb.stampAt(Date.UTC(2026, 8, 25, 9), H.TEST_NOW, 'Europe/Berlin'), availTxt = sb.stampAt(Date.UTC(2026, 8, 25, 10, 20), H.TEST_NOW, 'Europe/Berlin');
+  H.check('Herkunft: ICON-D2-Lauf aus den Metadaten in Ortszeit, Stempel mit der Testzeit', srcHtml.includes('ICON-D2-Lauf von ' + runTxt + ', verfügbar seit ' + availTxt + '. Neuer Lauf alle 3 Stunden.') && runTxt === 'heute, 11:00 Uhr', srcHtml.slice(srcHtml.indexOf('ICON-D2-Lauf'), srcHtml.indexOf('ICON-D2-Lauf') + 140));
   H.check('Herkunft: Ladezeitpunkt wie in der Aktualitätszeile', srcHtml.includes('<p>Gerade eben aktualisiert.</p>'));
-  H.check('Herkunft: Läufe der Vergleichsmodelle mit Zeit', srcHtml.includes('Läufe der Vergleichsmodelle: ICON-EU ' + runTxt + ', ECMWF IFS ' + runTxt + ', UKMO ' + runTxt + ', GFS ' + runTxt + '.'), srcHtml.slice(srcHtml.indexOf('Läufe der Vergleichsmodelle'), srcHtml.indexOf('Läufe der Vergleichsmodelle') + 160));
+  H.check('Herkunft: Läufe der Vergleichsmodelle mit Zeit, ARPEGE dabei', new RegExp('Läufe der Vergleichsmodelle: ICON-EU ' + runTxt + ', ECMWF IFS ' + runTxt + ', ARPEGE ' + runTxt + ', UKMO ' + runTxt + ', GFS ' + runTxt + '\\.').test(srcHtml), srcHtml.slice(srcHtml.indexOf('Läufe der Vergleichsmodelle'), srcHtml.indexOf('Läufe der Vergleichsmodelle') + 200));
+  H.check('Herkunft: Modellvergleich nennt alle sechs Modelle aus MODELS, auch ARPEGE', srcHtml.includes('Modellvergleich: ICON-D2, ICON-EU, ECMWF IFS, ARPEGE, UKMO und GFS, jeweils eigener Lauf.'), srcHtml.slice(srcHtml.indexOf('Modellvergleich'), srcHtml.indexOf('Modellvergleich') + 120));
+  H.check('Herkunft: Karte des Radars ist OpenFreeMap, nicht basemap.de', srcHtml.includes('Karte OpenFreeMap (OpenMapTiles-Schema, Daten OpenStreetMap)') && !srcHtml.includes('basemap.de'), srcHtml.slice(srcHtml.indexOf('Radar:'), srcHtml.indexOf('Radar:') + 160));
   H.check('Herkunft: Abschnitt Nächste Tage mit Regeln, Feld verlinkt dorthin', srcHtml.includes('<section class="src-sec" id="src-highlights"><h3>Nächste Tage</h3><p>Nächste Tage: Regeln auf den Tageswerten von morgen bis in sieben Tagen. Temperatursprung ab 5° zum Vortag') && G(sb,'highlights').innerHTML.endsWith('<button type="button" class="tp-src" data-src="highlights">Woher kommt das?</button>'), G(sb,'highlights').innerHTML.slice(-120));
   H.check('Herkunft: Regenrisiko als Anteil der Läufe', srcHtml.includes('Jetzt 15 von 21 Läufen, also 71 %.'), srcHtml.slice(srcHtml.indexOf('Regenrisiko je Stunde'), srcHtml.indexOf('Regenrisiko je Stunde') + 160));
   H.check('Herkunft: Nebelrisiko mit den aktuellen Zahlen', /Jetzt: Taupunktabstand 3,0°, Wind 18 km\/h, Bewölkung 45 %, Risiko gering\./.test(srcHtml), srcHtml.slice(srcHtml.indexOf('Jetzt: Taupunkt'), srcHtml.indexOf('Jetzt: Taupunkt') + 100));
@@ -248,7 +284,7 @@ function boot(opts) {
   H.check('Herkunft: elf Abschnitte mit Überschriften', (srcHtml.match(/<section class="src-sec" id="src-/g) || []).length === 11 && ['ort','modelle','temp','regen','wind','sonne','sicht','rausgehen','highlights','luft','warn'].every(k => srcHtml.includes('id="src-' + k + '"')) && (srcHtml.match(/<h3>/g) || []).length === 11, (srcHtml.match(/<section class="src-sec" id="src-/g) || []).length);
   sb.closeSource();
   H.check('Herkunft: Schließen nimmt die Körperklasse weg', !sb.document.body.classList.contains('src-open'));
-  const srcBare = sb.sourceSheetHtml(sb.prepareData(clone(), null), null, null, null, null, false, Date.now());
+  const srcBare = sb.sourceSheetHtml(sb.prepareData(clone(), null), null, null, null, null, false, H.TEST_NOW);
   H.check('Herkunft: ohne Metadaten, Luftdaten, Ort und Ensemble bleibt das Blatt vollständig', !srcBare.includes('ICON-D2-Lauf') && !srcBare.includes('Luft und Pollen: Punkt') && !srcBare.includes('Gewählter Ort') && srcBare.includes('ohne Ensemble der Modellwert') && srcBare.includes('Modellpunkt der Vorhersage: 48,14° N, 11,57° O, 520 m Höhe.') && (srcBare.match(/<section/g) || []).length === 11, srcBare.slice(0, 300));
   await wait(320);   /* Klicks innerhalb von 300 ms nach einem Zieh-Ende werden verworfen */
   sb.document.body.trigger('click', { target: { closest: sel => sel === '.tp-src' ? { getAttribute: () => 'sicht', focus() {} } : null } });
@@ -352,7 +388,7 @@ function boot(opts) {
   sb.setSetting('temp', 'F');
   const heroF = G(sb,'hero').innerHTML, hhF = G(sb,'hourly').innerHTML, ddF = G(sb,'days').innerHTML;
   H.check('Einstellungen: Fahrenheit im Hero, in Chips, Stundenspalten, Tagesliste und Highlights', heroF.includes('>63°</div>') && heroF.includes('>Hoch 64°<') && heroF.includes('>Tief 46°<') && heroF.includes('>Gefühlt 61°<') && /aria-label="Jetzt: [^,"]+, 63 Grad, gefühlt 61,/.test(hhF) && hhF.includes('<span class="v">64°</span>') && ddF.includes('<div class="lo">46°</div>') && ddF.includes('<div class="hi">64°</div>') && G(sb,'highlights').innerHTML.includes('9° wärmer, 73° statt 64°'), heroF.slice(heroF.indexOf('class="chips'), heroF.indexOf('class="chips') + 260) + ' | ' + G(sb,'highlights').innerHTML.slice(0, 120));
-  H.check('Einstellungen: Fahrenheit auch im Satz zur Wärme und im Herkunftsblatt', /Höchstens 68° morgen um 11 Uhr, gefühlt 66°, nachts bis 39°\./.test(sb.answerWarm(fc)) && sb.sourceSheetHtml(sb.prepareData(fc, data.ens), null, null, null, null, false, Date.now()).includes('Spaziergang: gefühlt 41 bis 82°, Regenrisiko unter 30 %, Böen unter 45 km/h'), sb.answerWarm(fc));
+  H.check('Einstellungen: Fahrenheit auch im Satz zur Wärme und im Herkunftsblatt', /Höchstens 68° morgen um 11 Uhr, gefühlt 66°, nachts bis 39°\./.test(sb.answerWarm(fc)) && sb.sourceSheetHtml(sb.prepareData(fc, data.ens), null, null, null, null, false, H.TEST_NOW).includes('Spaziergang: gefühlt 41 bis 82°, Regenrisiko unter 30 %, Böen unter 45 km/h'), sb.answerWarm(fc));
   sb.setSetting('temp', 'C');
   sb.setSetting('wind', 'ms');
   const detW = G(sb,'details').innerHTML;
@@ -384,7 +420,19 @@ function boot(opts) {
   H.check('NINA: Katastrophenschutz-Zeile, Umbrüche, Quelle', wn.includes('Katastrophenschutz · seit') && wn.includes('Rauchentwicklung.<br>Betroffen') && wn.includes('class="instr">Fenster und Türen schließen.<br>Lüftung') && wn.includes('über NINA (warnung.bund.de) · Stadt München'), wn.match(/Katastrophenschutz[^<]*/));
   const ninaUrl = sb._fetchLog.find(u => u.includes('/nina?')) || '';
   H.check('NINA: Proxy mit Koordinaten abgefragt', ninaUrl.endsWith('/nina?lat=48.137&lon=11.575'), ninaUrl);
-  H.check('Warnungen: bevorstehende mit "ab … bis …", Hinweis + Quelle', /Wetterwarnung · ab (\S+ )?\S+ Uhr bis (\S+ )?\S+ Uhr/.test(wn) && wn.includes('class="instr">Lose Gegenstände sichern.') && wn.includes('Quelle: Deutscher Wetterdienst · Stadt München'), wn.match(/Wetterwarnung · [^<]*/));
+  // Mock-Zeiten relativ zu TEST_NOW (14:15): Windböen ab +2 h bis +8 h, Gewitter seit −1 h bis +3 h, alles am selben Tag, also nur Uhrzeiten
+  H.check('Warnungen: Zeiten aus der Testzeit, bevorstehende "ab 16:15 Uhr bis 22:15 Uhr", laufende "bis 17:15 Uhr", Hinweis + Quelle', wn.includes('Wetterwarnung · ab 16:15 Uhr bis 22:15 Uhr') && wn.includes('Markante Wetterwarnung · bis 17:15 Uhr') && wn.includes('class="instr">Lose Gegenstände sichern.') && wn.includes('Quelle: Deutscher Wetterdienst · Stadt München'), wn.match(/Wetterwarnung · [^<]*/));
+  // Zeiten der Warnungen relativ zur Testzeit (14:15 Ortszeit, Freitag): heute nur Uhrzeit, in der Woche Wochentag, sonst Datum
+  const hMs = 3600 * 1000, isoAt = t => new Date(t).toISOString();
+  H.check('Warnungen: Zeitangabe rechnet mit der Testzeit (heute, Wochentag, Datum)', sb.fmtWarnTime(isoAt(H.TEST_NOW + 2 * hMs)) === '16:15 Uhr' && sb.fmtWarnTime(isoAt(H.TEST_NOW + 26 * hMs)) === 'Sa 16:15 Uhr' && sb.fmtWarnTime(isoAt(H.TEST_NOW + 10 * 24 * hMs)) === '05.10., 14:15 Uhr' && sb.fmtWarnTime('kaputt') === '–', [sb.fmtWarnTime(isoAt(H.TEST_NOW + 2 * hMs)), sb.fmtWarnTime(isoAt(H.TEST_NOW + 26 * hMs)), sb.fmtWarnTime(isoAt(H.TEST_NOW + 10 * 24 * hMs))].join(' | '));
+  // NINA-Meldungen mit abgelaufenem expires fallen weg (zweite Sicherung neben dem Worker), „bis …“ kommt aus expires
+  const ninaOf = (id, expires) => ({ id: id, source: 'nina', provider: 'MOWAS', providerLabel: 'Katastrophenschutz', level: 2, severity: 'Moderate', event: 'Gefahreninformation', headline: 'Meldung ' + id, description: '', instruction: '', sent: isoAt(H.TEST_NOW - hMs), onset: null, expires: expires, area: 'Stadt München', upcoming: false });
+  sb.renderWarnings([], [ninaOf('alt', isoAt(H.TEST_NOW - hMs)), ninaOf('offen', null), ninaOf('frisch', isoAt(H.TEST_NOW + 3 * hMs))]);
+  const wnN = G(sb,'warnings').innerHTML;
+  H.check('NINA: abgelaufene Meldung wird nicht mehr gezeigt, offene und laufende bleiben mit „bis“ aus expires', !wnN.includes('Meldung alt') && wnN.includes('Meldung offen') && wnN.includes('Meldung frisch') && wnN.includes('Katastrophenschutz · seit 13:15 Uhr · bis 17:15 Uhr') && (wnN.match(/<details class="field warn/g) || []).length === 2, wnN.match(/Katastrophenschutz[^<]*/g));
+  sb.renderWarnings([], [ninaOf('alt', isoAt(H.TEST_NOW - hMs))]);
+  H.check('NINA: nur abgelaufene Meldungen → Feld versteckt und leer', G(sb,'warnings').classList.contains('hidden') && G(sb,'warnings').innerHTML === '');
+  sb.renderWarnings(sb.normalizeWarnings(data.warn), sb.normalizeNina(data.nina));
 
   const hh = G(sb,'hourly').innerHTML;
   H.check('Stunden: 48 Spalten', (hh.match(/class="hcol/g) || []).length === 48, (hh.match(/class="hcol/g) || []).length);
@@ -460,8 +508,13 @@ function boot(opts) {
   H.check('Theme klare Nacht + Mond-Icon', sb3.document.body.classList.contains('theme-clear-night') && G(sb3,'hero').innerHTML.includes('<svg class="big-icon wx wx-nacht"'), G(sb3,'hero').innerHTML.slice(0, 200));
   H.check('Hero-Icon nach Lage: Tag mit Wolken = Sonne hinter Wolke', hero.includes('wx wx-teils"') && hero.includes('class="cloud"') && hero.includes('class="sun"'));
   H.check('Regen-Icon mit Tropfen-Ebene', G(sb2,'hero').innerHTML.includes('wx wx-regen"') && G(sb2,'hero').innerHTML.includes('class="drops"'));
+  // Nebel (Code 45/48) ist eine eigene Lage mit Nebellinien unter der Wolke; die Linien gibt es nur in dieser Lage
+  const fogHero = sb.heroIcon(45, 1);
+  H.check('Hero-Icon nach Lage: Nebel ist „nebel“ mit drei Nebellinien, bedeckt bleibt „bewoelkt“ ohne Linien', sb.heroKind(45, 1) === 'nebel' && sb.heroKind(48, 0) === 'nebel' && sb.heroKind(3, 1) === 'bewoelkt' && fogHero.includes('class="big-icon wx wx-nebel"') && /<g class="fog">(<line [^>]*\/>){3}<\/g>/.test(fogHero) && fogHero.indexOf('class="cloud"') < fogHero.indexOf('class="fog"') && !sb.heroIcon(3, 1).includes('class="fog"') && sb.themeFor(45, 1) === 'fog', fogHero.slice(fogHero.indexOf('class="fog"') - 20, fogHero.indexOf('class="fog"') + 140));
   H.check('Sonnenbogen: Sonne wandert mit (Winkel 107° für 14:15 bei 07:12–19:05) und startet im Morgenrot', /class="arc"[^>]*--ang:107deg[^>]*--c0:rgb\(232,121,74\)[^>]*--c4:rgb\(246,211,91\)/.test(det) && det.includes('<g class="sunpos"><circle class="dot" cx="8" cy="54"'), det.match(/class="arc"[^>]*/));
-  H.check('Luftfeuchte: Füllung liegt in einer beschnittenen Gruppe (Wasser bleibt im Tropfen)', /<g clip-path="url\(#dropclip\)"><rect x="0" y="9\.5"/.test(det), det.match(/<g clip-path[^>]*><rect[^>]*>/));
+  // Die Maske trägt je Aufruf eine eigene ID, damit sich mehrere Tropfen (Vorschau, zweite Seite) nicht stören
+  H.check('Luftfeuchte: Füllung liegt in einer beschnittenen Gruppe (Wasser bleibt im Tropfen), Maske mit eindeutiger ID', /<clipPath id="(dropclip\d+)"><path [^>]*\/><\/clipPath><g clip-path="url\(#\1\)"><rect x="0" y="9\.5"/.test(det), det.match(/<g clip-path[^>]*><rect[^>]*>/));
+  H.check('Luftfeuchte: zwei Tropfen bekommen zwei verschiedene Masken-IDs', (() => { const a = sb.dropIcon(50).match(/id="(dropclip\d+)"/), b = sb.dropIcon(50).match(/id="(dropclip\d+)"/); return a && b && a[1] !== b[1] && sb.dropIcon(50).includes('url(#dropclip'); })());
   H.check('Kacheln: Mini-Icons und Skalen (Wind, Regen, Sonnenbogen, Tropfen, Druck, UV-Meter)',
     det.includes('class="windflow"') && det.includes('class="rain-ico"') && det.includes('class="arc"') && det.includes('class="drop-ico"') && det.includes('class="gauge-ico"') && /class="tile uv"[\s\S]*?class="meter"/.test(det));
   H.check('Einblend-Verzögerungen gestaffelt und gestaucht (Stunden 0,54 s, Tage 0,84 s, Kacheln 0,60 s)', /hcol now[^>]*animation-delay:0\.[45]\ds/.test(hh) && /drow[^>]*animation-delay:0\.[78]\ds/.test(dd) && /tile uv"[^>]*animation-delay:(0\.60|0\.5\d)s/.test(det));
@@ -481,6 +534,12 @@ function boot(opts) {
   H.check('Zeitreise: Ortswechsel setzt Vorschau und offenes Feld zurück', G(sb,'hero').innerHTML.includes('Hoch 18°') && !G(sb,'hero').innerHTML.includes('heroNow') && sb.openTileKey() === null, G(sb,'hero').innerHTML.slice(0, 120));
   sb.renderAllDesign(payloadSame);
   H.check('Zeitreise: Ausgangs-Hero nach Neurendern identisch bis auf Verzögerungen', G(sb,'hero').innerHTML.replace(/animation-delay:[\d.]+s/g, 'D') === heroNow.replace(/animation-delay:[\d.]+s/g, 'D'));
+  // Randwerte des Fensters: die aktuelle Stunde (Index 14 = w.start, Startstunde eines Rausgehen-Fensters) überlebt das Neurendern wie jede andere
+  sb.selectHour(14);
+  sb.renderAllDesign(payloadSame);
+  H.check('Zeitreise: gewählte Stunde am Fensteranfang (Jetzt-Stunde) bleibt nach dem Neurendern erhalten', G(sb,'hero').innerHTML.includes('<span>Heute, 14 Uhr</span>') && G(sb,'hero').innerHTML.includes('heroNow'), G(sb,'hero').innerHTML.slice(0, 120));
+  sb.clearHour();
+  sb.renderAllDesign(payloadSame);
 
   // 3) Ortung abgelehnt -> Banner mit "Ort suchen" -> Sheet öffnet -> Suche -> Auswahl
   const sb4 = boot({ fetchImpl: H.okFetch(data), geolocation: denied });
@@ -543,6 +602,33 @@ function boot(opts) {
   const sb10 = boot({ fetchImpl: H.okFetch(data), geolocation: counting, storage: { 'wetter:active': '{"lat":"x","source":"search"}' } });
   await wait(300);
   H.check('Ort: ungültiger aktiver Ort wird ignoriert, Ortung läuft', gpsCalls === 1 && G(sb10,'locName').textContent === 'München, Bayern' && JSON.parse(sb10._store['wetter:active']).source === 'gps', gpsCalls + ' ' + G(sb10,'locName').textContent);
+
+  // 3g) „Mein Standort“ scheitert ohne gespeicherte Position: der gesuchte Ort bleibt samt Daten stehen, Banner mit „Ort suchen“
+  const sb11 = boot({ fetchImpl: H.okFetch(data), geolocation: denied, storage: { 'wetter:active': JSON.stringify({ lat: 53.55, lon: 9.99, name: 'Hamburg', source: 'search' }) } });
+  await wait(300);
+  G(sb11,'gps').trigger('click'); await wait(300);
+  const fc11 = () => sb11._fetchLog.filter(u => u.includes('api.open-meteo.com/v1/forecast') && !u.includes('models=')).length;
+  const n11 = fc11();
+  H.check('Ort: gescheiterte Ortung ohne gespeicherte Position behält den vorherigen Ort, Daten stehen, Banner zeigt den Fehler', G(sb11,'locName').textContent.includes('Hamburg') && G(sb11,'hero').innerHTML.includes('17°') && G(sb11,'banner').className.includes('err') && G(sb11,'banner').innerHTML.includes('Standortzugriff abgelehnt') && G(sb11,'banner').innerHTML.includes('bannerBtn') && JSON.parse(sb11._store['wetter:active']).source === 'search', G(sb11,'locName').textContent + ' | ' + G(sb11,'banner').innerHTML.slice(0, 80));
+  G(sb11,'refresh').trigger('click'); await wait(300);
+  const lastFc11 = sb11._fetchLog.filter(u => u.includes('api.open-meteo.com/v1/forecast') && !u.includes('models=')).pop() || '';
+  H.check('Ort: Aktualisieren lädt danach wieder den vorherigen Ort statt erneut zu orten', fc11() === n11 + 1 && lastFc11.includes('latitude=53.55'), (fc11() - n11) + ' ' + lastFc11.match(/latitude=[\d.]+/));
+
+  // 3h) Sichtbarwerden: ein Listener für Aktualität, Nacht und Daten; bei GPS-Ort nur neu orten, wenn die Ortung älter als 10 Minuten ist
+  const docEv = {};
+  let gpsCalls2 = 0;
+  const counting2 = { getCurrentPosition: ok => { gpsCalls2++; ok({ coords: { latitude: 48.137, longitude: 11.575 } }); } };
+  const sbVis = boot({ fetchImpl: H.okFetch(data), geolocation: counting2, docEvents: docEv });
+  await wait(300);
+  const fcVis = () => sbVis._fetchLog.filter(u => u.includes('api.open-meteo.com/v1/forecast') && !u.includes('models=')).length;
+  const nVis = fcVis();
+  H.check('Sichtbarwerden: genau ein visibilitychange-Listener', Array.isArray(docEv.visibilitychange) && docEv.visibilitychange.length === 1 && typeof docEv.visibilitychange[0] === 'function', Object.keys(docEv).map(k => k + ':' + docEv[k].length).join(','));
+  docEv.visibilitychange[0](); await wait(300);
+  H.check('Sichtbarwerden: junge Ortung (unter 10 Minuten) wird nicht wiederholt, die Daten werden neu geladen', gpsCalls2 === 1 && fcVis() === nVis + 1, gpsCalls2 + ' ' + (fcVis() - nVis));
+  sbVis.TEST_NOW = H.TEST_NOW + 11 * 60000;
+  docEv.visibilitychange[0](); await wait(300);
+  H.check('Sichtbarwerden: Ortung älter als 10 Minuten wird wiederholt', gpsCalls2 === 2 && fcVis() === nVis + 2, gpsCalls2 + ' ' + (fcVis() - nVis));
+  sbVis.TEST_NOW = H.TEST_NOW;
 
   // 4) Offline mit Cache
   const payload = { fc, ens: data.ens, md: data.md, air: data.air };
@@ -660,6 +746,9 @@ function boot(opts) {
   H.check('Aktualität: Zeitzone des Ortes (New York: 10:10 Uhr am Vortag aus Sicht Berlin ist dort „heute“)', ft('2026-10-08T08:10:00Z', false, 'America/New_York') === 'Stand heute, 04:10 Uhr Ortszeit', ft('2026-10-08T08:10:00Z', false, 'America/New_York'));
   H.check('Aktualität: ungültige Zeitzone fällt auf die Gerätezeit zurück', ft('2026-10-08T08:10:00Z', false, 'Nirgendwo/Stadt').startsWith('Stand heute, '), ft('2026-10-08T08:10:00Z', false, 'Nirgendwo/Stadt'));
   H.check('Aktualität: ohne Zeitpunkt leer', ft(null) === '' && ft('kaputt') === '');
+  // Stand-Zeile der Fußzeile: dieselbe Basis wie die Aktualitätszeile, Ortszeit mit Zusatz bei fremder Zone
+  H.check('Stand-Zeile: Ortszeit des Ortes, Zusatz „Ortszeit“ nur bei fremder Zone, leer ohne Zeitpunkt', sbT.updatedText('2026-10-08T08:10:00Z', 'Europe/Berlin') === 'Stand 08.10., 10:10 Uhr' && sbT.updatedText('2026-10-08T08:10:00Z', 'America/New_York') === 'Stand 08.10., 04:10 Uhr Ortszeit' && sbT.updatedText('2026-10-08T08:10:00Z', 'Nirgendwo/Stadt') === 'Stand 08.10., 10:10 Uhr' && sbT.updatedText('kaputt', 'Europe/Berlin') === '', sbT.updatedText('2026-10-08T08:10:00Z', 'America/New_York'));
+  H.check('Stand-Zeile: nach dem Laden mit der Testzeit in Ortszeit', G(sb,'updated').textContent === 'Stand 25.09., 14:15 Uhr', G(sb,'updated').textContent);
   // Im Ablauf: nach dem Laden „Gerade eben“, Cache-Start zeigt den gespeicherten Stand, fehlgeschlagene Aktualisierung behält Daten + Stand
   H.check('Aktualität: nach erfolgreichem Laden „Gerade eben aktualisiert“', G(sb,'freshTxt').textContent === 'Gerade eben aktualisiert', G(sb,'freshTxt').textContent);
   H.check('Aktualität: Offline-Start aus dem Cache zeigt den gespeicherten Stand, nicht die Startzeit', G(sb5,'freshTxt').textContent.startsWith('Stand ') && G(sb5,'freshTxt').textContent.endsWith('· gespeicherte Daten') && G(sb5,'updated').textContent.includes('08.10.'), G(sb5,'freshTxt').textContent + ' | ' + G(sb5,'updated').textContent);
@@ -668,13 +757,14 @@ function boot(opts) {
   const sbF = boot({ fetchImpl: flaky, geolocation: granted });
   await wait(300);
   const updatedBefore = G(sbF,'updated').textContent;
-  const cachedIso = new Date(Date.now() - 10 * 60000).toISOString();
-  const cachedText = () => sbT.freshnessText(cachedIso, true, Date.now(), 'Europe/Berlin');
+  // updateFreshness rechnet mit nowMs(), also mit TEST_NOW: der gespeicherte Stand liegt zehn Minuten davor
+  const cachedIso = new Date(H.TEST_NOW - 10 * 60000).toISOString();
+  const cachedText = () => sbT.freshnessText(cachedIso, true, H.TEST_NOW, 'Europe/Berlin');
   sbF._store[LOC_KEY] = JSON.stringify({ savedAt: cachedIso, payload: { fc, ens: data.ens, md: data.md, air: data.air } });
   online = false;
   G(sbF,'refresh').trigger('click'); await wait(300);
   H.check('Rückmeldungen: fehlgeschlagene Aktualisierung wird angesagt', G(sbF,'live').textContent.startsWith('Keine Verbindung'), G(sbF,'live').textContent);
-  H.check('Aktualität: fehlgeschlagene Aktualisierung behält Daten und markiert den gespeicherten Stand', G(sbF,'hero').innerHTML.includes('17°') && G(sbF,'freshTxt').textContent === cachedText() && cachedText().endsWith('· gespeicherte Daten') && G(sbF,'banner').innerHTML.includes('zuletzt gespeicherten'), G(sbF,'freshTxt').textContent + ' | ' + G(sbF,'hero').innerHTML.slice(0, 60));
+  H.check('Aktualität: fehlgeschlagene Aktualisierung behält Daten und markiert den gespeicherten Stand', G(sbF,'hero').innerHTML.includes('17°') && G(sbF,'freshTxt').textContent === cachedText() && cachedText() === 'Stand heute, 14:05 Uhr · gespeicherte Daten' && G(sbF,'updated').textContent === 'Stand 25.09., 14:05 Uhr' && G(sbF,'banner').innerHTML.includes('zuletzt gespeicherten'), G(sbF,'freshTxt').textContent + ' | ' + G(sbF,'updated').textContent + ' | ' + G(sbF,'hero').innerHTML.slice(0, 60));
   delete sbF._store[LOC_KEY];
   G(sbF,'refresh').trigger('click'); await wait(300);
   H.check('Aktualität: Fehler ohne Cache lässt die zuletzt gültigen Daten und ihren Stand stehen, Fehlerbanner mit Wiederholen', G(sbF,'hero').innerHTML.includes('17°') && G(sbF,'freshTxt').textContent === cachedText() && G(sbF,'banner').className.includes('err') && G(sbF,'banner').innerHTML.includes('bannerBtn'), G(sbF,'freshTxt').textContent + ' | ' + G(sbF,'banner').innerHTML);
@@ -695,6 +785,11 @@ function boot(opts) {
   const thr = (dsrc.match(/const wet = i !== 0 && prob >= (\d+)/) || [])[1];
   H.check('Texte: Beschriftung der blauen Felder nennt dieselbe Schwelle wie die Berechnung', thr === '25' && fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8').includes('Blaue Felder: Regenrisiko ab ' + thr + ' %'), thr);
   H.check('Texte: kein „windstill“ und kein „Regen wahrscheinlich“ mehr', !dsrc.includes('windstill') && !fs.readFileSync(require('path').join(__dirname, '..', 'index.html'), 'utf8').includes('Regen wahrscheinlich'));
+  // Tote Pfade: unbenutzte UI-Icons, die Variable worst und die leere Überschrift sind weg; scrubActive bleibt als Testzugang
+  const uiKeys = (dsrc.slice(dsrc.indexOf('const UI = {'), dsrc.indexOf('};', dsrc.indexOf('const UI = {'))).match(/^\s{4}(\w+): '<svg/gm) || []).map(l => l.trim().replace(/:.*$/, ''));
+  H.check('Tote Pfade: UI hält nur die sieben benutzten Icons, worst und „Hintergrund-Partikel“ sind entfernt', uiKeys.sort().join(',') === 'alert,check,chevron,drop,megaphone,umbrella,umbrellaRain' && uiKeys.every(k => (dsrc.match(new RegExp('UI\\.' + k + '\\b', 'g')) || []).length >= 1) && !/\bworst\b/.test(dsrc) && !dsrc.includes('Hintergrund-Partikel') && /function scrubActive\(\)/.test(dsrc), uiKeys.join(','));
+  // Zeitbasis: „jetzt“ läuft überall über nowMs(); Date.now() bleibt nur für Laufzeitmessungen von Bewegung und Film
+  H.check('Zeitbasis: kein new Date() ohne Argument mehr, Date.now() nur in nowMs selbst, Bewegung, Zählern, Ziehen und Filmablauf', !/new Date\(\)/.test(dsrc) && (dsrc.match(/Date\.now\(\)/g) || []).length === 12 && /function nowMs\(\)[^\n]*Date\.now\(\)/.test(dsrc), (dsrc.match(/Date\.now\(\)/g) || []).length);
 
   // 7) Nachtpalette und Tageszeit-Kacheln
   const nightAt = iso => sb.nightNowAt(fc, iso);
@@ -717,6 +812,14 @@ function boot(opts) {
   sb.updateNight('2026-09-26T10:00');
   H.check('Nacht: Rückwechsel am Morgen, UV-Kachel blendet wieder ein', !sb.document.body.classList.contains('night') && G(sb,'details').innerHTML.includes('UV-Index') && G(sb,'details').innerHTML.includes('class="tile uv swap"') && sb._store['wetter:night'] === '0', G(sb,'details').innerHTML.slice(0, 120));
   sb.toggleTile('wind');
+  // Der Minutentakt schreibt wetter:night nur, wenn sich der Zustand ändert
+  const origSetItem = sb.localStorage.setItem; let nightWrites = 0;
+  sb.localStorage.setItem = (k, v) => { if (k === 'wetter:night') nightWrites++; return origSetItem(k, v); };
+  sb.updateNight('2026-09-25T14:15'); sb.updateNight('2026-09-25T14:16'); sb.updateNight('2026-09-25T14:17');
+  const writesSame = nightWrites;
+  sb.updateNight('2026-09-25T21:00'); sb.updateNight('2026-09-26T10:00');
+  sb.localStorage.setItem = origSetItem;
+  H.check('Nacht: unveränderter Zustand schreibt nichts in den Speicher, jeder Wechsel genau einmal', writesSame === 0 && nightWrites === 2 && sb._store['wetter:night'] === '0', writesSame + '/' + nightWrites);
   // Sicht statt Pollen
   const airNoPollen = JSON.parse(JSON.stringify(data.air));
   ['birch_pollen','grass_pollen','alder_pollen','mugwort_pollen','ragweed_pollen','olive_pollen'].forEach(k => { airNoPollen.current[k] = 0; airNoPollen.hourly[k] = airNoPollen.hourly[k].map(() => 0); });
@@ -728,6 +831,18 @@ function boot(opts) {
   sbV.toggleTile('sicht');
   H.check('Sicht: Feld klappt auf wie Wind und Regen', sbV.openTileKey() === 'sicht');
   sbV.toggleTile('sicht');
+  // „Pollen oder Sicht“ ausblenden trifft auch die Sicht-Kachel: sie trägt den Namen pollen, das Feld folgt, ein offenes Feld schließt
+  H.check('Sicht: Kachel trägt zum Ausblenden den Namen „pollen“ (ein Platz für Pollen oder Sicht)', detV.includes('data-tile="sicht" data-name="pollen"') && !detV.includes('data-name="sicht"') && G(sb,'details').innerHTML.includes('data-name="pollen"'), detV.match(/data-tile="sicht"[^>]*/));
+  const tileStub = (name, key) => { const e = H.el(); e.setAttribute('data-name', name); if (key) e.setAttribute('data-tile', key); return e; };
+  const sichtT = tileStub('pollen', 'sicht'), windT = tileStub('wind', 'wind');
+  const origDocQ = sbV.document.querySelectorAll;
+  sbV.document.querySelectorAll = sel => sel === '.tile[data-name]' ? [sichtT, windT] : [];
+  sbV.toggleTile('sicht');
+  sbV.setSetting('hidden', ['pollen']);
+  H.check('Sicht: Ausblenden „Pollen oder Sicht“ versteckt Kachel und Feld der Sicht und schließt das offene Feld', sichtT.classList.contains('user-hidden') && G(sbV,'tpanel-sicht').classList.contains('user-hidden') && !windT.classList.contains('user-hidden') && sbV.openTileKey() === null, [...sichtT.classList.c].join(',') + ' ' + sbV.openTileKey());
+  sbV.setSetting('hidden', []);
+  H.check('Sicht: wieder eingeblendet', !sichtT.classList.contains('user-hidden') && !G(sbV,'tpanel-sicht').classList.contains('user-hidden'));
+  sbV.document.querySelectorAll = origDocQ;
   H.check('Sicht: mit Pollen kein Sicht-Feld', !G(sb,'details').innerHTML.includes('tpanel-sicht'));
   H.check('Nebelrisiko: Stufen aus Taupunktabstand, Wind und Bewölkung, Sicht schlägt alles', sb.fogRisk(null, 1, 5, 10) === 'hoch' && sb.fogRisk(null, 2.5, 15, 50) === 'gering' && sb.fogRisk(null, 1.5, 15, 50) === 'mittel' && sb.fogRisk(500, 10, 30, 100) === 'hoch' && sb.fogRisk(3000, 10, 30, 100) === 'mittel' && sb.fogRisk(null, 1, 25, 90) === 'gering' && sb.fogRisk(null, null, null, null) === 'gering', [sb.fogRisk(null, 1, 5, 10), sb.fogRisk(null, 2.5, 15, 50), sb.fogRisk(null, 1.5, 15, 50), sb.fogRisk(500, 10, 30, 100), sb.fogRisk(3000, 10, 30, 100), sb.fogRisk(null, 1, 25, 90)].join(','));
   H.check('Sicht: mit Pollen bleibt die Pollen-Kachel', G(sb,'details').innerHTML.includes('>Pollen<') && !G(sb,'details').innerHTML.includes('>Sicht<'));
@@ -741,6 +856,10 @@ function boot(opts) {
   const fcClear = JSON.parse(JSON.stringify(fcFog)); fcClear.hourly.visibility[14] = 24140;
   H.check('Sicht: klar und trocken ergibt Risiko gering', sb.visibilityInfo(fcClear).risk === 'gering' && /^Nebelrisiko gering · Taupunkt/.test(sb.visibilityInfo(fcClear).sub), sb.visibilityInfo(fcClear).sub);
   H.check('Sicht: ohne Sichtfeld keine Kachelangaben', sb.visibilityInfo(JSON.parse(JSON.stringify(H.mockForecast())).hourly ? (() => { const f = JSON.parse(JSON.stringify(fc)); delete f.hourly.visibility; return f; })() : fc) === null);
+  // Zwei Nebelblöcke (5 bis 7 Uhr und 16 bis 17 Uhr): der Satz spannt über alle Stunden mit hohem Risiko, nicht nur den ersten Block
+  const fcFog2 = JSON.parse(JSON.stringify(fc)); fcFog2.hourly.visibility[35] = 400;   /* zweiter Block morgen 11 Uhr, noch im 24-Stunden-Fenster */
+  const fogNote = (sb.sichtPanelHtml(fcFog2).match(/<div class="tp-note">([^<]*)<\/div>/) || [])[1];
+  H.check('Sicht: Nebelsatz umfasst alle Blöcke mit hohem Risiko (5 bis 12 Uhr), Säulen beider Blöcke grau', fogNote === 'Nebelrisiko hoch morgen von 5 bis 12 Uhr: Sicht unter 1 km.' && (sb.sichtPanelHtml(fcFog2).match(/<i class="fog vb"/g) || []).length === 3, fogNote);
 
   // 8) Ansicht nach Frage
   sb.setView('overview');
@@ -761,6 +880,8 @@ function boot(opts) {
   sb.setView('warm');
   strip = G(sb,'hourly').innerHTML;
   H.check('Ansicht Wärme: Tönung nach Temperatur, gefühlt darunter, Satz, Liste wie Überblick', strip.includes('class="hcol now tc4"') && strip.includes('class="hcol tc3"') && strip.includes('<span class="v">18°</span><span class="p">gef. 17°</span>') && (strip.match(/ tc2"/g) || []).length > 0 && G(sb,'viewAnswer').textContent === 'Höchstens 20° morgen um 11 Uhr, gefühlt 19°, nachts bis 4°.' && G(sb,'daysHint').textContent === 'Tief · Hoch' && G(sb,'days').innerHTML.includes('<div class="lo">8°</div>'), G(sb,'viewAnswer').textContent);
+  // Fünf Stufen der Tönung, Grenzen einschließlich; die Regel für tc3 (8 bis 16 °C) legt modern.css an
+  H.check('Ansicht Wärme: tempClass liefert alle fünf Stufen (bis 0, bis 8, bis 16, bis 24, darüber)', sb.tempClass(-3) === ' tc1' && sb.tempClass(0) === ' tc1' && sb.tempClass(8) === ' tc2' && sb.tempClass(12) === ' tc3' && sb.tempClass(16) === ' tc3' && sb.tempClass(24) === ' tc4' && sb.tempClass(24.5) === ' tc5' && sb.tempClass(null) === '', [-3, 0, 8, 12, 16, 24, 24.5].map(t => sb.tempClass(t)).join(','));
   sb.setView('light');
   strip = G(sb,'hourly').innerHTML; days = G(sb,'days').innerHTML;
   H.check('Ansicht Licht: UV-Wert, Bewölkung, Sonnenfüllung, 22 Nachtspalten gedämpft, Satz, Liste', strip.includes('<span class="v">UV 4</span><span class="p">45 %</span>') && (strip.match(/ dark"/g) || []).length === 22 && (strip.match(/fill lfill/g) || []).length === 25 && strip.includes('--p:55%') && strip.includes('<span class="v">–</span>') && G(sb,'viewAnswer').textContent === '6 h Sonne heute, UV mittel jetzt, goldene Stunde ab 18:24.' && days.includes('<div class="pp">UV 5</div><div class="lo"></div><div class="bar"><i style="left:0.0%;width:50.5%;animation:none"></i></div><div class="hi">6 h</div>') && G(sb,'daysHint').textContent === 'UV · Sonnenstunden', G(sb,'viewAnswer').textContent);
@@ -781,6 +902,10 @@ function boot(opts) {
   H.check('Sätze Wind: kaum Wind, Höchstböe später mit Nachsatz', sb.answerWind(vCalm) === 'Kaum Wind in den nächsten 24 Stunden.' && sb.answerWind(vGust) === 'Böen bis 52 km/h aus W gegen 19 Uhr, später ruhig.', sb.answerWind(vGust));
   const vNight = clone(); vNight.current.time = '2026-09-25T22:15';
   H.check('Sätze Licht nachts: nächster Aufgang, Sonne morgen, UV', sb.answerLight(vNight) === 'Sonnenaufgang 07:12, morgen 6 h Sonne, UV mittel.', sb.answerLight(vNight));
+  // Nachts zählt der Tag nach den Lichtzeiten: vor dem Aufgang heute, nach dem Untergang morgen, auch bei spätem Aufgang um 13 Uhr
+  const vEarly = clone(); vEarly.current.time = '2026-09-25T02:15';
+  const vLate = clone(); vLate.current.time = '2026-09-25T12:15'; vLate.hourly.is_day[12] = 0; vLate.daily.sunrise[0] = '2026-09-25T13:00'; vLate.daily.uv_index_max[1] = 7;
+  H.check('Sätze Licht nachts: nach Mitternacht der heutige Aufgang, vor einem späten Aufgang (13 Uhr) ebenfalls heute', sb.answerLight(vEarly) === 'Sonnenaufgang 07:12, heute 6 h Sonne, UV mittel.' && sb.answerLight(vLate) === 'Sonnenaufgang 13:00, heute 6 h Sonne, UV mittel.', sb.answerLight(vEarly) + ' | ' + sb.answerLight(vLate));
   const vDayLow = clone(); vDayLow.hourly.temperature_2m = vDayLow.hourly.temperature_2m.map((t, i) => (i === 16 ? 2 : Math.max(t, 6)));
   H.check('Sätze Wärme: Tiefstwert am Tag mit Stunde', sb.answerWarm(vDayLow) === 'Höchstens 20° morgen um 11 Uhr, gefühlt 19°, tiefstens 2° um 16 Uhr.', sb.answerWarm(vDayLow));
   // Gespeicherte Ansicht beim Start
@@ -796,7 +921,9 @@ function boot(opts) {
   H.check('Shell: Rausgehen-Feld in index.html', idx.includes('id="activityField"') && idx.includes('id="activity"'));
   H.check('Shell: Ansicht nach Frage in index.html und Stylesheet mit Nacht-Token', idx.includes('id="views"') && idx.includes('id="viewAnswer"') && idx.includes('id="hourlyNote"') && idx.includes('id="daysHint"') && css.includes('.view-chip') && css.includes('--wfill: #BFE0C4') && css.includes('--wfill: #2F5A3A') && css.includes('.hcol.tc4:not(.now)') && css.includes('.days-field.v-light .drow .bar i') && css.includes('.vis24 i.fog') && css.includes('html.night .vis24 i.fog'));
   H.check('Shell: keine klassische Ansicht mehr verlinkt oder vorhanden', !idx.includes('klassisch.html') && !fs.existsSync(require('path').join(__dirname, '..', 'klassisch.html')) && !fs.existsSync(require('path').join(__dirname, '..', 'wetter.css')));
-  H.check('Shell: Versions-Query 20261009q an allen Asset-Links', (idx.match(/\?v=20261009q"/g) || []).length === 4 && (rad.match(/\?v=20261009q"/g) || []).length === 3, (idx.match(/\?v=\w+"/g) || []).join(','));
+  // Versions-Query: Referenz aus index.html (modern.css), dort vier css/js-Verweise und zwei Icon-Links, in radar.html drei und einer, SW_VERSION in sw.js
+  const av = H.assetVersion();
+  H.check('Shell: Versions-Query aus index.html an allen css/js-Verweisen und Icon-Links beider Seiten und in SW_VERSION', typeof av.version === 'string' && av.refs.length === 11 && av.refs.filter(r => r.asset.startsWith('icons/')).length === 3 && av.mismatches.length === 0, av.version + ' | ' + av.refs.map(r => r.file + ':' + r.asset + '=' + r.v).join(','));
   H.check('Shell: Sonnenrechnung vor den App-Skripten, Nachtklasse vor dem ersten Zeichnen', [idx, rad].every(h => h.includes('<script src="sonne.js?v=') && /wetter:night[\s\S]{0,120}classList\.add\("night"\)/.test(h) && h.indexOf('wetter:night') < h.indexOf('<link rel="stylesheet" href="modern.css')));
   H.check('Shell: Nachtpalette im Stylesheet mit Token, Hero-Farben, Fade und Kachel-Einblendung', css.includes('html.night {') && css.includes('--card:') && css.includes('--soft:') && css.includes('--wet:') && css.includes('html.night .theme-rain') && css.includes('html.fade') && css.includes('.tile.swap') && css.includes('.field.white { background: var(--card); }') && /\.tile \{[^}]*background: var\(--card\)/.test(css) && /\.hcol\.wet \{ background: var\(--wet\)/.test(css), css.match(/\.field\.white[^\n]*/));
 
@@ -821,8 +948,24 @@ function boot(opts) {
   G(sb,'settingsBody').trigger('click', { target: { closest: s => s === '.set-vis' ? { getAttribute: () => 'insight' } : null } });
   H.check('Startseite: Sichtbar-Knopf blendet wieder ein', !G(sb,'insight').classList.contains('user-hidden') && sb.settingsValue('hidden').join(',') === 'uv' && G(sb,'live').textContent === 'Eingeblendet.');
   sb.setSetting('order', []); sb.setSetting('hidden', []);
+  // Umhängen im DOM: sortierbare Felder tauschen nur untereinander die Plätze, Warnungen und Reise bleiben, wo sie sind.
+  // Der Abschnitt ist hier ein Stub mit Kinderliste wie in index.html; insertBefore/appendChild pflegen die Liste.
+  const secT = G(sb,'sec-today');
+  const secIds = ['hero', 'warnings', 'insight', 'views', 'hoursField', 'activityField', 'highlightsField', 'tripField', 'nowcastCard'];
+  let secKids = secIds.map(id => { const e = G(sb, id); e.id = id; e.parentNode = secT; return e; });
+  secT.children = secKids;
+  secT.insertBefore = (el, ref) => { secKids.splice(secKids.indexOf(el), 1); secKids.splice(secKids.indexOf(ref), 0, el); secT.children = secKids; };
+  secT.appendChild = (el) => { secKids.splice(secKids.indexOf(el), 1); secKids.push(el); secT.children = secKids; };
+  sb.setSetting('order', ['nowcastCard', 'insight']);
+  H.check('Startseite: Umhängen hält Warnungen und Reise an ihrem Platz, die sortierbaren Felder füllen ihre Plätze in der neuen Reihenfolge', secKids.map(k => k.id).join(',') === 'hero,warnings,nowcastCard,insight,views,hoursField,activityField,tripField,highlightsField', secKids.map(k => k.id).join(','));
+  sb.setSetting('order', []);
+  H.check('Startseite: Vorgabe stellt die Reihenfolge aus index.html wieder her', secKids.map(k => k.id).join(',') === secIds.join(','), secKids.map(k => k.id).join(','));
+  delete secT.children; delete secT.insertBefore; delete secT.appendChild;
+  secIds.forEach(id => { delete G(sb, id).parentNode; });
   // Reise: Zustand, Feld mit Countdown, Einstellungen, automatischer Wechsel
-  const dayAt = (n) => sb.localDate(new Date(Date.now() + n * 86400000));
+  // renderTrip und tripAutoSwitch rechnen mit nowMs(): „heute“ ist der 25.09.2026 der Testzeit
+  const dayAt = (n) => sb.localDate(new Date(H.TEST_NOW + n * 86400000));
+  H.check('Reise: Tagesbasis ist die Testzeit', dayAt(0) === '2026-09-25', dayAt(0));
   H.check('Reise: Phasen vorher, unterwegs, vorbei', JSON.stringify(sb.tripState({ from: '2026-10-14', to: '2026-10-21' }, '2026-10-09')) === '{"phase":"before","days":5}' && JSON.stringify(sb.tripState({ from: '2026-10-14', to: '2026-10-21' }, '2026-10-16')) === '{"phase":"during","days":5}' && sb.tripState({ from: '2026-10-14', to: '2026-10-21' }, '2026-10-22').phase === 'after' && sb.tripState(null, '2026-10-09') === null);
   H.check('Reise: ungültige Angaben werden verworfen', sb.normalizeSettings({ trip: { name: 'X', lat: 1, lon: 2, from: '2026-10-21', to: '2026-10-14' } }).trip === null && sb.normalizeSettings({ trip: { name: 'Lignano', lat: 45.69, lon: 13.12, from: '2026-10-14', to: '2026-10-21' } }).trip.name === 'Lignano');
   sb.setSetting('trip', { name: 'Lignano', lat: 45.69, lon: 13.12, from: dayAt(5), to: dayAt(12) });
@@ -856,9 +999,14 @@ function boot(opts) {
   // Regenradar als Blatt
   H.check('Radar: Blatt mit Rahmen in index.html, Tab als Dialogöffner, Vollbild-Link, Radarseite kennt den Einbettungsmodus', idxA.includes('id="radarSheet" role="dialog"') && idxA.includes('<iframe id="radarFrame" title="Regenradar"') && idxA.includes('id="radarTab" aria-label="Radar" aria-haspopup="dialog"') && idxA.includes('class="src-link radar-full" href="radar.html">Vollbild</a>') && radarA.includes('document.documentElement.classList.add("embed")') && radarA.includes('html.embed .rshell .top, html.embed .tabs { display: none; }') && cssA.includes('body.radar-open #radarSheet { transform: none; }'));
   G(sb,'radarTab').trigger('click', { preventDefault() { this.prevented = true; } });
-  H.check('Radar: Tipp auf den Tab öffnet das Blatt, der Rahmen lädt die eingebettete Radarseite, Ansage', sb.document.body.classList.contains('radar-open') && G(sb,'radarFrame').src === 'radar.html?embed=1' && G(sb,'radarTab').getAttribute('aria-expanded') === 'true' && G(sb,'live').textContent === 'Regenradar geöffnet.', G(sb,'radarFrame').src);
+  H.check('Radar: Tipp auf den Tab öffnet das Blatt, der Rahmen lädt die eingebettete Radarseite mit Nachtzustand, Ansage', sb.document.body.classList.contains('radar-open') && G(sb,'radarFrame').src === 'radar.html?embed=1&night=0' && G(sb,'radarTab').getAttribute('aria-expanded') === 'true' && G(sb,'live').textContent === 'Regenradar geöffnet.', G(sb,'radarFrame').src);
   sb.closeRadar();
   H.check('Radar: Schließen, Fokus zurück auf den Tab', !sb.document.body.classList.contains('radar-open') && G(sb,'radarTab').focused === true);
+  // Nachtwechsel: der geladene Rahmen bekommt den neuen Parameter (lädt neu), die Adresse folgt dem Zustand
+  sb.updateNight('2026-09-25T21:00');
+  const radarNight = G(sb,'radarFrame').src;
+  sb.updateNight('2026-09-26T10:00');
+  H.check('Radar: Nachtwechsel setzt night=1 am geladenen Rahmen, der Morgen wieder night=0', radarNight === 'radar.html?embed=1&night=1' && G(sb,'radarFrame').src === 'radar.html?embed=1&night=0' && sb.radarEmbedUrl() === 'radar.html?embed=1&night=0', radarNight + ' | ' + G(sb,'radarFrame').src);
 
   // Regen-Alarm: Abschnitt, Unterstützung, Abonnement-Nutzlast, Schlüssel
   sb.openSettings();
@@ -867,10 +1015,59 @@ function boot(opts) {
   sb.closeSettings();
   sb.setSetting('push', true);
   sb.openSettings();
-  H.check('Regen-Alarm: mit eingeschaltetem Alarm gibt es den Knopf für die Probenachricht', G(sb,'settingsBody').innerHTML.includes('id="pushTest">Probenachricht senden</button>') && G(sb,'settingsBody').innerHTML.includes('id="pushTestMsg"'));
+  // Der Knopf für die Probenachricht erscheint nur, wenn Push unterstützt wird und der Alarm an ist; ohne Unterstützung bleibt er weg
+  H.check('Regen-Alarm: ohne Push-Unterstützung kein Knopf für die Probenachricht, auch mit eingeschaltetem Alarm', !G(sb,'settingsBody').innerHTML.includes('id="pushTest"') && !G(sb,'settingsBody').innerHTML.includes('id="pushTestMsg"'), G(sb,'settingsBody').innerHTML.slice(G(sb,'settingsBody').innerHTML.indexOf('Regen-Alarm'), G(sb,'settingsBody').innerHTML.indexOf('Regen-Alarm') + 300));
   H.check('Regen-Alarm: Probenachricht ohne Push-Unterstützung meldet das statt zu scheitern', (await sb.testPush()) === false && G(sb,'live').textContent === 'Hier nicht möglich, bitte in der Homescreen-App.', G(sb,'live').textContent);
   sb.closeSettings();
   sb.setSetting('push', false);
+  // Push-Unterstützung nachgestellt: Service Worker, PushManager und Notification als Stubs; der Worker antwortet je nach Modus
+  let pushMode = 'ok'; const pushLog = [];
+  const pushFetch = async (url, init) => {
+    if (String(url).includes('/push/')) { pushLog.push(String(url).slice(String(url).indexOf('/push/'))); if (pushMode === 'down') throw new Error('offline'); return { ok: true, status: 200, json: async () => ({ ok: true }) }; }
+    return H.okFetch(data)(url);
+  };
+  const subStub = { endpoint: 'https://push.example/abc', unsubscribed: 0, unsubscribe: async function () { this.unsubscribed++; return true; }, toJSON: function () { return { endpoint: this.endpoint, keys: { p256dh: 'a', auth: 'b' } }; } };
+  let subscribeCalls = 0, haveSub = false;
+  const pushEnv = s => {
+    s.navigator.serviceWorker = { ready: Promise.resolve({ pushManager: { getSubscription: async () => (haveSub ? subStub : null), subscribe: async () => { subscribeCalls++; haveSub = true; return subStub; } } }) };
+    s.PushManager = function () {}; s.Notification = { requestPermission: async () => 'granted' };
+  };
+  const sbN = boot({ fetchImpl: pushFetch, geolocation: denied });
+  await wait(300);
+  pushEnv(sbN);
+  H.check('Regen-Alarm: ohne geladenen Ort wird nicht abonniert, Hinweis statt verwaistem Abonnement', sbN.pushSupported() && (await sbN.enablePush()) === false && subscribeCalls === 0 && pushLog.length === 0 && G(sbN,'live').textContent === 'Noch kein Ort geladen.' && sbN.settingsValue('push') === false, G(sbN,'live').textContent + ' ' + subscribeCalls);
+  const sbP = boot({ fetchImpl: pushFetch, geolocation: granted });
+  await wait(300);
+  pushEnv(sbP);
+  H.check('Regen-Alarm: mit Ort wird abonniert und beim Worker angemeldet', (await sbP.enablePush()) === true && subscribeCalls === 1 && pushLog.join(',') === '/push/subscribe' && sbP.settingsValue('push') === true && sbP.settingsValue('pushLoc').lat === 48.137, pushLog.join(',') + ' ' + G(sbP,'live').textContent);
+  sbP.openSettings();
+  H.check('Regen-Alarm: mit Unterstützung und eingeschaltetem Alarm gibt es den Knopf für die Probenachricht', G(sbP,'settingsBody').innerHTML.includes('id="pushTest">Probenachricht senden</button>') && G(sbP,'settingsBody').innerHTML.includes('id="pushTestMsg"'));
+  sbP.closeSettings();
+  pushMode = 'down';
+  H.check('Regen-Alarm: scheitert die Abmeldung beim Worker, bleibt der Versuch vorgemerkt, der Alarm ist lokal aus', (await sbP.disablePush()) === true && subStub.unsubscribed === 1 && sbP.settingsValue('push') === false && sbP.settingsValue('pushUnsub') === 'https://push.example/abc' && /wiederholt/.test(G(sbP,'live').textContent) && !G(sbP,'settingsBody').innerHTML.includes('id="pushTest"'), G(sbP,'live').textContent + ' ' + sbP.settingsValue('pushUnsub'));
+  pushMode = 'ok'; const unsubBefore = pushLog.length;
+  await sbP.syncPush();
+  H.check('Regen-Alarm: der nächste Abgleich holt die Abmeldung nach und löscht die Vormerkung', pushLog.length === unsubBefore + 1 && pushLog[unsubBefore] === '/push/unsubscribe' && !sbP.settingsValue('pushUnsub') && sbP.settingsValue('push') === false, pushLog.slice(unsubBefore).join(',') + ' ' + sbP.settingsValue('pushUnsub'));
+  haveSub = true;
+  H.check('Regen-Alarm: gelingt die Abmeldung, bleibt nichts vorgemerkt', (await sbP.enablePush()) === true && (await sbP.disablePush()) === true && !sbP.settingsValue('pushUnsub') && G(sbP,'live').textContent === 'Regen-Alarm ausgeschaltet.', G(sbP,'live').textContent);
+  // Abmeldung beim Worker gescheitert und das Browser-Abonnement blieb stehen (der Stub lässt unsubscribe wirkungslos):
+  // Wiedereinschalten meldet dasselbe Abonnement an und räumt die Vormerkung; der Abgleich darf es nicht beim Worker löschen
+  haveSub = true; await sbP.enablePush();
+  pushMode = 'down'; await sbP.disablePush();
+  const markedAgain = sbP.settingsValue('pushUnsub');
+  pushMode = 'ok'; const reBefore = pushLog.length;
+  const reOn = await sbP.enablePush();
+  const clearedByEnable = sbP.settingsValue('pushUnsub');   /* schon enablePush räumt, nicht erst der Abgleich */
+  await sbP.syncPush();
+  H.check('Regen-Alarm: Wiedereinschalten mit stehendem Abonnement räumt die vorgemerkte Abmeldung, der Abgleich löscht das Abonnement nicht', markedAgain === 'https://push.example/abc' && reOn === true && clearedByEnable === null && sbP.settingsValue('push') === true && sbP.settingsValue('pushUnsub') === null && pushLog.slice(reBefore).join(',') === '/push/subscribe', pushLog.slice(reBefore).join(',') + ' ' + sbP.settingsValue('pushUnsub'));
+  // Vormerkung aus einer älteren Fassung (Alarm an, aktives Abonnement mit demselben Endpunkt): der Abgleich verwirft sie ohne Aufruf
+  sbP.setSetting('pushUnsub', 'https://push.example/abc'); const staleBefore = pushLog.length;
+  await sbP.syncPush();
+  H.check('Regen-Alarm: Abgleich verwirft eine Vormerkung für das aktive Abonnement, statt es beim Worker zu löschen', sbP.settingsValue('pushUnsub') === null && pushLog.length === staleBefore && sbP.settingsValue('push') === true, pushLog.slice(staleBefore).join(',') + ' ' + sbP.settingsValue('pushUnsub'));
+  sbP.setSetting('pushUnsub', 'https://push.example/alt'); const altBefore = pushLog.length;
+  await sbP.syncPush();
+  H.check('Regen-Alarm: Vormerkung für einen anderen Endpunkt wird weiter nachgeholt', pushLog.slice(altBefore).join(',') === '/push/unsubscribe' && sbP.settingsValue('pushUnsub') === null, pushLog.slice(altBefore).join(','));
+  await sbP.disablePush();
   H.check('Regen-Alarm: Nutzlast für den Worker und Schlüsselumwandlung', JSON.stringify(sb.pushBody({ endpoint: 'https://x', keys: { p256dh: 'a', auth: 'b' } }, { lat: 45.69, lon: 13.12, name: 'Lignano' })) === '{"subscription":{"endpoint":"https://x","keys":{"p256dh":"a","auth":"b"}},"lat":45.69,"lon":13.12,"name":"Lignano"}' && sb.urlBase64ToUint8Array(sb.pushPublicKey()).length === 65 && sb.urlBase64ToUint8Array(sb.pushPublicKey())[0] === 4, sb.pushPublicKey());
   H.check('Regen-Alarm: öffentlicher Schlüssel in App und Worker-Konfiguration identisch', fs.readFileSync(require('path').join(__dirname, '..', 'proxy', 'wrangler.toml'), 'utf8').includes('VAPID_PUBLIC_KEY = "' + sb.pushPublicKey() + '"') && /crons = \["\*\/15 \* \* \* \*"\]/.test(fs.readFileSync(require('path').join(__dirname, '..', 'proxy', 'wrangler.toml'), 'utf8')));
 
@@ -880,7 +1077,17 @@ function boot(opts) {
   const tl0 = sb.filmTimeline(0), tl5 = sb.filmTimeline(5), tl10 = sb.filmTimeline(10);
   H.check('Tagesfilm: Zeitplan, Szenen überlagern sich weich und enden nach zehn Sekunden', tl0.title === 0 && tl0.arc === 0 && tl5.title === 1 && tl5.arc === 1 && tl5.temp > 0 && tl5.temp < 1 && tl5.rain === 0 && tl10.outro === 1 && tl10.done === true && !tl5.done, JSON.stringify(tl5));
   H.check('Tagesfilm: Format nach Unterstützung, Safari MP4 vor WebM, sonst nichts', sb.filmMime(m => m === 'video/mp4') === 'video/mp4' && sb.filmMime(m => m.startsWith('video/webm')) === 'video/webm;codecs=vp9' && sb.filmMime(() => false) === null && sb.filmMime(m => m === 'video/mp4;codecs=avc1' || m === 'video/webm') === 'video/mp4;codecs=avc1');
-  H.check('Tagesfilm: ohne Zeichenfläche kein Film, keine Begrüßung, kein Fehler', sb.openFilm() === false && sb.maybeAutoFilm() === false);
+  H.check('Tagesfilm: ohne Zeichenfläche kein Film, keine Begrüßung, kein Fehler, Tagesmerker bleibt leer', sb.openFilm() === false && sb.maybeAutoFilm() === false && sb.settingsValue('filmShown') === null, sb.settingsValue('filmShown'));
+  // Zähler des Films: in °F von 0° aus auf den Zielwert, nicht von 32° (erst umrechnen, dann anteilig zählen)
+  const filmCalls = [], ctxStub = { clearRect() {}, fillRect() {}, fillText(t) { filmCalls.push(t); }, beginPath() {}, arc() {}, stroke() {}, fill() {}, moveTo() {}, lineTo() {} };
+  sb.setSetting('temp', 'F');
+  sb.filmFrame(ctxStub, scF, 3.55, sb.filmColors());
+  const earlyF = filmCalls.filter(t => /^\d+°$/.test(t));
+  filmCalls.length = 0;
+  sb.filmFrame(ctxStub, scF, 10, sb.filmColors());
+  const endF = filmCalls.filter(t => /^\d+°$/.test(t));
+  sb.setSetting('temp', 'C');
+  H.check('Tagesfilm: Zähler in °F beginnt nahe 0° und endet bei 63° (17,4 °C)', earlyF.length === 1 && parseInt(earlyF[0], 10) < 10 && endF[0] === '63°', earlyF.join(',') + ' | ' + endF.join(','));
   sb.setSetting('dayfilm', false);
   H.check('Tagesfilm: Begrüßung aus, Einstellung gespeichert', sb.maybeAutoFilm() === false && sb._store['wetter:settings'].includes('"dayfilm":false'));
   sb.setSetting('dayfilm', true);
@@ -903,7 +1110,7 @@ function boot(opts) {
   sb.renderSettings();
   const setV = G(sb,'settingsBody').innerHTML;
   H.check('VoiceOver: Sichtbar-Schalter nennen ihr Feld', /<button type="button" class="set-vis" data-id="insight" aria-pressed="true" aria-label="Hinweis sichtbar">Sichtbar<\/button>/.test(setV) && /class="set-vis" data-id="uv" aria-pressed="true" aria-label="UV-Index sichtbar"/.test(setV), (setV.match(/class="set-vis"[^>]*>/g) || []).slice(0, 2).join('\n'));
-  H.check('Radar-Blatt: eingebettete Seite mit der Versions-Query des Skripts', sb.radarEmbedUrl() === 'radar.html?embed=1' && (sb.ASSET_VERSION = 'test1', sb.radarEmbedUrl() === 'radar.html?embed=1&v=test1') && (sb.ASSET_VERSION = '', true), sb.radarEmbedUrl());
+  H.check('Radar-Blatt: eingebettete Seite mit Nachtzustand und der Versions-Query des Skripts', sb.radarEmbedUrl() === 'radar.html?embed=1&night=0' && (sb.ASSET_VERSION = 'test1', sb.radarEmbedUrl() === 'radar.html?embed=1&night=0&v=test1') && (sb.ASSET_VERSION = '', true), sb.radarEmbedUrl());
   H.check('VoiceOver: Live-Region am Seitenende, Fußzeilen-Trenner stumm, Tage-Knopf mit aria-expanded', idxA.indexOf('id="live"') > idxA.indexOf('</footer>') && (idxA.match(/<span aria-hidden="true"> · <\/span>/g) || []).length === 5 && /<button type="button" class="days-more" id="daysMore" aria-expanded="false">/.test(G(sb,'days').innerHTML));
 
   /* Rückkanal: Blatt, Senden an den Worker, Antworten, Warteschlange ohne Netz, Metadaten */
@@ -914,6 +1121,8 @@ function boot(opts) {
       fbLog.push({ url: String(url), init });
       if (fbMode === 'down') throw new Error('offline');
       if (fbMode === '429') return { ok: false, status: 429, json: async () => ({ error: 'zu viele' }) };
+      if (fbMode === '400') return { ok: false, status: 400, json: async () => ({ error: 'ungültig' }) };
+      if (fbMode === '500') return { ok: false, status: 500, json: async () => ({ error: 'kaputt' }) };
       return { ok: true, status: 200, json: async () => ({ ok: true, id: 'fb:1' }) };
     }
     return H.okFetch(data)(url);
@@ -927,6 +1136,7 @@ function boot(opts) {
   sbB.openFeedback(null);
   const fbHtml = FB('fbBody').innerHTML;
   H.check('Rückmeldung: Blatt mit Art-Chips (Idee vorgewählt), Textfeld, Namensfeld, Senden und Hinweis', sbB.document.body.classList.contains('fb-open') && /class="set-chip fb-kind" data-kind="idee" aria-pressed="true"/.test(fbHtml) && /data-kind="fehler" aria-pressed="false"/.test(fbHtml) && /<textarea id="fbText"[^>]*maxlength="2000"/.test(fbHtml) && /<input[^>]*id="fbName"[^>]*maxlength="40"/.test(fbHtml) && fbHtml.includes('id="fbSend">Senden</button>') && fbHtml.includes('nach 90 Tagen gelöscht') && fbHtml.includes('Kein Ort, keine Koordinaten'), fbHtml.slice(0, 300));
+  H.check('Rückmeldung: Fußnote und Einstellungen nennen Gerät und Browser, weil der User-Agent mitgeht', fbHtml.includes('Mitgeschickt werden App-Version, Gerät und Browser (User-Agent), Bildschirmbreite') && G(sbB,'settingsBody').innerHTML.includes('Mitgeschickt werden nur Version, Gerät und Browser, kein Ort.'), fbHtml.slice(fbHtml.indexOf('Mitgeschickt'), fbHtml.indexOf('Mitgeschickt') + 90));
   FB('fbText').value = 'Hi';
   await sbB.sendFeedback();
   H.check('Rückmeldung: zu kurzer Text wird nicht gesendet', fbLog.length === 0 && FB('fbMsg').textContent === 'Bitte ein paar Worte mehr.', FB('fbMsg').textContent);
@@ -936,7 +1146,7 @@ function boot(opts) {
   await sbB.sendFeedback();
   const sent1 = fbLog.length ? JSON.parse(fbLog[0].init.body) : null;
   const fbState = JSON.parse(sbB._store['wetter:feedback'] || '{}');
-  H.check('Rückmeldung: Senden schickt Text, Art, Name, Kennung und Metadaten; Dank, Name gemerkt, Feld geleert', fbLog.length === 1 && fbLog[0].url.endsWith('/feedback') && fbLog[0].init.method === 'POST' && sent1 && sent1.text === 'Der Regenbalken ist mir zu klein.' && sent1.kind === 'fehler' && sent1.name === 'Anna' && /^[a-z0-9]{16}$/.test(sent1.id) && sent1.id === fbState.id && typeof sent1.meta.ua === 'string' && typeof sent1.meta.ts === 'string' && sent1.meta.view === 'overview' && typeof sent1.meta.standalone === 'boolean' && FB('fbMsg').textContent === 'Danke, angekommen.' && FB('fbText').value === '' && fbState.name === 'Anna' && G(sbB,'live').textContent === 'Rückmeldung gesendet.', JSON.stringify(sent1) + ' | ' + FB('fbMsg').textContent);
+  H.check('Rückmeldung: Senden schickt Text, Art, Name, Kennung und Metadaten; Dank, Name gemerkt, Feld geleert', fbLog.length === 1 && fbLog[0].url.endsWith('/feedback') && fbLog[0].init.method === 'POST' && sent1 && sent1.text === 'Der Regenbalken ist mir zu klein.' && sent1.kind === 'fehler' && sent1.name === 'Anna' && /^[a-z0-9]{16}$/.test(sent1.id) && sent1.id === fbState.id && typeof sent1.meta.ua === 'string' && sent1.meta.ts === new Date(H.TEST_NOW).toISOString() && sent1.meta.view === 'overview' && typeof sent1.meta.standalone === 'boolean' && FB('fbMsg').textContent === 'Danke, angekommen.' && FB('fbText').value === '' && fbState.name === 'Anna' && G(sbB,'live').textContent === 'Rückmeldung gesendet.', JSON.stringify(sent1) + ' | ' + FB('fbMsg').textContent);
   fbMode = '429';
   FB('fbText').value = 'Noch eine Idee für die Stundenleiste.';
   await sbB.sendFeedback();
@@ -948,6 +1158,22 @@ function boot(opts) {
   fbMode = 'ok'; const fbBefore = fbLog.length;
   await sbB.flushFeedbackQueue();
   H.check('Rückmeldung: Warteschlange wird nachgeschickt und geleert', fbLog.length === fbBefore + 1 && JSON.parse(sbB._store['wetter:feedback']).queue.length === 0 && JSON.parse(fbLog[fbBefore].init.body).text === 'Noch eine Idee für die Stundenleiste.', fbLog.length - fbBefore);
+  // Serverfehler (5xx) warten auf später; 4xx außer 429 ist ein Fehler der Nachricht, der Text bleibt zum Prüfen stehen
+  fbMode = '500';
+  FB('fbText').value = 'Der Worker stolpert gerade.';
+  await sbB.sendFeedback();
+  const q500 = JSON.parse(sbB._store['wetter:feedback']).queue;
+  H.check('Rückmeldung: 5xx vom Worker reiht ein und sagt „später erneut“, Feld geleert', q500.length === 1 && q500[0].text === 'Der Worker stolpert gerade.' && FB('fbMsg').textContent === 'Der Worker antwortet gerade nicht. Die Rückmeldung ist gespeichert und wird später erneut gesendet.' && FB('fbText').value === '', FB('fbMsg').textContent + ' ' + q500.length);
+  fbMode = '400';
+  FB('fbText').value = 'Abgelehnter Text.';
+  await sbB.sendFeedback();
+  H.check('Rückmeldung: 400 vom Worker wird als Fehler gezeigt, nicht eingereiht, Text bleibt stehen', JSON.parse(sbB._store['wetter:feedback']).queue.length === 1 && FB('fbMsg').textContent === 'Der Worker hat die Rückmeldung abgelehnt (HTTP 400), bitte den Text prüfen.' && FB('fbText').value === 'Abgelehnter Text.', FB('fbMsg').textContent);
+  // Beim Nachschicken verworfene Einträge werden angesagt und beim nächsten Öffnen des Blatts gezeigt
+  await sbB.flushFeedbackQueue();
+  H.check('Rückmeldung: vom Worker abgelehnter Wartelisteneintrag wird verworfen und gemeldet', JSON.parse(sbB._store['wetter:feedback']).queue.length === 0 && JSON.parse(sbB._store['wetter:feedback']).dropped === 1 && G(sbB,'live').textContent === '1 gespeicherte Rückmeldung hat der Worker abgelehnt, sie wurde verworfen.', G(sbB,'live').textContent);
+  sbB.openFeedback(null);
+  H.check('Rückmeldung: Hinweis auf die verworfene Rückmeldung im Blatt, danach gelöscht', FB('fbBody').innerHTML.includes('<div class="fb-msg">1 gespeicherte Rückmeldung hat der Worker abgelehnt, sie wurde verworfen.</div>') && !JSON.parse(sbB._store['wetter:feedback']).dropped, FB('fbBody').innerHTML.slice(FB('fbBody').innerHTML.indexOf('fb-msg'), FB('fbBody').innerHTML.indexOf('fb-msg') + 120));
+  fbMode = 'ok';
   sbB.closeFeedback();
   H.check('Rückmeldung: Schließen entfernt die Klasse', !sbB.document.body.classList.contains('fb-open'));
   H.check('Rückmeldung: letzter Fehlertext wandert in die Metadaten', /nicht geladen werden|Keine Verbindung/.test(sbF.feedbackMeta().lastError) && sbB.feedbackMeta().lastError === '', sbF.feedbackMeta().lastError);

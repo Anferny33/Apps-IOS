@@ -56,14 +56,15 @@ function svgIcon(code, isDay, cls) {
     return '<svg class="' + (cls || "") + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + body + '</svg>';
 }
 
-/* Großes Hero-Icon aus Ebenen (Sterne, Sonne, Mond, Wolken, Regen, Schnee, Blitz).
+/* Großes Hero-Icon aus Ebenen (Sterne, Sonne, Mond, Wolken, Regen, Schnee, Blitz, Nebel).
    Welche Ebenen sichtbar sind und wie sie beim Öffnen hereinfahren, regelt das
    Stylesheet über die Klasse wx-<lage>; Farben kommen ebenfalls aus dem Stylesheet. */
 function heroKind(code, isDay) {
     const day = isDay !== 0;
     if (code === 0 || code === 1) return day ? "sonnig" : "nacht";
     if (code === 2) return day ? "teils" : "teilsnacht";
-    if (code === 3 || code === 45 || code === 48) return "bewoelkt";
+    if (code === 3) return "bewoelkt";
+    if (code === 45 || code === 48) return "nebel";
     if (code >= 71 && code <= 77 || code === 85 || code === 86) return "schnee";
     if (code >= 95) return "gewitter";
     if (code >= 51 && code <= 82) return "regen";
@@ -71,7 +72,10 @@ function heroKind(code, isDay) {
 }
 
 function heroIcon(code, isDay) {
-    return '<svg class="big-icon wx wx-' + heroKind(code, isDay) + '" viewBox="0 0 96 96" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    const kind = heroKind(code, isDay);
+    /* Nebellinien unter der Wolke gibt es nur in der Lage nebel (Klasse fog für das Stylesheet) */
+    const fog = kind === "nebel" ? '<g class="fog"><line x1="30" y1="86" x2="78" y2="86"/><line x1="22" y1="91" x2="66" y2="91"/><line x1="36" y1="96" x2="84" y2="96"/></g>' : '';
+    return '<svg class="big-icon wx wx-' + kind + '" viewBox="0 0 96 96" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
         '<g class="stars"><circle cx="16" cy="18" r="2"/><circle cx="80" cy="14" r="1.6"/><circle cx="86" cy="42" r="2.2"/><circle cx="12" cy="50" r="1.6"/></g>' +
         '<g class="sun"><g class="rays"><path d="M34 10v7M34 55v7M8 36h7M53 36h7M15.6 17.6l5 5M47.4 49.4l5 5M15.6 54.4l5-5M47.4 22.6l5-5"/></g><circle cx="34" cy="36" r="13"/></g>' +
         '<g class="moon"><path d="M52 18a24 24 0 1 0 22 36a19 19 0 0 1-22-36z"/></g>' +
@@ -80,6 +84,7 @@ function heroIcon(code, isDay) {
         '<g class="drops"><line x1="50" y1="86" x2="48" y2="92"/><line x1="61" y1="86" x2="59" y2="92"/><line x1="72" y1="86" x2="70" y2="92"/></g>' +
         '<g class="flakes"><circle cx="50" cy="88" r="2.6"/><circle cx="61" cy="88" r="2.6"/><circle cx="72" cy="88" r="2.6"/></g>' +
         '<g class="bolt"><path d="M62 70l-8 13h6l-3 11 10-15h-6l3-9z"/></g>' +
+        fog +
         '</svg>';
 }
 
@@ -353,9 +358,8 @@ function startCounters(root) {
 }
 let lastCountsPrev = null;
 
+/* Nur die Icons, die das Markup auch nutzt (Hinweis-Feld, Warnungen) */
 const UI = {
-    pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
-    refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>',
     umbrella: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 18 0z"/><path d="M12 12v7a2 2 0 0 0 4 0"/></svg>',
     /* Schirm, der sich aufspannt, danach fällt leichter Regen darauf (Bewegung im Stylesheet) */
     umbrellaRain: '<svg class="umb" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="overflow:visible">' +
@@ -363,16 +367,7 @@ const UI = {
         '<path class="umb-shaft" d="M12 12v7a2 2 0 0 0 4 0"/>' +
         '<path class="umb-canopy" d="M3 12a9 9 0 0 1 18 0z"/></svg>',
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>',
-    clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
-    cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
-    grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>',
-    radar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 3v9l6-6"/></svg>',
-    wind: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 8h11a3 3 0 1 0-3-3M3 14h14a3 3 0 1 1-3 3M3 11h6"/></svg>',
-    sunUp: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 18h16M6 14a6 6 0 0 1 12 0M12 3v3M4.9 7.9l1.4 1.4M19.1 7.9l-1.4 1.4"/></svg>',
     drop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3s6 7 6 11a6 6 0 0 1-12 0c0-4 6-11 6-11z"/></svg>',
-    gauge: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 16a8 8 0 1 1 16 0"/><path d="M12 16l4-5"/></svg>',
-    leaf: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 19c0-8 5-13 14-14-1 9-6 14-14 14z"/><path d="M5 19l7-7"/></svg>',
-    layers: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>',
     alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5L2.5 20h19L12 3.5z"/><path d="M12 10v4.5"/><circle cx="12" cy="17.3" r="0.6" fill="currentColor"/></svg>',
     chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
     megaphone: '<svg class="wave" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10v4a1 1 0 0 0 1 1h3l6 4V5L7 9H4a1 1 0 0 0-1 1z"/><path class="w1" d="M16.5 8.5a5 5 0 0 1 0 7"/><path class="w2" d="M19.5 6a9 9 0 0 1 0 12"/></svg>'
@@ -462,8 +457,10 @@ function heroChipsHtml(f, intro) {
     };
     let out = "";
     if (f.now) {
-        if (f.hi !== null) out += chip("Hoch " + tmp(f.hi) + "°", 0.5) + chip("Tief " + tmp(f.lo) + "°", 0.58);
-        out += chip("Gefühlt " + tmp(f.apparent) + "°", 0.66);
+        /* Fehlende Werte bleiben weg; tmp(null) ergäbe sonst „0°“ */
+        if (isNum(f.hi)) out += chip("Hoch " + tmp(f.hi) + "°", 0.5);
+        if (isNum(f.lo)) out += chip("Tief " + tmp(f.lo) + "°", 0.58);
+        if (isNum(f.apparent)) out += chip("Gefühlt " + tmp(f.apparent) + "°", 0.66);
         if (f.yday) out += chip(f.yday, 0.74);
     } else {
         if (isNum(f.apparent)) out += chip("Gefühlt " + tmp(f.apparent) + "°", 0);
@@ -1122,7 +1119,10 @@ function answerLight(fc) {
     const sunH = function (i) { return d.sunshine_duration && isNum(d.sunshine_duration[i]) ? Math.round(d.sunshine_duration[i] / 3600) : null; };
     const dayNow = h.is_day ? h.is_day[s] === 1 : true;
     if (!dayNow) {
-        const idx = parseInt(h.time[s].slice(11, 13), 10) < 12 ? 0 : 1, dw = idx ? "morgen" : "heute";
+        /* Nach Mitternacht und vor dem Aufgang zählt der heutige Tag, nach dem Untergang der nächste: Lichtzeiten statt fester Uhrzeit */
+        const di = Math.max(0, d.time ? d.time.indexOf(dayOf(h.time[s])) : 0);
+        const rise = minutesOf(d.sunrise && d.sunrise[di]);
+        const idx = rise !== null && minutesOf(h.time[s]) < rise ? di : di + 1, dw = idx === di ? "heute" : "morgen";
         const lv = uvLevel(d.uv_index_max ? d.uv_index_max[idx] : null);
         return "Sonnenaufgang " + hhmm(d.sunrise && d.sunrise[idx]) + (sunH(idx) !== null ? ", " + dw + " " + sunH(idx) + " h Sonne" : "") + (lv ? ", UV " + lv.word : "") + ".";
     }
@@ -1300,7 +1300,8 @@ var ASSET_VERSION = (function () {
     const m = s && s.src ? /[?&]v=(\w+)/.exec(s.src) : null;
     return m ? m[1] : "";
 })();
-function radarEmbedUrl() { return "radar.html?embed=1" + (ASSET_VERSION ? "&v=" + ASSET_VERSION : ""); }
+/* night: aktueller Nachtzustand der Startseite, damit das eingebettete Radar dieselbe Palette zeigt */
+function radarEmbedUrl() { return "radar.html?embed=1&night=" + (nightOn ? "1" : "0") + (ASSET_VERSION ? "&v=" + ASSET_VERSION : ""); }
 
 function openRadar() {
     const sheet = D("radarSheet"), frame = D("radarFrame");
@@ -1678,7 +1679,8 @@ let tileCounts = null;   /* Zählerziele der zuletzt gebauten Kacheln, in Reihen
 function tile(cls, title, big, sub, opts) {
     opts = opts || {};
     const count = isNum(opts.count) ? ' data-count="' + Number(opts.count.toFixed(opts.decimals || 0)) + '" data-decimals="' + (opts.decimals || 0) + '"' : '';
-    const key = (opts.key ? ' data-tile="' + opts.key + '"' : '') + ' data-name="' + (opts.key || TILE_SLUGS[title] || "") + '"';
+    /* data-name zum Ausblenden: der Platzname aus der Tabelle geht vor (Sicht teilt sich den Platz mit Pollen), sonst der Feldschlüssel */
+    const key = (opts.key ? ' data-tile="' + opts.key + '"' : '') + ' data-name="' + (TILE_SLUGS[title] || opts.key || "") + '"';
     const toggle = opts.key ? '<button type="button" class="t-toggle" aria-expanded="false" aria-controls="tpanel-' + opts.key + '" aria-label="' + title + ': Details anzeigen"></button>' : '';
     if (isNum(opts.count) && tileCounts) tileCounts.push({ label: title, target: Number(opts.count.toFixed(opts.decimals || 0)) });
     /* still: beim leisen Neubau stehen unveränderte Kacheln; swap: die getauschte blendet ein */
@@ -1729,15 +1731,17 @@ function sunArc(c, d) {
         '</svg>';
 }
 
-/* Tropfen, der sich bis zur Luftfeuchte füllt */
+/* Tropfen, der sich bis zur Luftfeuchte füllt; jede Maske bekommt eine eigene ID, damit sich mehrere Tropfen auf einer Seite nicht stören */
+let dropClipSeq = 0;
 function dropIcon(humidity) {
     const y = isNum(humidity) ? 2 + (1 - Math.max(0, Math.min(100, humidity)) / 100) * 26 : 30;
     const shape = 'M12 2c5 7 9 12 9 17a9 9 0 0 1-18 0c0-5 4-10 9-17z';
+    const clipId = "dropclip" + (++dropClipSeq);
     /* Die Maske liegt auf einer ruhenden Gruppe; nur das Rechteck darin steigt. Läge die
        Maske auf dem Rechteck selbst, würde sie mitwandern und das Wasser aus dem Tropfen laufen. */
     return '<svg class="drop-ico" viewBox="0 0 24 30" width="20" height="26" fill="none" stroke-width="2" stroke-linejoin="round" aria-hidden="true">' +
-        '<clipPath id="dropclip"><path d="' + shape + '"/></clipPath>' +
-        '<g clip-path="url(#dropclip)"><rect x="0" y="' + y.toFixed(1) + '" width="24" height="30" stroke="none"/></g>' +
+        '<clipPath id="' + clipId + '"><path d="' + shape + '"/></clipPath>' +
+        '<g clip-path="url(#' + clipId + ')"><rect x="0" y="' + y.toFixed(1) + '" width="24" height="30" stroke="none"/></g>' +
         '<path d="' + shape + '"/></svg>';
 }
 
@@ -2069,13 +2073,14 @@ function visibilityInfo(fc) {
 /* Instrument-Feld Sicht: Säulen der Sichtweite (bis 20 km) für 24 Stunden, Nebelstunden grau, Satz zum Risiko */
 function sichtPanelHtml(fc) {
     const h = fc.hourly, w = hourlyWindow(fc, 24);
-    let bars = "", labels = "", first = -1, last = -1, worst = -1;
+    let bars = "", labels = "", first = -1, last = -1;
     for (let i = w.start; i < w.end; i++) {
         const v = h.visibility && isNum(h.visibility[i]) ? h.visibility[i] : null;
         const cls = v !== null && v < 1000 ? "fog " : (v !== null && v < 4000 ? "haze " : "");
         bars += '<i class="' + cls + 'vb" style="height:' + (v === null ? 3 : Math.max(6, Math.round(Math.min(v, 20000) / 20000 * 100))) + '%"></i>';
         if ((i - w.start) % 3 === 0) labels += '<span><b>' + hhmm(h.time[i]).slice(0, 2) + '</b>' + (v === null ? '–' : (v >= 1000 ? Math.round(v / 1000) + ' km' : Math.round(v) + ' m')) + '</span>';
-        if (fogRiskAt(fc, i) === "hoch") { if (first < 0) first = i; if (first >= 0 && last === i - 1 || last < 0) last = i; if (worst < 0) worst = i; }
+        /* Der Satz spannt von der ersten bis zur letzten Stunde mit hohem Risiko, auch über mehrere Blöcke */
+        if (fogRiskAt(fc, i) === "hoch") { if (first < 0) first = i; last = i; }
     }
     let sentence;
     if (first < 0) {
@@ -2443,7 +2448,7 @@ function fmtWarnTime(iso) {
     const d = new Date(iso);
     if (isNaN(d.getTime())) return "–";
     const hm = d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + " Uhr";
-    const now = new Date();
+    const now = new Date(nowMs());
     const sameDay = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
     if (sameDay) return hm;
     /* Innerhalb einer Woche reicht der Wochentag, davor oder danach braucht es das Datum */
@@ -2455,7 +2460,12 @@ function fmtWarnTime(iso) {
 /* DWD-Wetterwarnungen und NINA-Meldungen in einem Feld: höchste Stufe zuerst,
    bei gleicher Stufe Bevölkerungsschutz vor Wetter. */
 function mergeWarnings(dwd, nina) {
-    const all = (dwd || []).map(function (w) { return Object.assign({ source: "dwd" }, w); }).concat(nina || []);
+    /* Abgelaufene NINA-Meldungen fallen weg (zweite Sicherung neben dem Worker); ohne expires bleibt die Meldung */
+    const live = (nina || []).filter(function (w) {
+        const t = w && w.expires ? Date.parse(w.expires) : NaN;
+        return isNaN(t) || t >= nowMs();
+    });
+    const all = (dwd || []).map(function (w) { return Object.assign({ source: "dwd" }, w); }).concat(live);
     all.sort(function (a, b) {
         return b.level - a.level || (a.source === b.source ? 0 : (a.source === "nina" ? -1 : 1));
     });
@@ -2566,6 +2576,12 @@ function srcSection(id, title, items) {
         items.filter(Boolean).map(function (p) { return '<p>' + p + '</p>'; }).join('') + '</section>';
 }
 
+/* Namen der Vergleichsmodelle aus MODELS: „ICON-D2, ICON-EU, … und GFS“ */
+function modelListText() {
+    const names = MODELS.map(function (m) { return m.name; });
+    return names.length < 2 ? names.join("") : names.slice(0, -1).join(", ") + " und " + names[names.length - 1];
+}
+
 /* Schwellen einer Aktivität als Satz, direkt aus der Tabelle */
 function activityRule(a) {
     const lim = actLimits(a);
@@ -2601,7 +2617,7 @@ function sourceSheetHtml(data, air, meta, loc, loadedIso, cached, now) {
             ? "ICON-D2-Lauf von " + stampAt(meta.run * 1000, now, tz) + (isNum(meta.available) ? ", verfügbar seit " + stampAt(meta.available * 1000, now, tz) : "") +
               ". Neuer Lauf alle " + Math.round((isNum(meta.interval) ? meta.interval : 10800) / 3600) + " Stunden."
             : null,
-        "Regenrisiko: ICON-D2-Ensemble mit 20 Läufen. Modellvergleich: ICON-D2, ICON-EU, ECMWF IFS, GFS und UKMO, jeweils eigener Lauf.",
+        "Regenrisiko: ICON-D2-Ensemble mit 20 Läufen. Modellvergleich: " + modelListText() + ", jeweils eigener Lauf.",
         meta && Array.isArray(meta.models) && meta.models.length > 1
             ? "Läufe der Vergleichsmodelle: " + meta.models.filter(function (m) { return m.id !== "icon_d2"; }).map(function (m) { return m.name + " " + stampAt(m.run * 1000, now, tz); }).join(", ") + "."
             : null,
@@ -2636,7 +2652,7 @@ function sourceSheetHtml(data, air, meta, loc, loadedIso, cached, now) {
         "Pro Tag zählt nur das Wichtigste, es erscheinen höchstens drei Zeilen nach Priorität, angezeigt nach Tagen."
     ];
     const luft = ["Luftqualität und Pollen: CAMS Europa (Copernicus) über Open-Meteo, Index nach der europäischen Skala. Außerhalb der Pollensaison zeigt die Kachel die Sicht."];
-    const warn = ["Warnungen: amtliche Warnungen des DWD für die Gemeinde (GeoServer, CC BY 4.0) und Meldungen aus NINA. Radar: DWD RADOLAN RV, Beobachtung und kurze Vorhersage, Karte basemap.de."];
+    const warn = ["Warnungen: amtliche Warnungen des DWD für die Gemeinde (GeoServer, CC BY 4.0) und Meldungen aus NINA. Radar: DWD RADOLAN RV, Beobachtung und kurze Vorhersage, Karte OpenFreeMap (OpenMapTiles-Schema, Daten OpenStreetMap)."];
 
     return srcSection("src-ort", "Ort und Gitterpunkt", ort) +
         srcSection("src-modelle", "Modelle und Stand", mod) +
@@ -2657,7 +2673,7 @@ function openSource(section, trigger) {
     lastSrcTrigger = trigger || null;
     const id = section ? (SRC_SECTION[section] || section) : "";
     const body = D("srcBody");
-    body.innerHTML = sourceSheetHtml(lastData, lastAir, lastMeta, lastLoc, loadedAt, loadedCached, Date.now());
+    body.innerHTML = sourceSheetHtml(lastData, lastAir, lastMeta, lastLoc, loadedAt, loadedCached, nowMs());
     D("src").setAttribute("data-section", id);
     document.body.classList.add("src-open");
     if (D("freshSrc")) D("freshSrc").setAttribute("aria-expanded", "true");
@@ -2733,10 +2749,24 @@ function isHidden(id) { return settings.hidden.indexOf(id) >= 0; }
 function applyLayout() {
     const sec = D("sec-today");
     const order = layoutOrder();
-    /* Umhängen startet die Einblend-Animation der Felder neu; darum nur, wenn die Reihenfolge im DOM abweicht */
-    if (sec && sec.appendChild && sec.children) {
-        const current = Array.prototype.slice.call(sec.children).map(function (c) { return c.id; }).filter(function (id) { return order.indexOf(id) >= 0; });
-        if (current.join(",") !== order.join(",")) order.forEach(function (id) { const el = D(id); if (el && el.parentNode === sec) sec.appendChild(el); });
+    /* Umhängen startet die Einblend-Animation der Felder neu; darum nur, wenn die Reihenfolge im DOM abweicht.
+       Die sortierbaren Felder tauschen nur untereinander die Plätze: je Lücke zwischen festen Feldern (Hero, Warnungen,
+       Reise) kommen so viele Felder aus der Reihenfolge, wie dort bisher standen; die festen Felder bleiben, wo sie sind. */
+    if (sec && sec.insertBefore && sec.children) {
+        const kids = Array.prototype.slice.call(sec.children);
+        const current = kids.map(function (c) { return c.id; }).filter(function (id) { return order.indexOf(id) >= 0; });
+        if (current.join(",") !== order.join(",")) {
+            let used = 0, run = 0;
+            const flush = function (before) {
+                for (; run > 0; run--, used++) {
+                    const el = D(order[used]);
+                    if (!el || el.parentNode !== sec) continue;
+                    if (before) sec.insertBefore(el, before); else sec.appendChild(el);
+                }
+            };
+            kids.forEach(function (c) { if (order.indexOf(c.id) >= 0) run++; else flush(c); });
+            flush(null);
+        }
     }
     order.forEach(function (id) {
         const el = D(id);
@@ -2793,7 +2823,7 @@ function tripHtml(trip, today) {
 function renderTrip() {
     const field = D("tripField"), box = D("trip");
     if (!field || !box) return;
-    const html = settings.trip ? tripHtml(settings.trip, localDate()) : "";
+    const html = settings.trip ? tripHtml(settings.trip, localDate(new Date(nowMs()))) : "";
     if (settings.trip && !html) { settings.trip = null; saveSettings(settings); }   /* Reise vorbei */
     box.innerHTML = html;
     if (field.classList) field.classList.toggle("hidden", !html);
@@ -2855,14 +2885,17 @@ async function enablePush() {
     if (!pushSupported() || pushBusy) return false;
     pushBusy = true;
     try {
+        /* Ohne Ort gibt es nichts zu melden: vor dem Abonnieren prüfen, sonst bliebe ein verwaistes Abonnement zurück */
+        const loc = lastLoc && isNum(lastLoc.lat) ? lastLoc : null;
+        if (!loc) { announce("Noch kein Ort geladen."); return false; }
         const perm = await Notification.requestPermission();
         if (perm !== "granted") { announce("Benachrichtigungen nicht erlaubt."); return false; }
         const reg = await swReady();
         let sub = await reg.pushManager.getSubscription();
         if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(PUSH_PUBLIC_KEY) });
-        const loc = lastLoc && isNum(lastLoc.lat) ? lastLoc : null;
-        if (!loc) { announce("Noch kein Ort geladen."); return false; }
         await pushPost("/push/subscribe", pushBody(sub.toJSON(), loc));
+        /* Eine vorgemerkte Abmeldung für genau dieses Abonnement würde es beim nächsten Abgleich wieder löschen */
+        if (settings.pushUnsub === sub.endpoint) settings.pushUnsub = null;
         settings.push = true; settings.pushLoc = { lat: loc.lat, lon: loc.lon };
         saveSettings(settings);
         announce("Regen-Alarm eingeschaltet.");
@@ -2876,23 +2909,37 @@ async function enablePush() {
 async function disablePush() {
     if (pushBusy) return false;
     pushBusy = true;
+    let retry = false;
     try {
         if (pushSupported()) {
             const reg = await swReady();
             const sub = await reg.pushManager.getSubscription();
-            if (sub) { try { await pushPost("/push/unsubscribe", { endpoint: sub.endpoint }); } catch (e) {} await sub.unsubscribe(); }
+            if (sub) {
+                /* Erreicht die Abmeldung den Worker nicht, bleibt sein Eintrag stehen: Endpunkt vormerken, syncPush holt es nach */
+                try { await pushPost("/push/unsubscribe", { endpoint: sub.endpoint }); settings.pushUnsub = null; }
+                catch (e) { settings.pushUnsub = sub.endpoint; retry = true; }
+                await sub.unsubscribe();
+            }
         }
     } catch (e) {}
     settings.push = false; settings.pushLoc = null;
     saveSettings(settings);
-    announce("Regen-Alarm ausgeschaltet.");
+    announce(retry ? "Regen-Alarm ausgeschaltet. Die Abmeldung beim Worker wird beim nächsten Laden wiederholt." : "Regen-Alarm ausgeschaltet.");
     pushBusy = false;
     renderSettings();
     return true;
 }
 
-/* Nach jedem Laden: liegt der Ort woanders als beim Abonnieren, den Worker nachziehen */
+/* Nach jedem Laden: offene Abmeldung nachholen; liegt der Ort woanders als beim Abonnieren, den Worker nachziehen */
 async function syncPush() {
+    if (settings.pushUnsub) {
+        /* Gilt die Vormerkung dem aktiven Abonnement (Alarm wieder an, Browser-Abonnement blieb stehen), nur verwerfen */
+        let active = false;
+        if (settings.push && pushSupported()) {
+            try { const cur = await (await swReady()).pushManager.getSubscription(); active = !!cur && cur.endpoint === settings.pushUnsub; } catch (e) {}
+        }
+        try { if (!active) await pushPost("/push/unsubscribe", { endpoint: settings.pushUnsub }); settings.pushUnsub = null; saveSettings(settings); } catch (e) {}
+    }
     if (!settings.push || !pushSupported() || !lastLoc || !isNum(lastLoc.lat)) return;
     const pl = settings.pushLoc;
     if (pl && Math.abs(pl.lat - lastLoc.lat) < 0.01 && Math.abs(pl.lon - lastLoc.lon) < 0.01) return;
@@ -2903,7 +2950,10 @@ async function syncPush() {
         await pushPost("/push/subscribe", pushBody(sub.toJSON(), lastLoc));
         settings.pushLoc = { lat: lastLoc.lat, lon: lastLoc.lon };
         saveSettings(settings);
-    } catch (e) {}
+    } catch (e) {
+        /* Der Worker begrenzt Anmeldungen je IP; ein 429 bliebe sonst unsichtbar und käme bei jedem Laden wieder */
+        if (e && e.message === "HTTP 429") console.warn("Regen-Alarm: Ort nicht nachgezogen, zu viele Anmeldungen von dieser Adresse (429).");
+    }
 }
 
 /* Probenachricht: der Worker schickt sofort eine Testmeldung an dieses Abonnement */
@@ -2928,10 +2978,11 @@ async function testPush() {
 
 function pushSettingsHtml() {
     const note = '<div class="set-note">Prüft alle 15 Minuten die Vorhersage für deinen Ort und meldet Regen, der in der nächsten Stunde beginnt. Läuft über den eigenen Worker, kostenlos.</div>';
-    const test = settings.push ? '<div class="set-row"><button type="button" class="set-btn" id="pushTest">Probenachricht senden</button></div><div class="set-note" id="pushTestMsg">' + pushTestMsg + '</div>' : '';
+    /* Probenachricht nur, wo sie auch ankommen kann: Push unterstützt und Alarm an */
+    const test = settings.push && pushSupported() ? '<div class="set-row"><button type="button" class="set-btn" id="pushTest">Probenachricht senden</button></div><div class="set-note" id="pushTestMsg">' + pushTestMsg + '</div>' : '';
     if (!pushSupported()) {
         const why = isIos() && !pushStandalone() ? "Auf dem iPhone geht das nur als Homescreen-App: Teilen, „Zum Home-Bildschirm“, dann hier einschalten." : "Dein Browser unterstützt keine Push-Nachrichten.";
-        return '<div class="set-row"><span class="set-lbl">' + why + '</span></div>' + note + test;
+        return '<div class="set-row"><span class="set-lbl">' + why + '</span></div>' + note;
     }
     return '<div class="set-row"><span class="set-lbl">Benachrichtigung</span><div class="seg" role="group" aria-label="Regen-Alarm">' +
         '<button type="button" class="set-chip" data-key="push" data-val="0" aria-pressed="' + (settings.push ? 'false' : 'true') + '">Aus</button>' +
@@ -2943,7 +2994,7 @@ function moreSettingsHtml() {
 }
 
 function feedbackSettingsHtml() {
-    return '<section class="set-sec"><h3>Rückmeldung</h3><div class="set-note">Fehler, Idee oder Lob an den Entwickler, ohne Konto. Mitgeschickt werden nur Version und Gerätedaten, kein Ort.</div>' +
+    return '<section class="set-sec"><h3>Rückmeldung</h3><div class="set-note">Fehler, Idee oder Lob an den Entwickler, ohne Konto. Mitgeschickt werden nur Version, Gerät und Browser, kein Ort.</div>' +
         '<div class="set-row"><button type="button" class="set-btn" id="fbOpen">Rückmeldung schreiben</button></div></section>';
 }
 /* ------------------------------------------------------------------ *
@@ -3040,10 +3091,10 @@ function filmFrame(ctx, sc, t, col) {
         ctx.fillStyle = col.ink2; font(30, 600);
         ctx.fillText("0", x0, y1 + 40); ctx.fillText("12", (x0 + x1) / 2, y1 + 40); ctx.fillText("24 Uhr", x1, y1 + 40);
     }
-    /* Große Zahl zählt hoch, Beschreibung darunter */
+    /* Große Zahl zählt von 0 auf den Wert der Zielskala hoch (erst umrechnen, dann anteilig), Beschreibung darunter */
     if (tl.count > 0 && isNum(sc.temp)) {
         ctx.globalAlpha = 1; ctx.fillStyle = col.ink;
-        font(220); ctx.fillText(tmp(sc.temp * tl.count) + "°", W / 2, 1440);
+        font(220); ctx.fillText(Math.round(Number(tmp(sc.temp)) * tl.count) + "°", W / 2, 1440);
         font(44, 600); ctx.fillText(sc.desc, W / 2, 1565);
     }
     /* Regenbalken */
@@ -3111,13 +3162,15 @@ function closeFilm() {
 
 /* Morgens als Begrüßung: einmal am Tag beim ersten Laden, nicht bei reduzierter Bewegung oder Vorschau */
 function maybeAutoFilm() {
-    if (!settings.dayfilm || settings.filmShown === localDate()) return false;
+    const today = localDate(new Date(nowMs()));
+    if (!settings.dayfilm || settings.filmShown === today) return false;
     if (settings.motion === "reduce" || (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches)) return false;
     if (typeof window !== "undefined" && window.PREVIEW_LOC) return false;
-    if (!filmCanvasCtx()) return false;
-    settings.filmShown = localDate();
+    /* Der Tag gilt erst als gezeigt, wenn der Film wirklich läuft */
+    if (!openFilm()) return false;
+    settings.filmShown = today;
     saveSettings(settings);
-    return openFilm();
+    return true;
 }
 
 /* Aufnahme: Safari liefert MP4, andere WebM; null, wenn der Browser nicht aufnehmen kann */
@@ -3219,7 +3272,7 @@ function feedbackMeta() {
         version: ASSET_VERSION || "", ua: String(nav.userAgent || "").slice(0, 200),
         width: typeof win.innerWidth === "number" ? win.innerWidth : 0, font: font,
         standalone: !!pushStandalone(), view: currentView(), lastError: lastErrorText.slice(0, 300),
-        ts: new Date().toISOString()
+        ts: new Date(nowMs()).toISOString()
     };
 }
 
@@ -3229,18 +3282,26 @@ function feedbackHtml(state) {
     }).join('');
     const n = state.queue.length;
     const waiting = n ? '<div class="fb-msg">' + (n === 1 ? '1 Rückmeldung wartet auf Netz und wird' : n + ' Rückmeldungen warten auf Netz und werden') + ' beim nächsten Start gesendet.</div>' : '';
+    const dropped = state.dropped ? '<div class="fb-msg">' + droppedText(state.dropped) + '</div>' : '';
     return '<div class="fb-form">' +
         '<div class="seg" role="group" aria-label="Art der Rückmeldung">' + chips + '</div>' +
         '<textarea id="fbText" maxlength="2000" rows="5" placeholder="Was ist dir aufgefallen?" aria-label="Rückmeldung"></textarea>' +
         '<input type="text" id="fbName" maxlength="40" placeholder="Name oder Kürzel (optional)" aria-label="Name oder Kürzel" autocomplete="off" value="' + fbEsc(state.name) + '">' +
-        '<div class="fb-row"><button type="button" class="set-btn" id="fbSend">Senden</button><span class="fb-msg" id="fbMsg" role="status"></span></div>' + waiting +
-        '<p class="fb-note">Mitgeschickt werden App-Version, Gerät, Bildschirmbreite, Schriftgröße, ob als Homescreen-App, die aktuelle Ansicht und der letzte Fehlertext. Kein Ort, keine Koordinaten. Die Nachricht liegt beim Cloudflare-Worker der App und wird nach 90 Tagen gelöscht.</p></div>';
+        '<div class="fb-row"><button type="button" class="set-btn" id="fbSend">Senden</button><span class="fb-msg" id="fbMsg" role="status"></span></div>' + waiting + dropped +
+        '<p class="fb-note">Mitgeschickt werden App-Version, Gerät und Browser (User-Agent), Bildschirmbreite, Schriftgröße, ob als Homescreen-App, die aktuelle Ansicht und der letzte Fehlertext. Kein Ort, keine Koordinaten. Die Nachricht liegt beim Cloudflare-Worker der App und wird nach 90 Tagen gelöscht.</p></div>';
+}
+
+/* Beim Nachschicken verworfene Einträge: angesagt und beim nächsten Öffnen des Blatts gezeigt */
+function droppedText(n) {
+    return (n === 1 ? '1 gespeicherte Rückmeldung hat der Worker abgelehnt, sie wurde' : n + ' gespeicherte Rückmeldungen hat der Worker abgelehnt, sie wurden') + ' verworfen.';
 }
 
 function openFeedback(trigger) {
     if (!D("fb") || !D("fbBody")) return;
     fbTrigger = trigger || null;
-    D("fbBody").innerHTML = feedbackHtml(loadFeedbackState());
+    const state = loadFeedbackState();
+    D("fbBody").innerHTML = feedbackHtml(state);
+    if (state.dropped) { state.dropped = 0; saveFeedbackState(state); }   /* Hinweis einmal gezeigt */
     document.body.classList.add("fb-open");
     if (D("fbLink")) D("fbLink").setAttribute("aria-expanded", "true");
     setTimeout(function () { if (D("fbText") && D("fbText").focus) D("fbText").focus(); }, 300);
@@ -3283,36 +3344,43 @@ async function sendFeedback() {
     try { res = await postFeedback(entry); } catch (e) { res = null; }
     fbSending = false;
     if (res && res.status === 429) { setFeedbackMsg("Höchstens fünf Rückmeldungen pro Stunde, bitte später noch einmal."); return; }
-    if (res && res.status === 400) { setFeedbackMsg("Der Worker hat die Rückmeldung abgelehnt, bitte den Text prüfen."); return; }
+    /* 4xx ist ein Fehler dieser Nachricht: zeigen, Text stehen lassen, nicht einreihen */
+    if (res && res.status >= 400 && res.status < 500) { setFeedbackMsg("Der Worker hat die Rückmeldung abgelehnt (HTTP " + res.status + "), bitte den Text prüfen."); return; }
     if (res && res.ok) {
         if (D("fbText")) D("fbText").value = "";
         setFeedbackMsg("Danke, angekommen.");
         announce("Rückmeldung gesendet.");
         return;
     }
-    /* Kein Netz oder Worker nicht erreichbar: aufheben und beim nächsten Start nachschicken */
+    /* Kein Netz, Worker nicht erreichbar oder Serverfehler: aufheben und später nachschicken */
     const st = loadFeedbackState();
     st.queue.push(entry);
     if (st.queue.length > 10) st.queue = st.queue.slice(-10);
     saveFeedbackState(st);
     if (D("fbText")) D("fbText").value = "";
-    setFeedbackMsg("Kein Netz. Die Rückmeldung ist gespeichert und wird beim nächsten Start gesendet.");
+    setFeedbackMsg(res ? "Der Worker antwortet gerade nicht. Die Rückmeldung ist gespeichert und wird später erneut gesendet." : "Kein Netz. Die Rückmeldung ist gespeichert und wird beim nächsten Start gesendet.");
     announce("Rückmeldung gespeichert.");
 }
 
-/* Wartende Einträge der Reihe nach schicken; beim ersten Fehlschlag bleibt der Rest liegen */
+/* Wartende Einträge der Reihe nach schicken; beim ersten Fehlschlag bleibt der Rest liegen.
+   Vom Worker abgelehnte Einträge (4xx außer 429) werden verworfen und sichtbar gemeldet. */
 async function flushFeedbackQueue() {
     const state = loadFeedbackState();
     if (!state.queue.length || typeof fetch !== "function") return;
     const rest = state.queue.slice();
+    let dropped = 0;
     while (rest.length) {
         let res = null;
         try { res = await postFeedback(rest[0]); } catch (e) { res = null; }
-        if (res && (res.ok || res.status === 400)) rest.shift(); else break;
+        if (res && res.ok) rest.shift();
+        else if (res && res.status >= 400 && res.status < 500 && res.status !== 429) { rest.shift(); dropped++; }
+        else break;
     }
     const st = loadFeedbackState();
     st.queue = rest;
+    if (dropped) st.dropped = (st.dropped || 0) + dropped;
     saveFeedbackState(st);
+    if (dropped) { announce(droppedText(dropped)); setFeedbackMsg(droppedText(dropped)); }
 }
 
 function initFeedback() {
@@ -3437,7 +3505,7 @@ function renderAllDesign(payload) {
     if (keepTime) {
         const h = payload.fc.hourly, gi = h && h.time ? h.time.indexOf(keepTime) : -1;
         const w = hourlyWindow(payload.fc, 48);
-        if (gi > w.start && gi < w.end) selectHour(gi, true);
+        if (gi >= w.start && gi < w.end) selectHour(gi, true);
     }
     if (keepTile) toggleTile(keepTile);
     updatePreviewBar();
@@ -3491,10 +3559,20 @@ function freshnessText(iso, cached, now, tz) {
     return "Stand " + stampAt(t, now, tz) + (cached ? " · gespeicherte Daten" : "");
 }
 
+/* Stand-Zeile der Fußzeile: „Stand 25.09., 14:15 Uhr“ in der Zeitzone des Ortes, wie die Aktualitätszeile mit Zusatz „Ortszeit“ */
+function updatedText(iso, tz) {
+    const t = new Date(iso).getTime();
+    if (isNaN(t)) return "";
+    const zone = validZone(tz);
+    const fmt = new Intl.DateTimeFormat("de-DE", Object.assign(zone ? { timeZone: zone } : {}, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }));
+    const local = zone && deviceZone() && deviceZone() !== zone ? " Ortszeit" : "";
+    return "Stand " + fmt.format(new Date(t)) + " Uhr" + local;
+}
+
 function updateFreshness() {
     const el = D("freshTxt");
     if (!el) return;
-    const txt = freshnessText(loadedAt, loadedCached, Date.now(), loadedTz);
+    const txt = freshnessText(loadedAt, loadedCached, nowMs(), loadedTz);
     if (el.textContent !== txt) el.textContent = txt;
     const btn = D("freshSrc");
     if (btn && btn.classList) btn.classList.toggle("hidden", !loadedAt);
@@ -3518,10 +3596,6 @@ function setLoaded(iso, cached, locIdValue, tz) {
     loadedTz = tz || null;
     updateFreshness();
     scheduleFreshness();
-}
-
-function initFreshness() {
-    if (document.addEventListener) document.addEventListener("visibilitychange", function () { if (!document.hidden) { updateFreshness(); updateNight(); } });
 }
 
 /* ------------------------------------------------------------------ *
@@ -3615,7 +3689,8 @@ function applyNight(on) {
     const was = root && root.classList ? root.classList.contains("night") : nightOn;
     nightOn = on;
     if (root && root.classList) root.classList.toggle("night", on);
-    try { localStorage.setItem("wetter:night", on ? "1" : "0"); } catch (e) {}
+    /* Nur bei Änderung schreiben; die Prüfung läuft im Minutentakt */
+    try { if (localStorage.getItem("wetter:night") !== (on ? "1" : "0")) localStorage.setItem("wetter:night", on ? "1" : "0"); } catch (e) {}
     updateThemeColor();
     paintModeButton(D("modeBtn"), on);
     if (was === on) return false;
@@ -3624,6 +3699,9 @@ function applyNight(on) {
         clearTimeout(nightFadeTimer);
         nightFadeTimer = setTimeout(function () { root.classList.remove("fade"); }, 1000);
     }
+    /* Ein geladenes Radar-Blatt bekommt den neuen Nachtzustand mit (lädt neu) */
+    const frame = D("radarFrame");
+    if (frame && frame.getAttribute && frame.getAttribute("src")) frame.setAttribute("src", radarEmbedUrl());
     return true;
 }
 
@@ -3665,10 +3743,8 @@ function initDesignApp() {
         D("gps").classList.toggle("hidden", loc.source !== "search");
     }
 
-    function setUpdatedLabel(iso) {
-        const dt = new Date(iso);
-        D("updated").textContent = "Stand " + dt.toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) + " Uhr";
-    }
+    /* Stand-Zeile auf derselben Basis wie die Aktualitätszeile: Ortszeit des Ortes */
+    function setUpdatedLabel(iso, tz) { D("updated").textContent = updatedText(iso, tz); }
 
     async function load() {
         if (!currentLoc) return;
@@ -3694,19 +3770,20 @@ function initDesignApp() {
         if (fc) {
             const payload = { fc: fc, ens: val(1), md: val(2), air: val(3), warn: val(4), nina: val(5), meta: val(6),
                               loc: { name: loc.name || "", lat: loc.lat, lon: loc.lon } };
-            const at = new Date().toISOString();
+            const at = new Date(nowMs()).toISOString();
             renderAllDesign(payload);
             saveCache(currentLoc, payload);
-            setUpdatedLabel(at);
+            setUpdatedLabel(at, fc.timezone);
             setLoaded(at, false, loc.id, fc.timezone);
             announce("Wetter für " + (loc.name || "deinen Standort") + " aktualisiert.");
             maybeAutoFilm();
         } else {
             const cached = loadCache(currentLoc);
             if (cached) {
+                const tz = cached.payload && cached.payload.fc ? cached.payload.fc.timezone : null;
                 renderAllDesign(cached.payload);
-                setUpdatedLabel(cached.savedAt);
-                setLoaded(cached.savedAt, true, loc.id, cached.payload && cached.payload.fc ? cached.payload.fc.timezone : null);
+                setUpdatedLabel(cached.savedAt, tz);
+                setLoaded(cached.savedAt, true, loc.id, tz);
                 showBanner("Keine Verbindung – du siehst die zuletzt gespeicherten Daten.", false);
             } else if (loadedAt && loadedLocId === loc.id) {
                 /* Kein Cache, aber die zuletzt gültigen Daten dieses Orts stehen noch da: stehen lassen und als gespeichert kennzeichnen */
@@ -3734,7 +3811,11 @@ function initDesignApp() {
 
     /* ---- GPS ---- */
 
+    let lastFixAt = 0;   /* Zeitpunkt der letzten erfolgreichen Ortung; beim Sichtbarwerden wird erst nach GPS_MAX_AGE neu geortet */
+    const GPS_MAX_AGE = 10 * 60 * 1000;
+
     function useGps(lat, lon) {
+        lastFixAt = nowMs();
         const cachedPos = loadPos();
         const known = cachedPos && distanceKm(lat, lon, cachedPos.lat, cachedPos.lon) < 2 ? cachedPos.name : null;
         currentLoc = { id: locId(lat, lon), name: known || "Dein Standort", lat: lat, lon: lon, source: "gps" };
@@ -3752,7 +3833,8 @@ function initDesignApp() {
         load();
     }
 
-    function locate() {
+    /* always: Fehler auch melden, wenn schon ein Ort steht (Tipp auf „Mein Standort“ ohne gespeicherte Position) */
+    function locate(always) {
         if (window.PREVIEW_LOC) return;   /* Vorschau-Modus: fester Standort, keine Ortung */
         if (!("geolocation" in navigator)) {
             showBanner("Dein Browser unterstützt keine Standortabfrage.", true, "Ort suchen", openSheet);
@@ -3761,7 +3843,7 @@ function initDesignApp() {
         navigator.geolocation.getCurrentPosition(
             function (pos) { D("banner").classList.add("hidden"); useGps(pos.coords.latitude, pos.coords.longitude); },
             function (err) {
-                if (currentLoc) return;
+                if (currentLoc && !always) return;
                 showBanner(err.code === 1
                     ? "Standortzugriff abgelehnt – erlauben unter Einstellungen → Datenschutz → Ortungsdienste → Safari, oder einen Ort suchen."
                     : "Standort konnte nicht ermittelt werden (" + (err.message || "Fehler") + ").", true, "Ort suchen", openSheet);
@@ -3822,8 +3904,8 @@ function initDesignApp() {
         if (!r) return;
         if (sheetMode === "trip") {
             sheetMode = null;
-            const today = localDate(), old = settings.trip;
-            const from = old ? old.from : today, to = old ? old.to : localDate(new Date(Date.now() + 7 * 86400000));
+            const today = localDate(new Date(nowMs())), old = settings.trip;
+            const from = old ? old.from : today, to = old ? old.to : localDate(new Date(nowMs() + 7 * 86400000));
             setSetting("trip", { name: r.name, lat: r.lat, lon: r.lon, from: from, to: to });
             closeSheet();
             renderTrip();
@@ -3860,7 +3942,7 @@ function initDesignApp() {
     }
     /* Beim Start einmal am Tag in die Reisevorhersage wechseln, solange die Reise läuft */
     function tripAutoSwitch() {
-        const t = settings.trip, today = localDate();
+        const t = settings.trip, today = localDate(new Date(nowMs()));
         const st = tripState(t, today);
         if (!st || st.phase !== "during" || settings.tripSwitched === today) return false;
         settings.tripSwitched = today;
@@ -3911,16 +3993,17 @@ function initDesignApp() {
                 bindPlaces(results);
             }, 350);
         });
+        /* „Mein Standort“: gespeicherte Position sofort zeigen und neu orten; ohne gespeicherte Position bleibt der
+           bisherige Ort stehen, ein Ortungsfehler zeigt dann das Banner */
         D("gps").addEventListener("click", function () {
             closeSheet();
-            currentLoc = null;
             const cached = loadPos();
             if (cached) {
                 currentLoc = { id: locId(cached.lat, cached.lon), name: cached.name || "Dein Standort", lat: cached.lat, lon: cached.lon, source: "gps" };
                 saveActiveLoc(currentLoc);
                 load();
             }
-            locate();
+            locate(!cached);
         });
     }
 
@@ -3996,7 +4079,8 @@ function initDesignApp() {
         const btn = D("previewNow");
         if (btn && btn.addEventListener) btn.addEventListener("click", backToNow);
         const hero = D("hero");
-        if (typeof IntersectionObserver === "undefined" || !hero) { heroVisible = false; return; }
+        /* Ohne Beobachter gilt der Hero als im Bild: die Leiste würde ihn sonst dauerhaft doppeln */
+        if (typeof IntersectionObserver === "undefined" || !hero) { heroVisible = true; return; }
         const io = new IntersectionObserver(function (entries) {
             entries.forEach(function (e) { heroVisible = e.isIntersecting; });
             updatePreviewBar();
@@ -4062,14 +4146,18 @@ function initDesignApp() {
         }
     }
 
-    /* ---- Hintergrund-Partikel ---- */
-
     /* ---- Start ---- */
 
     D("refresh").addEventListener("click", function () { if (!currentLoc) locate(); else load(); });
+    /* Sichtbarwerden: Aktualität und Nacht nachführen, Daten neu laden; ein GPS-Ort wird nur neu geortet,
+       wenn die letzte Ortung älter als GPS_MAX_AGE ist */
     document.addEventListener("visibilitychange", function () {
         if (document.hidden) return;
-        if (!currentLoc || currentLoc.source === "gps") locate(); else load();
+        updateFreshness();
+        updateNight();
+        if (!currentLoc) locate();
+        else if (currentLoc.source === "gps" && nowMs() - lastFixAt > GPS_MAX_AGE) locate();
+        else load();
     });
 
     initSearch();
@@ -4086,7 +4174,6 @@ function initDesignApp() {
     initViews();
     initReplay();
     initPreviewBar();
-    initFreshness();
     loadActivity();
     initActivity();
     loadPause();
