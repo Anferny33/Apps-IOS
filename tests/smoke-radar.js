@@ -2,6 +2,7 @@
 // Frame-Auswahl, Ladereihenfolge, Anzeige erst nach vollständigem Laden, Überblendung A/B,
 // begrenzter Cache, Aktualisierung ohne Doppelabrufe, Pause bei Slider/Hintergrund,
 // Abdeckungs- und Ladefehler, Zentrieren, Tag/Nacht-Schalter, Nachtzustand aus der URL im Radar-Blatt,
+// Statusleiste je Farbschema und Schema-Skript in radar.html,
 // Zonen-Zusatz am Badge, Rückfall ohne Zeitachse (Bild wird bei jedem Aktualisieren neu geholt),
 // Sonnenrechnung an den Polen. Der Harness setzt die Gerätezone auf Europe/Berlin; ein Check
 // wechselt sie vorübergehend nach New York.
@@ -108,7 +109,7 @@ function run(opts) {
     document: {
       getElementById: id => nodes[id] || (nodes[id] = el(id)),
       createElement: () => el('pin'),
-      querySelector: () => null,
+      querySelector: sel => sel === 'meta[name="theme-color"]' ? (nodes.themeMeta || (nodes.themeMeta = el('themeMeta'))) : null,   // Statusleiste
       documentElement: { setAttribute(k, v) { this[k] = v; }, classList: { c: new Set(), add(x){this.c.add(x)}, remove(x){this.c.delete(x)}, contains(x){return this.c.has(x)}, toggle(x, f){ if (f) this.c.add(x); else this.c.delete(x); } } },
       addEventListener(ev, fn) { docHandlers[ev] = fn; }, hidden: false
     },
@@ -221,6 +222,14 @@ function run(opts) {
   check('Schalter: Tipp am Tag erzwingt Nacht, Wahl gespeichert, Knopf gedrückt', rootN().classList.contains('night') === true && JSON.parse(A.sb.localStorage.store['wetter:nightmode']).force === 'night' && N.modeBtn['aria-pressed'] === 'true', JSON.stringify(A.sb.localStorage.store));
   check('Schalter: beim automatischen Wechsel verfällt die Handwahl', A.sb.radarNight(Date.parse('2026-10-08T20:30:00Z')) === true && A.sb.localStorage.store['wetter:nightmode'] === undefined);
   check('Schalter: zurück am Tag Automatik', A.sb.radarNight(Date.parse('2026-10-08T11:07:00Z')) === false && N.modeBtn['aria-pressed'] === 'false');
+  // Statusleiste wie auf der Startseite: Bento wie der Grund, Schema Nil (Klasse scheme-nil aus radar.html) Nile Blue bzw. Deep Indigo
+  const metaC = () => N.themeMeta && N.themeMeta.getAttribute('content');
+  check('Statusleiste: Bento #ECEAF4 am Tag (nach radarNight gesetzt), #14121F nachts', metaC() === '#ECEAF4' && (rootN().classList.add('night'), A.sb.updateThemeColor() === '#14121F') && metaC() === '#14121F', metaC());
+  rootN().classList.add('scheme-nil');
+  check('Statusleiste: Schema Nil #051230 nachts, #bce4e5 am Tag', A.sb.updateThemeColor() === '#051230' && (rootN().classList.remove('night'), A.sb.updateThemeColor() === '#bce4e5') && metaC() === '#bce4e5', metaC());
+  rootN().classList.remove('scheme-nil');
+  const radHtml = fs.readFileSync(require('path').join(__dirname, '..', 'radar.html'), 'utf8');
+  check('Seite: Klasse scheme-nil und Statusleiste aus wetter:settings vor dem Stylesheet (nach dem Nachtwert), Zeitachse mit Nil-Tönen', /<script>try \{[^<]*wetter:settings[^<]*scheme === "nil"[^<]*theme-color[^<]*classList\.add\("scheme-nil"\)[^<]*"#051230" : "#bce4e5"[^<]*catch \(e\) \{\}<\/script>/.test(radHtml) && radHtml.indexOf('wetter:night') < radHtml.indexOf('wetter:settings') && radHtml.indexOf('wetter:settings') < radHtml.indexOf('<link rel="stylesheet" href="modern.css') && radHtml.includes('html.scheme-nil { --tl-obs: rgba(5,18,48,0.34); }') && radHtml.includes('html.scheme-nil.night { --tl-obs: rgba(188,228,229,0.45); --tl-fc: #34454c; }'), radHtml.slice(radHtml.indexOf('wetter:settings') - 40, radHtml.indexOf('wetter:settings') + 120));
 
   // Gerätezone außerhalb des Radargebiets (MEZ/MESZ): Badge und Vorleser nennen die Zone, die Marke bleibt knapp
   process.env.TZ = 'America/New_York';

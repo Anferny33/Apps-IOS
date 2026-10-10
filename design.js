@@ -2706,6 +2706,9 @@ const SETTING_GROUPS = [
     { title: "Bewegung", rows: [
         { key: "motion", label: "Animationen", opts: [["system", "Wie das System"], ["reduce", "Reduziert"]] }
     ] },
+    { title: "Farbschema", rows: [
+        { key: "scheme", label: "Palette", opts: [["bento", "Bento (Standard)"], ["nil", "Nil (Sanzo Wada)"]], note: "Nil: nilblauer Grund, weiße Karten, Indigo-Schrift, Farben aus Sanzo Wadas Farbkombinationen; Tag und Nacht." }
+    ] },
     { title: "Rausgehen", rows: [
         { key: "rainTol", label: "Regen", opts: [[-10, "Streng"], [0, "Normal"], [10, "Locker"]], note: "Verschiebt die Regenrisiko-Grenze um 10 Punkte." },
         { key: "feelAdj", label: "Kälte", opts: [[2, "Empfindlich"], [0, "Normal"], [-2, "Robust"]], note: "Verschiebt die untere Wohlfühltemperatur um 2°." }
@@ -3645,6 +3648,7 @@ function settingsValue(key) { return settings[key]; }
 function applySettings() {
     const root = document.documentElement;
     if (root && root.classList) root.classList.toggle("reduce", settings.motion === "reduce");
+    applyScheme(settings.scheme);
 }
 
 /* Eine Einstellung setzen: speichern, anwenden, Blatt und bei Einheiten die Seite neu zeichnen */
@@ -3678,9 +3682,32 @@ function nightNowAt(fc, nowIso) {
 
 function nightRoot() { return document.documentElement && document.documentElement.classList ? document.documentElement : document.body; }
 
+/* Farbe der Statusleiste je Farbschema und Nacht (Bento wie der Grund, Nil Nile Blue bzw. Deep Indigo); liefert sie zurück.
+   Beim Start zählt auch die Nachtklasse aus index.html, nightOn folgt erst mit den ersten Daten. */
 function updateThemeColor() {
+    const root = nightRoot();
+    const night = nightOn || !!(root && root.classList && root.classList.contains("night"));
+    const color = settings.scheme === "nil" ? (night ? "#051230" : "#bce4e5") : (night ? "#14121F" : "#ECEAF4");
     const meta = document.querySelector ? document.querySelector('meta[name="theme-color"]') : null;
-    if (meta) meta.setAttribute("content", nightOn ? "#14121F" : "#ECEAF4");
+    if (meta) meta.setAttribute("content", color);
+    return color;
+}
+
+/* Farbschema: Klasse scheme-nil am Wurzelelement (index.html setzt sie vor dem ersten Zeichnen aus dem Speicher);
+   bei Wechsel blendet die Seite wie beim Nachtwechsel eine Sekunde weich über. Ein geladenes Radar-Blatt lädt wie beim
+   Nachtwechsel neu: radar.html liest das Schema selbst aus wetter:settings, das setSetting vor dem Anwenden speichert. */
+function applyScheme(name) {
+    const root = nightRoot();
+    const on = name === "nil";
+    const was = root && root.classList ? root.classList.contains("scheme-nil") : false;
+    if (root && root.classList) root.classList.toggle("scheme-nil", on);
+    updateThemeColor();
+    if (was === on || !root || !root.classList) return;
+    root.classList.add("fade");
+    clearTimeout(nightFadeTimer);
+    nightFadeTimer = setTimeout(function () { root.classList.remove("fade"); }, 1000);
+    const frame = D("radarFrame");
+    if (frame && frame.getAttribute && frame.getAttribute("src")) frame.setAttribute("src", radarEmbedUrl());
 }
 
 /* Setzt die Palette; bei Wechsel blendet die Seite eine Sekunde weich über. Liefert true bei Wechsel. */

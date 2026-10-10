@@ -8,16 +8,18 @@
 <meta name="apple-mobile-web-app-title" content="Wetter">
 <meta name="theme-color" content="#ECEAF4">
 <!-- Icon-Links tragen dieselbe Versions-Query wie Stylesheet und Skripte; die Offline-Hülle (sw.js) führt sie so -->
-<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=20261009q">
-<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=20261009q">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=20261010a">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=20261010a">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Wetter</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
-<!-- Nachtpalette vor dem ersten Zeichnen, damit die Seite nachts nicht hell aufblitzt -->
+<!-- Nachtpalette und Farbschema vor dem ersten Zeichnen, damit die Seite nachts nicht hell aufblitzt und beim Start nichts umspringt;
+     die Statusleiste (theme-color) folgt sofort mit, design.js setzt sie später nur noch bei Wechseln -->
 <script>try { if (localStorage.getItem("wetter:night") === "1") document.documentElement.classList.add("night"); } catch (e) {}</script>
-<link rel="stylesheet" href="modern.css?v=20261009q" id="cssModern">
+<script>try { var s0 = JSON.parse(localStorage.getItem("wetter:settings") || "{}"), nil0 = !!(s0 && s0.scheme === "nil"), n0 = document.documentElement.classList.contains("night"), m0 = document.querySelector('meta[name="theme-color"]'); if (nil0) document.documentElement.classList.add("scheme-nil"); if (m0) m0.setAttribute("content", nil0 ? (n0 ? "#051230" : "#bce4e5") : (n0 ? "#14121F" : "#ECEAF4")); } catch (e) {}</script>
+<link rel="stylesheet" href="modern.css?v=20261010a" id="cssModern">
 <!-- Schriftgrenze: die Systemschriftgröße wirkt bis zum 1,6-Fachen (27,2 px), darüber hält das Raster nicht mehr -->
 <script>try { var fs0 = parseFloat(getComputedStyle(document.documentElement).fontSize); if (fs0 > 27.2) document.documentElement.style.fontSize = "27.2px"; } catch (e) {}</script>
 </head>
@@ -206,9 +208,9 @@
     <div class="src-body" id="fbBody"></div>
 </div>
 
-<script src="sonne.js?v=20261009q"></script>
-<script src="wetter-core.js?v=20261009q"></script>
-<script src="design.js?v=20261009q"></script>
+<script src="sonne.js?v=20261010a"></script>
+<script src="wetter-core.js?v=20261010a"></script>
+<script src="design.js?v=20261010a"></script>
 <script>initDesignApp();</script>
 <!-- Offline-Hülle: Seiten, Stylesheet, Skripte und Icons bleiben auch ohne Netz verfügbar -->
 <script>if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js").catch(function () {}); }</script>

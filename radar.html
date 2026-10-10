@@ -9,7 +9,7 @@
      nicht zur zweiten App ohne Manifest wird; der Seitentitel unten bleibt „Regenradar“ -->
 <meta name="apple-mobile-web-app-title" content="Wetter">
 <meta name="theme-color" content="#ECEAF4">
-<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=20261009q">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=20261010a">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Regenradar</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -17,9 +17,11 @@
 <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css">
-<!-- Dieselben zwei Designs wie die Startseite; die dort gespeicherte Wahl gilt auch hier. -->
+<!-- Nachtpalette und Farbschema wie auf der Startseite: die dort gespeicherte Wahl gilt auch hier, gelesen vor dem Stylesheet
+     (im Radar-Blatt lädt die Startseite diese Seite bei jedem Wechsel neu); die Statusleiste (theme-color) folgt sofort mit -->
 <script>try { if (localStorage.getItem("wetter:night") === "1") document.documentElement.classList.add("night"); } catch (e) {}</script>
-<link rel="stylesheet" href="modern.css?v=20261009q" id="cssModern">
+<script>try { var s0 = JSON.parse(localStorage.getItem("wetter:settings") || "{}"), nil0 = !!(s0 && s0.scheme === "nil"), n0 = document.documentElement.classList.contains("night"), m0 = document.querySelector('meta[name="theme-color"]'); if (nil0) document.documentElement.classList.add("scheme-nil"); if (m0) m0.setAttribute("content", nil0 ? (n0 ? "#051230" : "#bce4e5") : (n0 ? "#14121F" : "#ECEAF4")); } catch (e) {}</script>
+<link rel="stylesheet" href="modern.css?v=20261010a" id="cssModern">
 <!-- Schriftgrenze: die Systemschriftgröße wirkt bis zum 1,6-Fachen (27,2 px), darüber hält das Raster nicht mehr -->
 <script>try { var fs0 = parseFloat(getComputedStyle(document.documentElement).fontSize); if (fs0 > 27.2) document.documentElement.style.fontSize = "27.2px"; } catch (e) {}</script>
 <!-- Eingebettet im Radar-Blatt der Startseite (?embed=1): Kopfzeile und Tab-Leiste bleiben weg -->
@@ -123,6 +125,9 @@
     /* Zeitachse unter dem Regler: Beobachtung links dunkler, Prognose rechts heller; Marker an der Grenze */
     :root { --tl-obs: rgba(30,27,46,0.34); --tl-fc: #ffffff; }
     html.night { --tl-obs: rgba(241,239,248,0.45); --tl-fc: #3A3553; }
+    /* Schema Nil: Beobachtung in Deep Indigo bzw. Nile Blue mit Deckkraft, Prognose nachts Slate Color (das dunkle Feld des Schemas) */
+    html.scheme-nil { --tl-obs: rgba(5,18,48,0.34); }
+    html.scheme-nil.night { --tl-obs: rgba(188,228,229,0.45); --tl-fc: #34454c; }
     .tl-axis { position: relative; height: 36px; margin-top: 4px; }
     .tl-axis.hidden { display: none; }
     .tl-lbl { position: absolute; top: 4px; font-size: 0.647rem; font-weight: 600; color: var(--ink-2, #9fb3d1); }
@@ -254,8 +259,8 @@
 </div>
 
 <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
-<script src="sonne.js?v=20261009q"></script>
-<script src="radar.js?v=20261009q"></script>
+<script src="sonne.js?v=20261010a"></script>
+<script src="radar.js?v=20261010a"></script>
 <script>if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js").catch(function () {}); }</script>
 </body>
 </html>

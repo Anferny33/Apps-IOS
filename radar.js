@@ -808,11 +808,15 @@ function radarToggleMode() {
     radarNight();
 }
 
+/* Statusleiste je Farbschema und Nacht wie auf der Startseite (Bento wie der Grund, Nil Nile Blue bzw. Deep Indigo);
+   die Klasse scheme-nil setzt radar.html vor dem Stylesheet aus wetter:settings. Liefert die Farbe zurück. */
 function updateThemeColor() {
-    const metaEl = document.querySelector ? document.querySelector('meta[name="theme-color"]') : null;
-    if (!metaEl) return;
     const root = document.documentElement && document.documentElement.classList ? document.documentElement : null;
-    metaEl.setAttribute("content", root && root.classList.contains("night") ? "#14121F" : "#ECEAF4");
+    const night = !!(root && root.classList.contains("night")), nil = !!(root && root.classList.contains("scheme-nil"));
+    const color = nil ? (night ? "#051230" : "#bce4e5") : (night ? "#14121F" : "#ECEAF4");
+    const metaEl = document.querySelector ? document.querySelector('meta[name="theme-color"]') : null;
+    if (metaEl) metaEl.setAttribute("content", color);
+    return color;
 }
 
 function initRadar() {

@@ -38,6 +38,12 @@
 .theme-rain, .theme-storm                 { --hero: #BFD6F6; }
 .theme-snow                               { --hero: #E4ECF5; }
 .theme-clear-night, .theme-partly-night   { --hero: #8FA3E0; }
+/* Akzent: aktiver Tab, Jetzt-Knopf der Vorschauleiste, Kreis im Hinweisfeld. Im Bento-Schema die Hero-Farbe, im Schema Nil
+   ein eigener Ton (html.scheme-nil body). Steht am body statt an :root, weil var(--hero) dort aufgelöst wird, wo es steht,
+   und --hero an den Theme-Klassen des body hängt; an :root bliebe der Akzent bei der Sonnenfarbe.
+   --fair-bar: trockener Temperaturbalken im 14-Tage-Feld, am Tag die Hero-Farbe (Rückfall in der Regel), nachts und im
+   Schema Nil die Sonnenfarbe, weil die abgedunkelten Hero-Töne im dunklen Feld untergehen (html.night, html.scheme-nil). */
+body { --accent: var(--hero); --accent-ink: var(--ink); }
 
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html { scroll-behavior: smooth; }
@@ -127,7 +133,7 @@ html.reduce *, html.reduce *::before, html.reduce *::after { animation: none !im
 .hero-field .big-icon.swap-in { animation: aFade 0.2s ease both; }
 
 .insight { display: flex; align-items: center; gap: 12px; padding: 16px 18px; }
-.insight .ico { width: 40px; height: 40px; border-radius: 50%; background: var(--hero); color: var(--ink); flex: none; display: flex; align-items: center; justify-content: center; }
+.insight .ico { width: 40px; height: 40px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); flex: none; display: flex; align-items: center; justify-content: center; }
 .insight .ico svg { width: 20px; height: 20px; }
 .insight .txt { display: flex; flex-direction: column; gap: 2px; }
 .insight .txt b { font-size: 0.882rem; font-weight: 600; }
@@ -284,7 +290,7 @@ html.night .tile.uv, html.night .tile.wind, html.night .tile.rain, html.night .t
 .preview-bar .pb-txt { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.2; }
 .preview-bar .pb-txt b { font-size: 0.765rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .preview-bar .pb-txt span { font-size: 0.647rem; color: var(--dark-muted); }
-.preview-bar .pb-now { flex: none; min-width: 64px; min-height: 36px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--hero); color: var(--ink); font: inherit; font-size: 0.765rem; font-weight: 700; cursor: pointer; }
+.preview-bar .pb-now { flex: none; min-width: 64px; min-height: 36px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font: inherit; font-size: 0.765rem; font-weight: 700; cursor: pointer; }
 .preview-bar .pb-now:focus-visible { outline: 3px solid var(--white); outline-offset: 2px; }
 .tile.open { transform: translateY(-2px); box-shadow: inset 0 0 0 2px var(--ink); }
 /* Zugeklappt auch für Vorleser unsichtbar: visibility springt beim Öffnen sofort, beim Schließen erst nach dem Zusammenfalten */
@@ -387,7 +393,7 @@ html.night .tile.uv, html.night .tile.wind, html.night .tile.rain, html.night .t
 .drow .bar { flex: 1; height: 8px; background: rgba(255,255,255,0.12); border-radius: 4px; position: relative; }
 .drow .bar i { position: absolute; top: 0; bottom: 0; border-radius: 4px; background: var(--wind); }
 .drow.wet .bar i { background: var(--dark-blue); }
-.drow.fair .bar i { background: var(--hero); }
+.drow.fair .bar i { background: var(--fair-bar, var(--hero)); }
 .drow .bar b { position: absolute; top: -2px; width: 12px; height: 12px; border-radius: 50%; background: var(--white); border: 2px solid var(--dark); margin-left: -6px; }
 /* .drow.more: siehe „14 Tage: Aufklappen“ im Animationsteil */
 .days-more {
@@ -439,12 +445,12 @@ html.night .tile.uv, html.night .tile.wind, html.night .tile.rain, html.night .t
     border-radius: 28px; color: var(--dark-muted); text-decoration: none; font-size: 0.706rem; font-weight: 700;
 }
 .tabs a svg { width: 22px; height: 22px; flex: none; }
-.tabs a.on { background: var(--hero); color: var(--ink); }
+.tabs a.on { background: var(--accent); color: var(--accent-ink); }
 .tabs a.on svg { width: 20px; height: 20px; }
 
 /* ---------- Gleitende Tab-Markierung + Design-Schleier ---------- */
 .tabs nav { position: relative; }
-.tabs nav .tab-ink { position: absolute; top: 6px; bottom: 6px; left: 6px; width: 0; border-radius: 28px; background: var(--hero); opacity: 0; pointer-events: none; transition: left var(--d-base) var(--ease), width var(--d-base) var(--ease), opacity 0.4s; }
+.tabs nav .tab-ink { position: absolute; top: 6px; bottom: 6px; left: 6px; width: 0; border-radius: 28px; background: var(--accent); opacity: 0; pointer-events: none; transition: left var(--d-base) var(--ease), width var(--d-base) var(--ease), opacity 0.4s; }
 .tabs nav.ink-ready .tab-ink { opacity: 1; }
 .tabs nav.ink-ready a.on { background: transparent; }
 .tabs a { position: relative; z-index: 1; transition: color 0.5s; }
@@ -787,8 +793,10 @@ footer a { color: var(--ink); }
 @keyframes bolt       { 0%, 70%, 100% { opacity: 1; } 74% { opacity: 0.2; } 78% { opacity: 1; } 82% { opacity: 0.3; } 86% { opacity: 1; } }
 @keyframes twinkle    { from { opacity: 0.25; } to { opacity: 1; } }
 
-/* ---------- Nachtpalette: folgt dem Sonnenstand am Ort (Klasse night auf <html>) ---------- */
+/* ---------- Nachtpalette: folgt dem Sonnenstand am Ort (Klasse night auf <html>) ----------
+   --fair-bar: trockener Balken im dunklen 14-Tage-Feld in der Sonnenfarbe, die abgedunkelte Hero-Farbe ginge unter (#5C4F24 auf #3A3553 1,4:1) */
 html.night {
+    --fair-bar: var(--sun);
     --ground: #14121F; --card: #221F33; --soft: #2E2A45; --line: #3A3553;
     --ink: #F1EFF8; --ink-2: #A9A3C4;
     --uv: #5A3A2E; --wind: #27392B; --rain: #34496E; --wet: #243048; --rain-ink: #BFD6F6; --lilac: #3A2F57;
@@ -801,7 +809,7 @@ html.night .view-chip.on { background: var(--ink); color: var(--ground); }
 html.night .pchips .pchip.on, html.night .mchip.hl, html.night .hcol.now, html.night .hero-field .meta .now-btn { background: var(--ink); color: var(--ground); }
 html.night .act-ink, html.night .act-chips:not(.ink-ready) .act-chip.on { background: var(--ink); }
 html.night .act-chip.on { color: var(--ground); }
-html.night .hcol.now .t, html.night .hcol.now .p { color: #5A5478; }
+html.night .hcol.now .t, html.night .hcol.now .p, html.night .mchip.hl .k { color: #5A5478; }
 /* Hero: Wetterfarbe bleibt, nachts abgedunkelt, damit er sich vom Grund abhebt und nicht blendet */
 html.night .theme-clear-day, html.night .theme-partly-day   { --hero: #5C4F24; }
 html.night .theme-cloudy, html.night .theme-fog              { --hero: #3D3952; }
@@ -827,11 +835,66 @@ html.night .src-sec.target { background: var(--soft); }
 /* Wortfarben der Luftqualität: tags kräftig, nachts hell */
 .wc-good { color: #2E7D4F; } .wc-warning { color: #8A5A0E; } .wc-serious { color: #C2410C; } .wc-critical { color: #B91C1C; } .wc-none { color: var(--ink-2); }
 html.night .wc-good { color: #7FD69A; } html.night .wc-warning { color: #F6D35B; } html.night .wc-serious { color: #F2A06B; } html.night .wc-critical { color: #E86A6A; }
-/* Weiches Überblenden beim Wechsel: die Klasse fade liegt nur eine Sekunde an */
+/* ---------- Farbschema „Nil“ nach Sanzo Wada (Kombinationen 330 und 294, Ergänzungen aus derselben Palette) ----------
+   Wählbar in den Einstellungen: Klasse scheme-nil auf <html>, index.html setzt sie vor dem ersten Zeichnen aus dem Speicher.
+   Dieselben Token wie :root und html.night; Deep Indigo auf Nile Blue, weiße Karten, Green Blue als einziger Akzent.
+   --fair-bar: trockener Balken im 14-Tage-Feld in Cream Yellow statt Hero-Farbe, 11,3:1 auf Deep Indigo, nachts 6,1:1 auf Slate Color (Hero #064f6e dort 1,1:1) */
+html.scheme-nil {
+    --fair-bar: var(--sun);
+    --ground: #bce4e5; --card: #ffffff; --soft: #bce4e5; --line: #bce4e5;           /* Nile Blue, White */
+    --ink: #051230; --ink-2: #34454c; --white: #ffffff;                             /* Deep Indigo, Slate Color */
+    --sun: #fdbf68; --hero: #fdbf68;                                                /* Cream Yellow */
+    --uv: #f3a257; --wind: #c1c494; --rain: #a5c8d1; --lilac: #f9c1ce;              /* Golden Yellow, Olive Buff, Light Glaucous Blue, Hermosa Pink */
+    --rain-ink: #1c4286; --wet: #a7d4e4;                                            /* Deep Lyons Blue auf Pale King's Blue */
+    --dark: #051230; --dark-muted: #b6bfc1; --dark-blue: #a5c8d1;                   /* Deep Indigo, Neutral Gray, Light Glaucous Blue */
+    --good-bg: #b5decc;                                                             /* Turquoise Green */
+    --wfill: #96d1aa; --windy-ink: #004f46; --lfill: #fbe6a0; --nightcol: #b6bfc1;  /* Cobalt Green, Dusky Green, Naples Yellow, Neutral Gray */
+    /* Wärme-Tönungen kühl bis warm: Pale King's Blue, Turquoise Green, Sulpher Yellow, Seashell Pink, Light Pinkish Cinnamon */
+    --tc1: #a7d4e4; --tc2: #b5decc; --tc3: #f5ecc2; --tc4: #fdd4bd; --tc5: #fcc79b;
+}
+html.scheme-nil body { --accent: #099197; --accent-ink: #051230; }                 /* Green Blue mit Deep Indigo, 4,8:1 */
+/* Hero je Wetterlage: Cream Yellow, Neutral Gray, Salvia Blue, Pale King's Blue; Nacht-Themes Vandar Poel's Blue mit heller Schrift */
+html.scheme-nil .theme-clear-day, html.scheme-nil .theme-partly-day     { --hero: #fdbf68; }
+html.scheme-nil .theme-cloudy, html.scheme-nil .theme-fog               { --hero: #b6bfc1; }
+html.scheme-nil .theme-rain, html.scheme-nil .theme-storm               { --hero: #97acc8; }
+html.scheme-nil .theme-snow                                             { --hero: #a7d4e4; }
+html.scheme-nil .theme-clear-night, html.scheme-nil .theme-partly-night { --hero: #064f6e; }
+html.scheme-nil .theme-clear-night .hero-field, html.scheme-nil .theme-partly-night .hero-field,
+html.scheme-nil .theme-clear-night .hero-field .big-icon, html.scheme-nil .theme-partly-night .hero-field .big-icon { color: #bce4e5; }
+html.scheme-nil .theme-clear-night .hero-field .chips span, html.scheme-nil .theme-partly-night .hero-field .chips span { background: rgba(255,255,255,0.12); }
+/* Jetzt-Knopf im dunklen Hero: Deep Indigo hebt sich von Vandar Poel's Blue nicht ab (2,1:1), Nile Blue schon (6,5:1), Schrift 13,5:1 */
+html.scheme-nil .theme-clear-night .hero-field .meta .now-btn, html.scheme-nil .theme-partly-night .hero-field .meta .now-btn { background: #bce4e5; color: #051230; }
+/* Nebentext auf den getönten Kacheln: Slate Color reicht auf allen vier (4,8:1 auf Golden Yellow), das Bento-Grau nicht */
+html.scheme-nil .tile.uv, html.scheme-nil .tile.wind, html.scheme-nil .tile.rain, html.scheme-nil .tile.sun, html.scheme-nil .tp-wind, html.scheme-nil .tp-rain, html.scheme-nil .tp-sun { --ink-2: #34454c; }
+html.scheme-nil:not(.night) .light-now.golden { color: #644b1e; }                  /* Sepia: das Bento-Braun bleibt auf Hermosa Pink unter 4,5:1 */
+/* Nachtpalette des Schemas: Deep Indigo als Grund, Dark Tyrian Blue als Karte, Slate Color als dunkles Feld */
+html.scheme-nil.night {
+    --ground: #051230; --card: #12354e; --soft: #34454c; --line: #34454c;
+    --ink: #bce4e5; --ink-2: #a5c8d1;                                               /* Nile Blue, Light Glaucous Blue */
+    --uv: #644b1e; --wind: #42533e; --rain: #1c4286; --lilac: #4e1d4c;              /* Sepia, Blackish Olive, Deep Lyons Blue, Dusky Madder Violet */
+    --rain-ink: #a7d4e4; --wet: #064f6e;                                            /* Pale King's Blue auf Vandar Poel's Blue */
+    --dark: #34454c; --dark-muted: #b6bfc1; --dark-blue: #a5c8d1;
+    --good-bg: #112f2c;                                                             /* Deep Slate Green */
+    --wfill: #004f46; --windy-ink: #96d1aa; --lfill: #644b1e; --nightcol: #051230;  /* Dusky Green, Cobalt Green, Sepia, Deep Indigo */
+    /* Wärme-Tönungen kühl bis warm: Vandar Poel's Blue, Violet Blue, Blackish Olive, Sepia, Hay's Russet */
+    --tc1: #064f6e; --tc2: #40456a; --tc3: #42533e; --tc4: #644b1e; --tc5: #793327;
+}
+html.scheme-nil.night body { --hero: #064f6e; }                                    /* Vandar Poel's Blue für alle Wetterlagen, Schrift ist nachts hell */
+html.scheme-nil.night .tile.uv, html.scheme-nil.night .tile.wind, html.scheme-nil.night .tile.rain, html.scheme-nil.night .tile.sun, html.scheme-nil.night .tp-wind, html.scheme-nil.night .tp-rain, html.scheme-nil.night .tp-sun { --ink-2: #a7d4e4; }
+html.scheme-nil.night .hcol.now .t, html.scheme-nil.night .hcol.now .p, html.scheme-nil.night .mchip.hl .k { color: #34454c; }
+html.scheme-nil.night .wc-critical { color: #f37f94; }                             /* Eosine Pink: das Bento-Rot bleibt auf Dark Tyrian Blue unter 4,5:1 */
+/* Weiches Überblenden beim Wechsel (Nacht und Farbschema): die Klasse fade liegt nur eine Sekunde an. Die Akzentflächen (Tab-Pille,
+   Hinweiskreis, Jetzt-Knopf der Vorschauleiste), die Vorschauleiste und das offene Blatt laufen mit, sonst springen sie beim Schemawechsel */
 html.fade body, html.fade .field, html.fade .tile, html.fade .hcol, html.fade .loc, html.fade .iconbtn, html.fade .tabs nav,
-html.fade .act-chip, html.fade .pchip, html.fade .act-win, html.fade .banner, html.fade .hero-field, html.fade .tpanel-body {
+html.fade .act-chip, html.fade .pchip, html.fade .act-win, html.fade .banner, html.fade .hero-field, html.fade .tpanel-body,
+html.fade .insight .ico, html.fade .preview-bar, html.fade .preview-bar .pb-now, html.fade .set-btn, html.fade .set-vis {
     transition: background-color 0.9s ease, color 0.9s ease, border-color 0.9s ease;
 }
+/* Tab-Pille und Blatt behalten dabei ihre eigenen Übergänge (Gleiten; Blatt: Hinausgleiten mit Sichtbarkeit, offen die Sichtbarkeitsregel
+   mit ID-Gewicht von oben, darum hier noch einmal mit html.fade davor). Die Einstellungs-Chips bleiben bei 0,3 s als Tipp-Rückmeldung. */
+html.fade .tabs nav .tab-ink { transition: left var(--d-base) var(--ease), width var(--d-base) var(--ease), opacity 0.4s, background-color 0.9s ease; }
+html.fade .sheet { transition: transform var(--d-fast) var(--ease), visibility 0s var(--d-fast), background-color 0.9s ease, color 0.9s ease; }
+html.fade body.sheet-open #sheet, html.fade body.radar-open #radarSheet, html.fade body.settings-open #settings, html.fade body.src-open #src, html.fade body.fb-open #fb { transition: transform var(--d-fast) var(--ease), visibility 0s, background-color 0.9s ease, color 0.9s ease; }
 /* Tageszeit-Kacheln: die getauschte Kachel blendet ein, Mond- und Nebelsymbol */
 .tile.swap { animation: aFade 0.6s ease both; }
 .moon-ico .moon-dark { fill: none; stroke: currentColor; stroke-width: 1.6; }

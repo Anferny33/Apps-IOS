@@ -494,13 +494,14 @@ function loadActiveLoc() {
    tripSwitched = Datum des letzten automatischen Wechsels), Tagesfilm-Datum (filmShown).
    Intern bleibt alles in °C und km/h, nur die Anzeige rechnet um. */
 const SETTINGS_KEY = CACHE_PREFIX + "settings";
-const SETTINGS_DEFAULTS = { temp: "C", wind: "kmh", motion: "system", startView: "last", rainTol: 0, feelAdj: 0, hidden: [], order: [], dayfilm: true, push: false, pushLoc: null, pushUnsub: null, trip: null, tripSwitched: null, filmShown: null };
+const SETTINGS_DEFAULTS = { temp: "C", wind: "kmh", motion: "system", scheme: "bento", startView: "last", rainTol: 0, feelAdj: 0, hidden: [], order: [], dayfilm: true, push: false, pushLoc: null, pushUnsub: null, trip: null, tripSwitched: null, filmShown: null };
 
 function normalizeSettings(p) {
     const s = Object.assign({}, SETTINGS_DEFAULTS, p && typeof p === "object" ? p : {});
     if (["C", "F"].indexOf(s.temp) < 0) s.temp = "C";
     if (["kmh", "ms", "kn", "bft"].indexOf(s.wind) < 0) s.wind = "kmh";
     if (["system", "reduce"].indexOf(s.motion) < 0) s.motion = "system";
+    if (["bento", "nil"].indexOf(s.scheme) < 0) s.scheme = "bento";
     if (["last", "overview", "rain", "wind", "warm", "light"].indexOf(s.startView) < 0) s.startView = "last";
     if ([-10, 0, 10].indexOf(s.rainTol) < 0) s.rainTol = 0;
     if ([-2, 0, 2].indexOf(s.feelAdj) < 0) s.feelAdj = 0;

@@ -410,6 +410,20 @@ function boot(opts) {
   sb.setSetting('temp', 'C');
   sb.closeSettings();
   H.check('Einstellungen: Schließen', !sb.document.body.classList.contains('settings-open'));
+  // Farbschema: Gruppe im Blatt, Klasse scheme-nil am Wurzelelement (Stub wie beim Bewegungs-Check), Statusleiste, Normalisierung
+  H.check('Farbschema: Gruppe mit beiden Optionen im Blatt, Bento vorgewählt', setHtml.includes('<h3>Farbschema</h3>') && setHtml.includes('data-key="scheme" data-val="bento" aria-pressed="true">Bento (Standard)</button>') && setHtml.includes('data-key="scheme" data-val="nil" aria-pressed="false">Nil (Sanzo Wada)</button>'), setHtml.slice(setHtml.indexOf('Farbschema'), setHtml.indexOf('Farbschema') + 300));
+  sb.document.documentElement = H.el();
+  sb.setSetting('scheme', 'nil');
+  const schemeOn = sb.document.documentElement.classList.contains('scheme-nil') && sb.document.documentElement.classList.contains('fade');
+  const nilDay = sb.updateThemeColor();
+  sb.applyNight(true); const nilNight = sb.updateThemeColor(); sb.applyNight(false);
+  H.check('Farbschema: Nil setzt die Klasse scheme-nil mit Überblendung und speichert; Statusleiste #bce4e5 am Tag, #051230 nachts', schemeOn && nilDay === '#bce4e5' && nilNight === '#051230' && sb._store['wetter:settings'].includes('"scheme":"nil"'), [...sb.document.documentElement.classList.c].join(' ') + ' ' + nilDay + ' ' + nilNight);
+  sb.setSetting('scheme', 'bento');
+  const bentoDay = sb.updateThemeColor();
+  sb.applyNight(true); const bentoNight = sb.updateThemeColor(); sb.applyNight(false);
+  H.check('Farbschema: zurück auf Bento nimmt die Klasse weg, Statusleiste wie bisher', !sb.document.documentElement.classList.contains('scheme-nil') && bentoDay === '#ECEAF4' && bentoNight === '#14121F' && !sb.document.documentElement.classList.contains('night'), bentoDay + ' ' + bentoNight);
+  delete sb.document.documentElement;
+  H.check('Farbschema: normalizeSettings kennt bento und nil, Unbekanntes fällt auf bento', sb.normalizeSettings({}).scheme === 'bento' && sb.normalizeSettings({ scheme: 'nil' }).scheme === 'nil' && sb.normalizeSettings({ scheme: 'ocker' }).scheme === 'bento' && sb.normalizeSettings({ scheme: 1 }).scheme === 'bento' && sb.normalizeSettings({ scheme: null }).scheme === 'bento', JSON.stringify([sb.normalizeSettings({ scheme: 'ocker' }).scheme, sb.normalizeSettings({ scheme: 'nil' }).scheme]));
 
   const wn = G(sb,'warnings').innerHTML;
   const dwdUrl = sb._fetchLog.find(u => u.includes('maps.dwd.de')) || '';
@@ -925,6 +939,33 @@ function boot(opts) {
   const av = H.assetVersion();
   H.check('Shell: Versions-Query aus index.html an allen css/js-Verweisen und Icon-Links beider Seiten und in SW_VERSION', typeof av.version === 'string' && av.refs.length === 11 && av.refs.filter(r => r.asset.startsWith('icons/')).length === 3 && av.mismatches.length === 0, av.version + ' | ' + av.refs.map(r => r.file + ':' + r.asset + '=' + r.v).join(','));
   H.check('Shell: Sonnenrechnung vor den App-Skripten, Nachtklasse vor dem ersten Zeichnen', [idx, rad].every(h => h.includes('<script src="sonne.js?v=') && /wetter:night[\s\S]{0,120}classList\.add\("night"\)/.test(h) && h.indexOf('wetter:night') < h.indexOf('<link rel="stylesheet" href="modern.css')));
+  // Farbschema Nil: Token-Blöcke für Tag und Nacht, Akzent-Token an den aktiven Zuständen, Klasse vor dem ersten Zeichnen
+  const nilStart = css.indexOf('html.scheme-nil {'), nilNightStart = css.indexOf('html.scheme-nil.night {');
+  const nilB = nilStart >= 0 && nilNightStart > nilStart ? css.slice(nilStart, nilNightStart) : '', nilNB = nilNightStart >= 0 ? css.slice(nilNightStart) : '';
+  H.check('Shell: Farbschema Nil im Stylesheet mit Tag- und Nachtblock, Hero je Wetterlage, Akzent-Token an Tab, Vorschauleiste und Hinweis', /html\.scheme-nil \{[^}]*--ground: #bce4e5;/.test(css) && /html\.scheme-nil\.night \{[^}]*--ground: #051230;/.test(css) && nilB.includes('html.scheme-nil .theme-rain, html.scheme-nil .theme-storm') && nilB.includes('html.scheme-nil .theme-clear-night, html.scheme-nil .theme-partly-night { --hero: #064f6e; }') && /\.tabs a\.on \{ background: var\(--accent\); color: var\(--accent-ink\); \}/.test(css) && /\.tabs nav \.tab-ink \{[^}]*background: var\(--accent\)/.test(css) && /\.preview-bar \.pb-now \{[^}]*background: var\(--accent\); color: var\(--accent-ink\)/.test(css) && /\.insight \.ico \{[^}]*background: var\(--accent\); color: var\(--accent-ink\)/.test(css) && css.includes('body { --accent: var(--hero); --accent-ink: var(--ink); }') && css.includes('html.scheme-nil body { --accent: #099197; --accent-ink: #051230; }') && /\.hero-field \{[^}]*background: var\(--hero\)/.test(css) && /\.drow\.fair \.bar i \{ background: var\(--fair-bar, var\(--hero\)\); \}/.test(css) && /html\.night \{\n    --fair-bar: var\(--sun\);/.test(css) && /html\.scheme-nil \{\n    --fair-bar: var\(--sun\);/.test(css), nilStart + '/' + nilNightStart);
+  // Beide Seiten: Klasse und Statusleiste (theme-color) aus dem Speicher, bevor das Stylesheet lädt; das Meta steht davor, der Nachtwert zuerst
+  const schemeScript = h => /<script>try \{[^<]*wetter:settings[^<]*scheme === "nil"[^<]*querySelector\('meta\[name="theme-color"\]'\)[^<]*classList\.add\("scheme-nil"\)[^<]*setAttribute\("content", nil0 \? \(n0 \? "#051230" : "#bce4e5"\) : \(n0 \? "#14121F" : "#ECEAF4"\)\)[^<]*catch \(e\) \{\}<\/script>/.test(h) && h.indexOf('scheme-nil') < h.indexOf('<link rel="stylesheet" href="modern.css') && h.indexOf('wetter:night') < h.indexOf('wetter:settings') && h.indexOf('<meta name="theme-color" content="#ECEAF4">') < h.indexOf('wetter:settings');
+  H.check('Shell: Klasse scheme-nil und Statusleiste aus wetter:settings vor dem Stylesheet in index.html und radar.html, mit try/catch wie der Nachtwert', [idx, rad].every(schemeScript), [idx, rad].map(h => h.slice(h.indexOf('wetter:settings') - 60, h.indexOf('wetter:settings') + 160)).join('\n'));
+  // Nachbesserung: markierter Modell-Chip nachts (Chip invertiert, Beschriftung dunkel wie die Jetzt-Spalte), Jetzt-Knopf im dunklen Nil-Hero, Überblendung auch für Akzentflächen, Blatt und Vorschauleiste
+  H.check('Shell: Modell-Chip nachts mit dunkler Beschriftung (Bento und Nil), Jetzt-Knopf im Nil-Nachthero hell, Fade für Tab-Pille, Hinweiskreis, Vorschauleiste und Blatt', css.includes('html.night .hcol.now .t, html.night .hcol.now .p, html.night .mchip.hl .k { color: #5A5478; }') && css.includes('html.scheme-nil.night .hcol.now .t, html.scheme-nil.night .hcol.now .p, html.scheme-nil.night .mchip.hl .k { color: #34454c; }') && css.includes('html.scheme-nil .theme-clear-night .hero-field .meta .now-btn, html.scheme-nil .theme-partly-night .hero-field .meta .now-btn { background: #bce4e5; color: #051230; }') && /html\.fade body,[^{]*html\.fade \.insight \.ico, html\.fade \.preview-bar, html\.fade \.preview-bar \.pb-now, html\.fade \.set-btn, html\.fade \.set-vis \{\n    transition: background-color 0\.9s ease, color 0\.9s ease, border-color 0\.9s ease;/.test(css) && css.includes('html.fade .tabs nav .tab-ink { transition: left var(--d-base) var(--ease), width var(--d-base) var(--ease), opacity 0.4s, background-color 0.9s ease; }') && css.includes('html.fade .sheet { transition: transform var(--d-fast) var(--ease), visibility 0s var(--d-fast), background-color 0.9s ease, color 0.9s ease; }') && css.includes('html.fade body.sheet-open #sheet, html.fade body.radar-open #radarSheet, html.fade body.settings-open #settings, html.fade body.src-open #src, html.fade body.fb-open #fb { transition: transform var(--d-fast) var(--ease), visibility 0s, background-color 0.9s ease, color 0.9s ease; }'));
+  // Kontrast im Schema Nil aus den Token gerechnet: Schrift und Nebentext auf Grund, Karte, Chips und Kacheln, Akzent, nasse und windige Stunden, Hero
+  const nilTileDay = (css.match(/\nhtml\.scheme-nil \.tile\.uv, [^{]*\{ --ink-2: (#[0-9A-Fa-f]{6}); \}/) || [])[1], nilTileNight = (css.match(/\nhtml\.scheme-nil\.night \.tile\.uv, [^{]*\{ --ink-2: (#[0-9A-Fa-f]{6}); \}/) || [])[1];
+  const nilPairs = [];
+  [[nilB, nilTileDay, 'Tag'], [nilNB, nilTileNight, 'Nacht']].forEach(([b, tileInk, lbl]) => {
+    ['ground', 'card', 'soft', 'wet', 'good-bg', 'lfill', 'nightcol', 'tc1', 'tc2', 'tc3', 'tc4', 'tc5'].forEach(k => nilPairs.push([lbl + ' ink/' + k, crA(tok(b, 'ink'), tok(b, k))]));
+    ['card', 'soft', 'ground', 'good-bg', 'nightcol', 'lfill', 'wfill', 'tc1', 'tc2', 'tc3', 'tc4', 'tc5'].forEach(k => nilPairs.push([lbl + ' ink-2/' + k, crA(tok(b, 'ink-2'), tok(b, k))]));
+    ['uv', 'wind', 'rain', 'lilac'].forEach(k => { nilPairs.push([lbl + ' ink/' + k, crA(tok(b, 'ink'), tok(b, k))]); nilPairs.push([lbl + ' Kachelgrau/' + k, crA(tileInk, tok(b, k))]); });
+    nilPairs.push([lbl + ' weiß/dark', crA('#FFFFFF', tok(b, 'dark'))], [lbl + ' dark-muted/dark', crA(tok(b, 'dark-muted'), tok(b, 'dark'))], [lbl + ' dark-blue/dark', crA(tok(b, 'dark-blue'), tok(b, 'dark'))]);
+    nilPairs.push([lbl + ' rain-ink/wet', crA(tok(b, 'rain-ink'), tok(b, 'wet'))], [lbl + ' windy-ink/wfill', crA(tok(b, 'windy-ink'), tok(b, 'wfill'))], [lbl + ' windy-ink/soft', crA(tok(b, 'windy-ink'), tok(b, 'soft'))]);
+  });
+  // Hero-Farben aus dem Stylesheet (html.scheme-nil .theme-*), nicht aus festen Werten; Nacht-Themes tragen helle Schrift
+  const nilHero = sel => (nilB.match(new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[^{]*\\{ --hero: (#[0-9A-Fa-f]{6}); \\}')) || [])[1];
+  nilPairs.push(['Akzent', crA(tok(nilB, 'ink'), '#099197')], ['Hero Sonne', crA(tok(nilB, 'ink'), nilHero('html.scheme-nil .theme-clear-day'))], ['Hero Wolke', crA(tok(nilB, 'ink'), nilHero('html.scheme-nil .theme-cloudy'))], ['Hero Regen', crA(tok(nilB, 'ink'), nilHero('html.scheme-nil .theme-rain'))], ['Hero Schnee', crA(tok(nilB, 'ink'), nilHero('html.scheme-nil .theme-snow'))], ['Hero Nacht', crA('#bce4e5', nilHero('html.scheme-nil .theme-clear-night'))], ['Nachtpalette Hero', crA(tok(nilNB, 'ink'), (nilNB.match(/html\.scheme-nil\.night body \{ --hero: (#[0-9A-Fa-f]{6}); \}/) || [])[1])]);
+  nilPairs.push(['Nacht Jetzt-Spalte', crA('#34454c', tok(nilNB, 'ink'))], ['Nacht Modell-Chip', crA('#34454c', tok(nilNB, 'ink'))], ['Nacht-Theme Jetzt-Knopf', crA('#051230', '#bce4e5')], ['Nacht wc-critical', crA('#f37f94', tok(nilNB, 'card'))], ['Tag goldene Stunde', crA('#644b1e', tok(nilB, 'lilac'))], ['Nacht blaue Stunde', crA('#9FB0F0', tok(nilNB, 'lilac'))]);
+  H.check('Kontrast: Farbschema Nil erreicht 4,5:1 auf allen Textpaaren, Tag und Nacht (' + nilPairs.length + ' Paare)', nilPairs.length >= 86 && nilPairs.every(p => p[1] >= 4.5), nilPairs.filter(p => p[1] < 4.5).map(p => p[0] + '=' + p[1].toFixed(2)).join(', '));
+  // Bedienelemente und bedeutungstragende Grafik 3:1 (WCAG 1.4.11): Jetzt-Knopf auf dem dunklen Hero, trockener und nasser Balken im dunklen 14-Tage-Feld
+  const nilGfx = [['Jetzt-Knopf/Nachthero', crA('#bce4e5', nilHero('html.scheme-nil .theme-clear-night'))], ['Tag Balken trocken/dark', crA(tok(nilB, 'sun'), tok(nilB, 'dark'))], ['Nacht Balken trocken/dark', crA(tok(nilB, 'sun'), tok(nilNB, 'dark'))], ['Tag Balken nass/dark', crA(tok(nilB, 'dark-blue'), tok(nilB, 'dark'))], ['Nacht Balken nass/dark', crA(tok(nilNB, 'dark-blue'), tok(nilNB, 'dark'))], ['Bento Nacht Balken trocken/dark', crA('#F6D35B', '#3A3553')]];
+  H.check('Kontrast: Jetzt-Knopf im Nil-Nachthero und Temperaturbalken im dunklen Feld erreichen 3:1 (' + nilGfx.length + ' Paare)', !nilNB.includes('--sun:') && nilGfx.every(p => p[1] >= 3), nilGfx.map(p => p[0] + '=' + p[1].toFixed(2)).join(', '));
   H.check('Shell: Nachtpalette im Stylesheet mit Token, Hero-Farben, Fade und Kachel-Einblendung', css.includes('html.night {') && css.includes('--card:') && css.includes('--soft:') && css.includes('--wet:') && css.includes('html.night .theme-rain') && css.includes('html.fade') && css.includes('.tile.swap') && css.includes('.field.white { background: var(--card); }') && /\.tile \{[^}]*background: var\(--card\)/.test(css) && /\.hcol\.wet \{ background: var\(--wet\)/.test(css), css.match(/\.field\.white[^\n]*/));
 
   if (process.env.DUMP) {
@@ -1007,6 +1048,15 @@ function boot(opts) {
   const radarNight = G(sb,'radarFrame').src;
   sb.updateNight('2026-09-26T10:00');
   H.check('Radar: Nachtwechsel setzt night=1 am geladenen Rahmen, der Morgen wieder night=0', radarNight === 'radar.html?embed=1&night=1' && G(sb,'radarFrame').src === 'radar.html?embed=1&night=0' && sb.radarEmbedUrl() === 'radar.html?embed=1&night=0', radarNight + ' | ' + G(sb,'radarFrame').src);
+  // Schemawechsel: der geladene Rahmen bekommt den src neu gesetzt (lädt neu, radar.html liest das Schema selbst); ohne Wechsel bleibt er
+  G(sb,'radarFrame').setAttribute('src', 'radar.html?embed=1&night=0&alt=1');
+  sb.setSetting('scheme', 'nil');
+  const radarNil = G(sb,'radarFrame').src;
+  G(sb,'radarFrame').setAttribute('src', 'radar.html?embed=1&night=0&alt=2');
+  sb.setSetting('scheme', 'nil');
+  const radarSame = G(sb,'radarFrame').src;
+  sb.setSetting('scheme', 'bento');
+  H.check('Radar: Schemawechsel lädt den geladenen Rahmen neu, dieselbe Wahl nicht, zurück auf Bento wieder', radarNil === 'radar.html?embed=1&night=0' && radarSame === 'radar.html?embed=1&night=0&alt=2' && G(sb,'radarFrame').src === 'radar.html?embed=1&night=0' && !sb.nightRoot().classList.contains('scheme-nil'), radarNil + ' | ' + radarSame + ' | ' + G(sb,'radarFrame').src);
 
   // Regen-Alarm: Abschnitt, Unterstützung, Abonnement-Nutzlast, Schlüssel
   sb.openSettings();
