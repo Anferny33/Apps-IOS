@@ -7,8 +7,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Wetter">
 <meta name="theme-color" content="#ECEAF4">
-<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=20261008d">
-<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=20261008d">
+<!-- Icon-Links tragen dieselbe Versions-Query wie Stylesheet und Skripte; die Offline-Hülle (sw.js) führt sie so -->
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=20261009q">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=20261009q">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Wetter</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -62,7 +63,7 @@
         <div class="views a-up" id="views" role="group" aria-label="Ansicht" style="animation-delay:.45s"></div>
 
         <div class="field white a-up" id="hoursField" style="animation-delay:.48s">
-            <h2>Nächste Stunden <span class="r" id="hourlyHint"><button type="button" class="trend-btn" id="trendBtn" aria-expanded="false" aria-controls="trend">Verlauf 48 h</button></span></h2>
+            <h2>Nächste Stunden <span class="r"><button type="button" class="trend-btn" id="trendBtn" aria-expanded="false" aria-controls="trend">Verlauf 48 h</button></span></h2>
             <div class="answer hidden" id="viewAnswer"></div>
             <div id="hourly" class="skel" style="height:112px">&nbsp;</div>
             <div class="note" id="hourlyNote">Blaue Felder: Regenrisiko ab 25 %</div>
@@ -116,7 +117,8 @@
     </section>
 
     <footer class="a-up" style="animation-delay:1.32s">
-        <span id="updated"></span><span aria-hidden="true"> · </span><a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a><span aria-hidden="true"> · </span>Warnungen: <a href="https://www.dwd.de/" rel="noopener">DWD</a><span aria-hidden="true"> · </span>CC BY 4.0<span aria-hidden="true"> · </span>Ortsname: BigDataCloud<br>
+        <span id="updated"></span><span aria-hidden="true"> · </span><a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a><span aria-hidden="true"> · </span>Warnungen: <a href="https://www.dwd.de/" rel="noopener">DWD</a>, <a href="https://warnung.bund.de/" rel="noopener">NINA</a><span aria-hidden="true"> · </span>CC BY 4.0<br>
+        Karte: <a href="https://openfreemap.org/" rel="noopener">OpenFreeMap</a>, © <a href="https://www.openstreetmap.org/copyright" rel="noopener">OpenStreetMap</a>-Mitwirkende<span aria-hidden="true"> · </span>Ortsname: BigDataCloud<br>
         <a href="radar.html">Regenradar</a><span aria-hidden="true"> · </span><button type="button" class="src-link" id="fbLink" aria-haspopup="dialog" aria-expanded="false">Rückmeldung</button>
     </footer>
     <!-- Live-Region: Ansagen für Vorleser (Laden, Fehler, Ansicht, Zeitreise); am Seitenende, damit sie nicht mitten in der Lesereihenfolge steht -->

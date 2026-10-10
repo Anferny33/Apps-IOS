@@ -9,7 +9,9 @@ const SHELL = [
     "./", "index.html", "radar.html", "manifest.webmanifest",
     "modern.css?v=" + SW_VERSION, "sonne.js?v=" + SW_VERSION, "wetter-core.js?v=" + SW_VERSION,
     "design.js?v=" + SW_VERSION, "radar.js?v=" + SW_VERSION,
-    "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png", "icons/icon.svg"
+    /* Icons mit derselben Query wie in index.html und im Manifest, sonst trifft der Cache offline nicht */
+    "icons/icon-192.png?v=" + SW_VERSION, "icons/icon-512.png?v=" + SW_VERSION,
+    "icons/apple-touch-icon.png?v=" + SW_VERSION, "icons/icon.svg?v=" + SW_VERSION
 ];
 /* Fremde Dateien, die die Hülle braucht: aus dem Cache, im Hintergrund erneuert */
 const RUNTIME_HOSTS = ["fonts.googleapis.com", "fonts.gstatic.com", "unpkg.com"];

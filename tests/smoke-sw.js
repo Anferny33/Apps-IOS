@@ -1,14 +1,13 @@
 // Offline-Hülle (sw.js): Hülle beim Installieren, Version wie die Seiten, alte Caches weg,
 // Netz zuerst mit Cache-Rückfall, Navigations-Rückfall, Datenquellen durchgereicht,
 // Schriften aus dem Cache, andere Methoden unberührt.
+const H = require('./harness');
+const { check, finish } = H;
 const fs = require('fs');
 const vm = require('vm');
 const path = require('path');
 const code = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
-const idx = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 
-let fail = 0;
-const check = (n, c, x) => { console.log((c ? '  ok   ' : '  FAIL ') + n + (c ? '' : ' :: ' + String(x).slice(0, 220))); if (!c) fail++; };
 check('Hülle: Installation holt die Dateien am HTTP-Cache vorbei (cache: reload)', /c\.addAll\(SHELL\.map\(function \(u\) \{ return new Request\(u, \{ cache: "reload" \}\); \}\)\)/.test(fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8')));
 
 function run(opts) {
@@ -58,7 +57,8 @@ function run(opts) {
 }
 
 (async () => {
-  const ver = (idx.match(/design\.js\?v=(\w+)"/) || [])[1];
+  // Versions-Query der Seiten zentral aus dem Harness (index.html als Referenz, radar.html läuft mit)
+  const av = H.assetVersion(), ver = av.version;
   const A = run({});
   // Regen-Alarm: Push zeigt die Nachricht, Tipp holt die App nach vorn oder öffnet sie
   const shown = [], focused = [], opened = [];
@@ -75,8 +75,15 @@ function run(opts) {
   await A.fire('notificationclick', { notification: { close() {}, data: { url: './' } } });
   check('Push: ohne offene App wird sie geöffnet', opened.length === 1 && opened[0] === 'http://localhost:8000/', opened.join(','));
 
-  check('Version: Konstante im Worker entspricht der Versions-Query der Seiten', A.sb.SW_INFO.version === ver && typeof ver === 'string', A.sb.SW_INFO.version + ' vs ' + ver);
-  check('Hülle: Startseite, Radar, Manifest, Stylesheet, Skripte mit Version, Icons', ['./', 'index.html', 'radar.html', 'manifest.webmanifest', 'modern.css?v=' + ver, 'sonne.js?v=' + ver, 'wetter-core.js?v=' + ver, 'design.js?v=' + ver, 'radar.js?v=' + ver, 'icons/icon-192.png', 'icons/apple-touch-icon.png'].every(u => A.sb.SW_INFO.shell.includes(u)) && !A.sb.SW_INFO.shell.some(u => u.includes('design.css')), A.sb.SW_INFO.shell.join(','));
+  check('Version: Konstante im Worker entspricht der Versions-Query beider Seiten (index.html und radar.html)', typeof ver === 'string' && A.sb.SW_INFO.version === ver && av.refs.filter(r => r.file !== 'sw.js').every(r => r.v === A.sb.SW_INFO.version), A.sb.SW_INFO.version + ' vs ' + av.refs.map(r => r.file + ':' + r.asset + '=' + r.v).join(','));
+  check('Hülle: Startseite, Radar, Manifest, Stylesheet, Skripte und Icons mit Version', ['./', 'index.html', 'radar.html', 'manifest.webmanifest', 'modern.css?v=' + ver, 'sonne.js?v=' + ver, 'wetter-core.js?v=' + ver, 'design.js?v=' + ver, 'radar.js?v=' + ver, 'icons/icon-192.png?v=' + ver, 'icons/icon-512.png?v=' + ver, 'icons/apple-touch-icon.png?v=' + ver, 'icons/icon.svg?v=' + ver].every(u => A.sb.SW_INFO.shell.includes(u)) && !A.sb.SW_INFO.shell.some(u => u.includes('design.css')), A.sb.SW_INFO.shell.join(','));
+  // Icon-Links: index.html und Manifest tragen dieselbe Query wie die Hülle, sonst trifft der Cache offline nicht
+  // (die Versionsprüfung im Harness deckt die Icon-Links beider Seiten mit ab; hier kommt der Abgleich mit der Hülle dazu)
+  const idxIcons = [...fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8').matchAll(/href="(icons\/[\w.-]+)(?:\?v=(\w+))?"/g)].map(m => ({ asset: m[1], v: m[2] || null }));
+  check('Icons: Links in index.html mit der Versions-Query und genau so in der Hülle', idxIcons.length === 2 && idxIcons.every(r => r.v === ver && A.sb.SW_INFO.shell.includes(r.asset + '?v=' + ver)), JSON.stringify(idxIcons));
+  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'manifest.webmanifest'), 'utf8'));
+  const svgIcon = (manifest.icons || []).find(i => i.type === 'image/svg+xml');
+  check('Manifest: id, lang de, Beschreibung, drei Icons mit der Versions-Query in der Hülle, darunter icon.svg (sizes any)', manifest.id && manifest.lang === 'de' && manifest.description && manifest.icons.length === 3 && manifest.icons.every(i => i.src.endsWith('?v=' + ver) && A.sb.SW_INFO.shell.includes(i.src)) && svgIcon && svgIcon.src.startsWith('icons/icon.svg') && svgIcon.sizes === 'any', JSON.stringify(manifest.icons));
 
   await A.fire('install');
   const cacheName = Object.keys(A.stores)[0];
@@ -119,6 +126,5 @@ function run(opts) {
   const post = await A.fire('fetch', { request: A.req('http://localhost:8000/x', 'cors', 'POST') });
   check('Andere Methoden: unberührt', post === undefined && A.putLog.length === p0);
 
-  console.log(fail === 0 ? '\nAlle Checks bestanden.' : '\n' + fail + ' Check(s) fehlgeschlagen.');
-  process.exit(fail ? 1 : 0);
+  finish();
 })();
