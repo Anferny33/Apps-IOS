@@ -1,7 +1,11 @@
 // Radar-Seite (MapLibre + DWD-WMS): Metadaten (Zeitachse, REFERENCE_TIME, Abdeckung),
 // Frame-Auswahl, Ladereihenfolge, Anzeige erst nach vollständigem Laden, Überblendung A/B,
 // begrenzter Cache, Aktualisierung ohne Doppelabrufe, Pause bei Slider/Hintergrund,
-// Abdeckungs- und Ladefehler, Zentrieren, Tag/Nacht-Schalter.
+// Abdeckungs- und Ladefehler, Zentrieren, Tag/Nacht-Schalter, Nachtzustand aus der URL im Radar-Blatt,
+// Zonen-Zusatz am Badge, Rückfall ohne Zeitachse (Bild wird bei jedem Aktualisieren neu geholt),
+// Sonnenrechnung an den Polen. Der Harness setzt die Gerätezone auf Europe/Berlin; ein Check
+// wechselt sie vorübergehend nach New York.
+const { check, finish } = require('./harness');
 const fs = require('fs');
 const vm = require('vm');
 const code = fs.readFileSync(require('path').join(__dirname, '..', 'radar.js'), 'utf8');
@@ -13,8 +17,6 @@ const capsA = '<WMS_Capabilities><Layer><Name>dwd:Niederschlagsradar</Name>' +
   '<Dimension name="time" default="current" units="ISO8601">2026-10-08T07:00:00.000Z/2026-10-08T13:05:00.000Z/PT5M</Dimension>' +
   '<Dimension name="REFERENCE_TIME" default="2026-10-08T11:05:00.000Z" units="ISO8601">2026-10-08T07:00:00.000Z,2026-10-08T11:05:00.000Z</Dimension>' +
   '</Layer></WMS_Capabilities>';
-// Lauf 11:05, aber Zeitachse reicht schon über "jetzt" hinaus: 11:10 ist Prognose, nicht Beobachtung
-const capsB = capsA.replace('11:07', '11:07');
 const T = s => '2026-10-08T' + s + ':00.000Z';
 const sld = '<sld:StyledLayerDescriptor><sld:ColorMap type="intervals">' +
   '<sld:ColorMapEntry color="#7d7d7d" opacity="0.3" quantity="-10" label="Keine Daten"/>' +
@@ -57,6 +59,7 @@ function run(opts) {
   const deferred = {};                            // time -> { promise, resolve }
   const failing = new Set(opts.failTimes || []);
   const docHandlers = {};
+  let clock = NOW;                                // Date.now() der Sandbox, mit advance() verschiebbar
 
   class MapStub {
     constructor(o) {
@@ -84,7 +87,7 @@ function run(opts) {
 
   const sb = {
     console, Math, Object, Array, JSON, parseInt, parseFloat, isNaN, String, Number, Promise, Map, Set, RegExp, Error,
-    Date: class extends Date { constructor(...a) { super(...(a.length ? a : [NOW])); } static now() { return NOW; } static parse(s) { return Date.parse(s); } },
+    Date: class extends Date { constructor(...a) { super(...(a.length ? a : [clock])); } static now() { return clock; } static parse(s) { return Date.parse(s); } },
     setTimeout, clearTimeout, setInterval: () => 1, clearInterval() {},
     devicePixelRatio: 1,
     maplibregl: { Map: MapStub, Marker: MarkerStub },
@@ -112,6 +115,7 @@ function run(opts) {
     localStorage: { store: {}, getItem(k) { if (k === 'wetter:pos') return opts.pos ? JSON.stringify(opts.pos) : null; if (k === 'wetter:active') return opts.active === undefined ? null : (typeof opts.active === 'string' ? opts.active : JSON.stringify(opts.active)); return this.store[k] || null; }, setItem(k, v) { this.store[k] = v; }, removeItem(k) { delete this.store[k]; } }
   };
   sb.window = sb;
+  if (opts.location) sb.location = opts.location;   // Radar-Blatt: { search: '?embed=1&night=1' }
   vm.createContext(sb);
   vm.runInContext(SUN, sb);
   vm.runInContext(code, sb);
@@ -119,12 +123,10 @@ function run(opts) {
     sb, nodes, log, docHandlers,
     st: () => sb.radarState(),
     setBounds(b) { bounds = b; },
+    advance(ms) { clock += ms; },
     defer(time) { let resolve; const promise = new Promise(r => { resolve = r; }); deferred[time] = { promise, resolve }; return () => { resolve(); delete deferred[time]; }; }
   };
 }
-
-let fail = 0;
-const check = (n, c, x) => { console.log((c ? '  ok   ' : '  FAIL ') + n + (c ? '' : ' :: ' + String(x).slice(0, 220))); if (!c) fail++; };
 
 (async () => {
   // ---- A: volle Zeitachse, Position München ----
@@ -136,6 +138,9 @@ const check = (n, c, x) => { console.log((c ? '  ok   ' : '  FAIL ') + n + (c ? 
 
   check('Nacht: Radar rechnet den Zustand aus Ort und Uhrzeit (22:30 Ortszeit dunkel, 13:07 hell)', A.sb.radarNight(Date.parse('2026-10-08T20:30:00Z')) === true && A.sb.radarNight(Date.parse('2026-10-08T11:07:00Z')) === false, A.sb.radarNight(Date.parse('2026-10-08T20:30:00Z')) + ' ' + A.sb.radarNight(Date.parse('2026-10-08T11:07:00Z')));
   check('Nacht: ohne Ort keine Entscheidung', run({ caps: capsA }).sb.radarNight(Date.parse('2026-10-08T20:30:00Z')) === null);
+  // Erreicht die Sonne −8° nie, entscheidet die Mittagshöhe: Polartag und ein Tag ganz in der Dämmerung sind hell, Polarnacht dunkel
+  const nbc = (lat, d, m) => A.sb.nightByClock(lat, 15, d, 3600, m);
+  check('Sonne: Polartag hell, Polarnacht dunkel, Tag ganz in der Dämmerung hell (Pol zur Tagundnachtgleiche, 87° im März), Tromsø Dezember mittags hell, nachts dunkel', nbc(78, '2026-06-21', 60) === false && nbc(78, '2026-12-21', 720) === true && nbc(90, '2026-03-21', 720) === false && nbc(87, '2026-03-12', 0) === false && nbc(69.65, '2026-12-21', 720) === false && nbc(69.65, '2026-12-21', 0) === true, [nbc(78, '2026-06-21', 60), nbc(78, '2026-12-21', 720), nbc(90, '2026-03-21', 720), nbc(87, '2026-03-12', 0), nbc(69.65, '2026-12-21', 720), nbc(69.65, '2026-12-21', 0)].join(','));
   check('Karte: MapLibre mit Position München, Zoom 7, Marker, eigener Stil ohne Schlüssel', map.opts.center[0] === 11.575 && map.opts.zoom === 7 && L.marker && L.marker.ll[1] === 48.137 && map.style.sources.omt.url === 'https://tiles.openfreemap.org/planet' && !/key=|token=/.test(JSON.stringify(map.style)), JSON.stringify(map.opts.center));
   check('Stil: Wasser blassblau, Land zurückhaltend, nur Hauptstraßen ab Zoom 7, Nebenstraßen ab 10, Dörfer ab 10', map.style.layers.find(l => l.id === 'water').paint['fill-color'] === '#D4E4F7' && map.style.layers.find(l => l.id === 'bg').paint['background-color'] === '#EEF1EA' && map.style.layers.find(l => l.id === 'road-major').minzoom === 7 && map.style.layers.find(l => l.id === 'road-minor').minzoom === 10 && map.style.layers.find(l => l.id === 'place-village').minzoom === 10);
   check('Radar: genau zwei Bildebenen, eingefügt vor den Ortsnamen, zunächst unsichtbar', map.layers.length === 2 && map.layers.every(l => l.type === 'raster' && l.before === 'place-city' && l.paint['raster-opacity'] === 0) && Object.keys(map.sources).length === 2, JSON.stringify(map.layers.map(l => [l.id, l.before])));
@@ -217,14 +222,46 @@ const check = (n, c, x) => { console.log((c ? '  ok   ' : '  FAIL ') + n + (c ? 
   check('Schalter: beim automatischen Wechsel verfällt die Handwahl', A.sb.radarNight(Date.parse('2026-10-08T20:30:00Z')) === true && A.sb.localStorage.store['wetter:nightmode'] === undefined);
   check('Schalter: zurück am Tag Automatik', A.sb.radarNight(Date.parse('2026-10-08T11:07:00Z')) === false && N.modeBtn['aria-pressed'] === 'false');
 
+  // Gerätezone außerhalb des Radargebiets (MEZ/MESZ): Badge und Vorleser nennen die Zone, die Marke bleibt knapp
+  process.env.TZ = 'America/New_York';
+  A.sb.updateBadge(frames[5]); A.sb.updateTicks();
+  check('Badge in fremder Gerätezone: Uhrzeit mit Zonen-Zusatz, Regler und Marke für Vorleser auch, Marke sichtbar ohne', /^07:05 Uhr (GMT-4|EDT)$/.test(N.frameTime.textContent) && /^07:05 Uhr (GMT-4|EDT), Beobachtung$/.test(N.slider['aria-valuetext']) && N.tlMarkTime.textContent === '07:05' && /^Zur jüngsten Beobachtung springen, 07:05 Uhr (GMT-4|EDT)$/.test(N.tlMark['aria-label']), N.frameTime.textContent + ' | ' + N.slider['aria-valuetext'] + ' | ' + N.tlMark['aria-label']);
+  process.env.TZ = 'Europe/Berlin';
+  A.sb.updateBadge(frames[5]); A.sb.updateTicks();
+  check('Badge in MEZ/MESZ: Uhrzeit ohne Zusatz', N.frameTime.textContent === '13:05 Uhr' && N.slider['aria-valuetext'] === '13:05 Uhr, Beobachtung' && N.tlMark['aria-label'] === 'Zur jüngsten Beobachtung springen, 13:05 Uhr', N.frameTime.textContent + ' | ' + N.tlMark['aria-label']);
+
+  // ---- Radar-Blatt (?embed=1): der Nachtzustand kommt von der Startseite, eine Handwahl dort bleibt unberührt ----
+  const posM = { lat: 48.137, lon: 11.575, name: 'München' };
+  const dayMs = Date.parse('2026-10-08T11:07:00Z'), nightMs = Date.parse('2026-10-08T20:30:00Z');
+  const G1 = run({ caps: capsA, pos: posM, location: { search: '?embed=1&night=1&v=x' } });
+  G1.sb.localStorage.store['wetter:nightmode'] = JSON.stringify({ force: 'night', auto: false });
+  const G0 = run({ caps: capsA, pos: posM, location: { search: '?embed=1&night=0' } });
+  const Gx = run({ caps: capsA, pos: posM, location: { search: '?embed=1' } });
+  const Gs = run({ caps: capsA, pos: posM, location: { search: '?night=1' } });
+  await wait(80);
+  check('Blatt: night=1 am Tag erzwingt Nacht, Handwahl der Startseite bleibt gespeichert, wetter:night gesetzt', G1.sb.radarNight(dayMs) === true && G1.sb.document.documentElement.classList.contains('night') && G1.sb.localStorage.store['wetter:nightmode'] === JSON.stringify({ force: 'night', auto: false }) && G1.sb.localStorage.store['wetter:night'] === '1', JSON.stringify(G1.sb.localStorage.store));
+  check('Blatt: night=0 in der Nacht erzwingt Tag', G0.sb.radarNight(nightMs) === false && !G0.sb.document.documentElement.classList.contains('night'));
+  check('Blatt ohne night-Parameter und Seite mit night=1 ohne embed: eigene Rechnung nach Uhr', Gx.sb.radarNight(nightMs) === true && Gx.sb.radarNight(dayMs) === false && Gs.sb.radarNight(dayMs) === false && Gs.sb.radarNight(nightMs) === true, [Gx.sb.radarNight(nightMs), Gs.sb.radarNight(dayMs)].join(','));
+
   // ---- B: Metadaten blockiert → aktuelles Bild ohne Zeitraffer ----
-  const B = run({ caps: null, pos: null });
+  const optsB = { caps: null, pos: null };
+  const B = run(optsB);
   await wait(80);
   check('Ohne Zeitachse: Marker und Beschriftung ausgeblendet, Regler ohne Zweiton', B.nodes.tlAxis.classList.contains('hidden') && !B.nodes.slider.style.background, B.nodes.slider.style.background);
   const G2 = run({ caps: capsA, pos: null, style: null });
   await wait(80);
   check('Legende ohne Stildefinition: DWD-Legendenbild statt erfundener Skala', /<img [^>]*GetLegendGraphic/.test(G2.nodes.legend.innerHTML) && !/gradient\(/.test(G2.nodes.legend.innerHTML), G2.nodes.legend.innerHTML.slice(0, 120));
   check('Ohne Metadaten: ein Bild ohne TIME, Badge "aktuell", Hinweis im Notiztext, Play aus, Deutschland-Mitte', B.log.maps.length === 1 && B.log.maps[0] === null && B.nodes.frameTime.textContent === 'aktuell' && /ohne Zeitraffer/.test(B.nodes.note.textContent) && B.nodes.play.textContent === '▶' && B.st().map.opts.center[1] === 51.16, B.nodes.note.textContent);
+  // Aktualisieren ohne Zeitachse: das „aktuell“-Bild wird neu geholt (der Schlüssel trägt die Abrufzeit), nicht aus dem Cache gezeigt
+  const shownUrl = R => { const m = R.st().map; const l = m.layers.find(l => m.paint[l.id + '|raster-opacity'] === 0.72); return l ? m.sources[l.id].url : null; };
+  const urlB1 = shownUrl(B);
+  B.advance(5 * 60000);
+  await B.sb.refresh(true); await wait(30);
+  check('Rückfall ohne Zeitachse: Aktualisieren holt das aktuelle Bild neu und zeigt es, Badge bleibt „aktuell“', B.log.maps.length === 2 && B.log.maps[1] === null && urlB1 && shownUrl(B) !== urlB1 && B.nodes.frameTime.textContent === 'aktuell', B.log.maps.length + ' ' + urlB1 + ' -> ' + shownUrl(B));
+  // Zeitachse kehrt zurück: die „aktuell“-Bilder fliegen aus dem Cache, die 14 Zeitpunkte bleiben
+  optsB.caps = capsA; B.advance(5 * 60000);
+  await B.sb.refresh(true); await wait(120);
+  check('Zeitachse kehrt zurück: 14 Zeitpunkte, „aktuell“-Bilder aus dem Cache geräumt, Badge mit Uhrzeit', B.st().frames.length === 14 && B.sb.cacheSize() === 14 && B.nodes.frameTime.textContent === localHM(T('11:05')) + ' Uhr', B.st().frames.length + ' cache ' + B.sb.cacheSize() + ' ' + B.nodes.frameTime.textContent);
 
   // ---- C: Bildabruf schlägt fehl → Status, altes Bild bleibt, nichts behauptet "kein Regen" ----
   const C = run({ caps: capsA, pos: null, failTimes: [T('11:20')] });
@@ -248,6 +285,5 @@ const check = (n, c, x) => { console.log((c ? '  ok   ' : '  FAIL ') + n + (c ? 
   check('Radar: zentriert auf den aktiven Ort Hamburg, Marker dort', E.st().map.opts.center[0] === 9.99 && E.st().map.opts.center[1] === 53.55 && E.log.marker.ll[1] === 53.55, JSON.stringify(E.st().map.opts.center));
   check('Radar: ungültiger aktiver Ort → GPS-Ort München', F.st().map.opts.center[1] === 48.137, JSON.stringify(F.st().map.opts.center));
 
-  console.log(fail === 0 ? '\nAlle Checks bestanden.' : '\n' + fail + ' fehlgeschlagen.');
-  process.exit(fail ? 1 : 0);
+  finish();
 })().catch(e => { console.error(e); process.exit(1); });

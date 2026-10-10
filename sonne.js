@@ -28,10 +28,11 @@ function solarTimes(lat, lon, dateStr, offsetSec, elevDeg) {
     return a ? { rise: a.noon - a.half, set: a.noon + a.half } : null;
 }
 
-/* Nacht = Sonne tiefer als −8° (Ende der blauen Stunde). Erreicht die Sonne −8° an dem Tag nie:
-   gibt es trotzdem einen Tag (−0,833°), bleibt es hell (helle Sommernächte), sonst entscheidet
-   die Deklination (Polartag hell, Polarnacht dunkel). Der Abstand zum Mittag wird modulo Tag
-   gerechnet, damit auch ferne Orte mit dem Geräteversatz stimmen. */
+/* Nacht = Sonne tiefer als −8° (Ende der blauen Stunde). Erreicht die Sonne −8° an dem Tag nie, steht
+   sie den ganzen Tag darüber oder darunter; dann entscheidet die Mittagshöhe 90° − |φ − δ|: unter −8°
+   ist Polarnacht (dunkel), sonst bleibt es hell (helle Sommernächte, Polartag, und ein Tag ganz in der
+   Dämmerung, wie am Pol um die Tagundnachtgleiche). Der Abstand zum Mittag wird modulo Tag gerechnet,
+   damit auch ferne Orte mit dem Geräteversatz stimmen. */
 function nightByClock(lat, lon, dateStr, offsetSec, nowMin) {
     const a = solarArc(lat, lon, dateStr, offsetSec, -8);
     if (a) {
@@ -39,9 +40,8 @@ function nightByClock(lat, lon, dateStr, offsetSec, nowMin) {
         if (d > 720) d = 1440 - d;
         return d > a.half;
     }
-    if (solarArc(lat, lon, dateStr, offsetSec, -0.833)) return false;
     const g = solarDecl(dateStr);
-    return !!g && lat * g.decl < 0;
+    return !!g && 90 - Math.abs(lat - g.decl * 180 / Math.PI) < -8;
 }
 
 /* Mondphase aus dem synodischen Monat ab dem Neumond vom 6.1.2000 18:14 UTC (auf einen Tag genau) */

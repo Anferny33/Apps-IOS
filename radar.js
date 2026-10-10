@@ -251,7 +251,9 @@ function getMapUrl(timeMs, view) {
     return WMS_URL + "?" + Object.keys(p).map(function (k) { return k + "=" + encodeURIComponent(p[k]); }).join("&");
 }
 
-function frameKey(frame, view) { return (frame.time === null ? "now" : String(frame.time)) + "|" + view.key; }
+/* Ohne Zeitachse (time null, „aktuell“) trägt der Schlüssel die Abrufzeit (frame.at): jedes Aktualisieren
+   holt das Bild neu, statt das veraltete aus dem Cache zu zeigen; überholte Einträge räumt der LRU-Cache */
+function frameKey(frame, view) { return (frame.time === null ? "now@" + frame.at : String(frame.time)) + "|" + view.key; }
 function timeOfKey(key) { return key.split("|")[0]; }
 
 const cache = new Map();       /* key -> { url, at } */
@@ -375,6 +377,19 @@ function fmtTime(ms) {
     return new Date(ms).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
 }
 
+/* Uhrzeiten laufen in Gerätezeit: der aktive Ort liegt nur als Koordinaten vor (wetter:active trägt keine
+   Zeitzone). Das Radargebiet liegt in MEZ/MESZ; zeigt die Gerätezone eine andere Uhrzeit, nennt das Badge
+   die Zone dazu („ GMT-4“), damit die Zeit nicht als Ortszeit gelesen wird. Sonst leer. */
+const RADAR_ZONE = "Europe/Berlin";
+function zoneHint(ms) {
+    try {
+        const d = new Date(ms);
+        if (fmtTime(ms) === d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: RADAR_ZONE })) return "";
+        const z = new Intl.DateTimeFormat("de-DE", { timeZoneName: "short" }).formatToParts(d).filter(function (p) { return p.type === "timeZoneName"; })[0];
+        return " " + (z ? z.value : "Gerätezeit");
+    } catch (e) { return ""; }
+}
+
 function setText(id, text) { const el = $(id); if (el) el.textContent = text; }
 function setMsg(text) { const el = $("mapMsg"); if (!el) return; el.textContent = text; el.classList.remove("hidden"); }
 function hideMsg() { const el = $("mapMsg"); if (el) el.classList.add("hidden"); }
@@ -387,7 +402,8 @@ function lastPastIndex() {
 }
 
 function updateBadge(f) {
-    setText("frameTime", f.time === null ? "aktuell" : fmtTime(f.time) + " Uhr");
+    const stamp = f.time === null ? "aktuell" : fmtTime(f.time) + " Uhr" + zoneHint(f.time);
+    setText("frameTime", stamp);
     const pill = $("framePill");
     if (pill) {
         pill.textContent = f.isForecast ? "Prognose" : "Beobachtung";
@@ -395,7 +411,7 @@ function updateBadge(f) {
     }
     /* Vorleser hören den Zeitpunkt statt der Positionsnummer des Reglers */
     const sl = $("slider");
-    if (sl && sl.setAttribute) sl.setAttribute("aria-valuetext", (f.time === null ? "aktuell" : fmtTime(f.time) + " Uhr") + ", " + (f.isForecast ? "Prognose" : "Beobachtung"));
+    if (sl && sl.setAttribute) sl.setAttribute("aria-valuetext", stamp + ", " + (f.isForecast ? "Prognose" : "Beobachtung"));
     const badge = $("badge");
     if (badge && badge.classList && typeof badge.offsetWidth === "number") {
         badge.classList.remove("tick");
@@ -435,7 +451,8 @@ function updateTicks() {
     if (mark) {
         if (mark.style) mark.style.left = pos;
         setText("tlMarkTime", stamp);
-        if (mark.setAttribute) mark.setAttribute("aria-label", "Zur jüngsten Beobachtung springen, " + stamp + " Uhr");
+        /* Die Marke bleibt knapp (sie steht zwischen den Beschriftungen); den Zonen-Zusatz trägt sichtbar das Badge, hier hört ihn der Vorleser */
+        if (mark.setAttribute) mark.setAttribute("aria-label", "Zur jüngsten Beobachtung springen, " + stamp + " Uhr" + zoneHint(frames[lp].time));
     }
     const obs = $("tlObs"), fc = $("tlFc");
     if (obs && obs.classList) obs.classList.toggle("hidden", pct < 0.22);
@@ -489,7 +506,7 @@ async function loadLegend() {
         const res = await fetch(STYLE_URL);
         if (!res.ok) throw new Error("HTTP " + res.status);
         const lc = parseStyleClasses(await res.text());
-        if (lc.classes.length >= 3) { box.innerHTML = legendHtml(lc); box.classList.add("lg-ready"); return; }
+        if (lc.classes.length >= 3) { box.innerHTML = legendHtml(lc); return; }
         throw new Error("Stil ohne Klassen");
     } catch (e) {
         box.innerHTML = '<div class="lg-row"><span class="lg-unit">mm/h</span><img alt="Farbskala Niederschlagsintensität des DWD" src="' + LEGEND_URL + '"></div>';
@@ -632,7 +649,7 @@ async function doRefresh(keepPosition) {
     if (xml === null) {
         if (frames.length && frames[0].time !== null) { setStatus("Zeitachse nicht aktualisiert, alte Bilder bleiben"); return; }
         /* Ohne Zeitachse: aktuelles Radarbild ohne Zeitraffer */
-        frames = [{ time: null, isForecast: false }];
+        frames = [{ time: null, isForecast: false, at: Date.now() }];
         current = 0;
         updateSlider(); updateTicks();
         setText("note", "Zeitachse des DWD-Dienstes nicht abrufbar; es wird das aktuelle Radarbild ohne Zeitraffer gezeigt.");
@@ -646,7 +663,7 @@ async function doRefresh(keepPosition) {
     if (m.bbox) meta.bbox = m.bbox;
     const picked = pickFrames(m.times, Date.now(), m.refTime);
     if (!picked.length) {
-        frames = [{ time: null, isForecast: false }];
+        frames = [{ time: null, isForecast: false, at: Date.now() }];
         current = 0;
         updateSlider(); updateTicks();
         setText("note", "Keine Zeitpunkte in den Produktmetadaten; es wird das aktuelle Radarbild ohne Zeitraffer gezeigt.");
@@ -657,12 +674,12 @@ async function doRefresh(keepPosition) {
     }
 
     const rel = keepPosition && frames.length && frames[0].time !== null ? current - lastPastIndex() : 0;
-    /* Bilder behalten, deren Zeitpunkt weiter in der Zeitachse liegt; den Rest freigeben */
+    /* Bilder behalten, deren Zeitpunkt weiter in der Zeitachse liegt; den Rest freigeben, auch
+       „aktuell“-Bilder (now@…) aus einem Rückfall ohne Zeitachse, die sind mit der Zeitachse überholt */
     const keepTimes = {};
     picked.forEach(function (p) { keepTimes[String(p.time)] = true; });
     Array.from(cache.keys()).forEach(function (k) {
-        const t = timeOfKey(k);
-        if (t !== "now" && !keepTimes[t]) { const e = cache.get(k); cache.delete(k); if (inUse.indexOf(e.url) < 0) revoke(e.url); }
+        if (!keepTimes[timeOfKey(k)]) { const e = cache.get(k); cache.delete(k); if (inUse.indexOf(e.url) < 0) revoke(e.url); }
     });
     frames = picked;
     updateTicks();
@@ -742,16 +759,32 @@ function radarState() {
     return { map: map, frames: frames, current: current, playing: playing, shownLayer: shownLayer, stagingLayer: stagingLayer, cacheSize: cache.size, queued: queue.length, active: active, loadedView: loadedView };
 }
 
-/* Nachtpalette wie auf der Startseite: Sonnenstand am aktiven Ort (−8°), beim Start und jede Minute.
-   Liefert true/false, ohne Ort null. nowMs nur für Tests. */
+/* Im Radar-Blatt der Startseite (?embed=1) gibt die Startseite ihren Nachtzustand mit (night=1 Nacht,
+   night=0 Tag): eine Zeitbasis für beide (Ortszeit, an Open-Meteo verankert), eine Handwahl ist dort
+   schon eingerechnet. Liefert true/false, ohne Parameter oder außerhalb des Blatts null. */
+function embedNight() {
+    try {
+        const q = typeof location !== "undefined" && location && typeof location.search === "string" ? location.search : "";
+        if (!/[?&]embed=1(&|$)/.test(q)) return null;
+        const m = /[?&]night=([01])(&|$)/.exec(q);
+        return m ? m[1] === "1" : null;
+    } catch (e) { return null; }
+}
+
+/* Nachtpalette wie auf der Startseite: im Blatt deren Zustand (embedNight), sonst der Sonnenstand am
+   aktiven Ort (−8°) nach Gerätezeit und Gerätezone (wetter:active trägt keine Zeitzone), beim Start
+   und jede Minute. Liefert true/false, ohne Ort null. nowMs nur für Tests. */
 let radarAuto = null, radarFadeTimer = null;
 function radarNight(nowMs) {
-    const pos = lastKnownPos();
-    if (!pos || typeof nightByClock !== "function") return null;
-    const now = new Date(isNum(nowMs) ? nowMs : Date.now());
-    const dateStr = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0");
-    radarAuto = nightByClock(pos.lat, pos.lon, dateStr, -now.getTimezoneOffset() * 60, now.getHours() * 60 + now.getMinutes());
-    const on = resolveNight(radarAuto);
+    let on = embedNight();
+    if (on === null) {
+        const pos = lastKnownPos();
+        if (!pos || typeof nightByClock !== "function") return null;
+        const now = new Date(isNum(nowMs) ? nowMs : Date.now());
+        const dateStr = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0");
+        radarAuto = nightByClock(pos.lat, pos.lon, dateStr, -now.getTimezoneOffset() * 60, now.getHours() * 60 + now.getMinutes());
+        on = resolveNight(radarAuto);
+    }
     const root = document.documentElement && document.documentElement.classList ? document.documentElement : null;
     if (root) {
         if (root.classList.contains("night") !== on) {

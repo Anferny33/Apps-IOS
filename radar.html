@@ -5,9 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Regenradar">
+<!-- Homescreen-App wie die Startseite: gleicher App-Name und dasselbe Manifest, damit ein Radar-Icon
+     nicht zur zweiten App ohne Manifest wird; der Seitentitel unten bleibt „Regenradar“ -->
+<meta name="apple-mobile-web-app-title" content="Wetter">
 <meta name="theme-color" content="#ECEAF4">
-<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=20261008d">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=20261009q">
+<link rel="manifest" href="manifest.webmanifest">
 <title>Regenradar</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -168,6 +171,8 @@
         .lg-ticks span.alt { visibility: hidden; }
         .lg-nodata { grid-column: 2; grid-row: 3; }
         .lg-note { grid-column: 1 / -1; }
+        /* Absicht (Platz): bei höchstens 520 px Höhe bekommt die Karte die Höhe; die aufklappbare Liste
+           „Alle Stufen“ (16 Zeilen) und der Hinweistext passen nicht in die eine Zeile. Hochkant sind beide da. */
         .lg-more { display: none; }
         .rnote { display: none; }
         .play { width: 40px; height: 40px; }
