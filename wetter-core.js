@@ -27,7 +27,7 @@ const MODELS = [
     { id: "gfs_seamless",              name: "GFS",       sub: "NOAA" }
 ];
 
-/* Validierte Chartfarben (dunkle Fläche #12233f) */
+/* WMO-Wettercodes von Open-Meteo: Symbol und deutscher Text je Code */
 const WMO = {
     0:["☀️","klar"],1:["🌤️","überwiegend klar"],2:["⛅","wolkig"],3:["☁️","bedeckt"],
     45:["🌫️","Nebel"],48:["🌫️","gefrierender Nebel"],
@@ -110,11 +110,14 @@ function splitPastDay(fc) {
 
 /* Metadaten der Modellläufe (Open-Meteo): Zeitpunkt des letzten Laufs und seiner Verfügbarkeit,
    Laufabstand; alles in Sekunden. ICON-D2 trägt die Hauptzeile, die Vergleichsmodelle folgen in
-   einer Liste. Nur für das Herkunftsblatt; ein Fehler blendet dort die jeweilige Zeile aus. */
+   einer Liste. Nur für das Herkunftsblatt; ein Fehler blendet dort die jeweilige Zeile aus.
+   Die Verzeichnisse sind die Datensatznamen von Open-Meteo (api.open-meteo.com/data/); zu jedem
+   Modell aus MODELS gibt es einen Eintrag, ARPEGE unter meteofrance_arpege_europe. */
 const META_MODELS = [
     { id: "icon_d2", name: "ICON-D2", dir: "dwd_icon_d2" },
     { id: "icon_eu", name: "ICON-EU", dir: "dwd_icon_eu" },
     { id: "ecmwf_ifs025", name: "ECMWF IFS", dir: "ecmwf_ifs025" },
+    { id: "meteofrance_arpege_europe", name: "ARPEGE", dir: "meteofrance_arpege_europe" },
     { id: "ukmo_seamless", name: "UKMO", dir: "ukmo_global_deterministic_10km" },
     { id: "gfs_seamless", name: "GFS", dir: "ncep_gfs025" }
 ];
@@ -173,6 +176,9 @@ function fetchAir(loc) {
    Liefert die aktiven Warnungen der Gemeinde, höchste Stufe zuerst. */
 const WARN_LEVELS = { Minor: 1, Moderate: 2, Severe: 3, Extreme: 4 };
 
+/* Zeitbasis der Datenschicht: window.TEST_NOW (Tests, Vorschau) oder die echte Uhr, wie nowMs() in design.js */
+function coreNow() { return typeof window !== "undefined" && isNum(window.TEST_NOW) ? window.TEST_NOW : Date.now(); }
+
 function fetchWarnings(loc) {
     const url = buildUrl("https://maps.dwd.de/geoserver/dwd/ows", {
         service: "WFS", version: "2.0.0", request: "GetFeature",
@@ -185,7 +191,7 @@ function fetchWarnings(loc) {
 
 function normalizeWarnings(data, now) {
     const feats = data && Array.isArray(data.features) ? data.features : [];
-    const t = now ? new Date(now).getTime() : Date.now();
+    const t = now ? new Date(now).getTime() : coreNow();
     const seen = {};
     const out = [];
     feats.forEach(function (f) {
@@ -215,8 +221,9 @@ function normalizeWarnings(data, now) {
 
 /* Meldungen des Bevölkerungsschutzes (NINA / warnung.bund.de) über den eigenen
    Cloudflare-Worker in proxy/, der die fehlenden CORS-Header ergänzt und den
-   Kreis zum Punkt ermittelt. Leer gelassen = Funktion aus. */
-const NINA_PROXY = (typeof window !== "undefined" && window.NINA_PROXY) || "https://wetter-nina-proxy.anferny-wetter.workers.dev";
+   Kreis zum Punkt ermittelt. window.NINA_PROXY überschreibt die Adresse; die leere
+   Zeichenkette schaltet die Funktion aus, nur undefined/null fällt auf die feste Adresse zurück. */
+const NINA_PROXY = (typeof window !== "undefined" && typeof window.NINA_PROXY === "string") ? window.NINA_PROXY : "https://wetter-nina-proxy.anferny-wetter.workers.dev";
 /* Öffentlicher VAPID-Schlüssel des Regen-Alarms; das Gegenstück liegt als Geheimnis im Worker (proxy/README.md) */
 const PUSH_PUBLIC_KEY = "BLlIrCr2ZhfskoTzqOPMPkQTD5BKRVZ4idoQga8jMXCYHKln2VHfi7j6KJuDxggh_nYNaQaQHnCoYd9KKuO_-SM";
 function pushPublicKey() { return PUSH_PUBLIC_KEY; }
@@ -226,11 +233,15 @@ function fetchNina(loc) {
     return getJson(NINA_PROXY + "/nina?lat=" + loc.lat + "&lon=" + loc.lon).then(function (data) { return normalizeNina(data); });
 }
 
-function normalizeNina(data) {
+/* now (optional, ms oder ISO) nur für Tests, sonst coreNow(); abgelaufene Meldungen fallen hier als zweite Sicherung
+   weg, falls ein älterer Worker sie noch durchreicht. expires kommt vom Worker bereits als ISO-Zeit. */
+function normalizeNina(data, now) {
     const list = data && Array.isArray(data.warnings) ? data.warnings : [];
+    const t = now ? new Date(now).getTime() : coreNow();
     return list.filter(function (w) {
         /* DWD-Warnungen kommen direkt vom DWD (mit Gemeindegenauigkeit), nicht doppelt über NINA */
-        return w && w.provider !== "DWD" && w.msgType !== "Cancel";
+        if (!w || w.provider === "DWD" || w.msgType === "Cancel") return false;
+        return !(w.expires && new Date(w.expires).getTime() < t);
     }).map(function (w) {
         return {
             id: w.id || null,
@@ -479,9 +490,11 @@ function loadActiveLoc() {
 }
 
 /* Einstellungen der App: Einheiten, Startansicht, Bewegung, Rausgehen-Toleranzen, Startseite,
-   Tagesfilm, Regen-Alarm. Intern bleibt alles in °C und km/h, nur die Anzeige rechnet um. */
+   Tagesfilm, Regen-Alarm (push, pushLoc = Ort des Abonnements, pushUnsub = offene Abmeldung beim Worker), Reise (trip = {name, lat, lon, from, to},
+   tripSwitched = Datum des letzten automatischen Wechsels), Tagesfilm-Datum (filmShown).
+   Intern bleibt alles in °C und km/h, nur die Anzeige rechnet um. */
 const SETTINGS_KEY = CACHE_PREFIX + "settings";
-const SETTINGS_DEFAULTS = { temp: "C", wind: "kmh", motion: "system", startView: "last", rainTol: 0, feelAdj: 0, hidden: [], order: [], dayfilm: true, push: false };
+const SETTINGS_DEFAULTS = { temp: "C", wind: "kmh", motion: "system", startView: "last", rainTol: 0, feelAdj: 0, hidden: [], order: [], dayfilm: true, push: false, pushLoc: null, pushUnsub: null, trip: null, tripSwitched: null, filmShown: null };
 
 function normalizeSettings(p) {
     const s = Object.assign({}, SETTINGS_DEFAULTS, p && typeof p === "object" ? p : {});
@@ -502,6 +515,7 @@ function normalizeSettings(p) {
     s.tripSwitched = isDate(s.tripSwitched) ? s.tripSwitched : null;
     s.filmShown = isDate(s.filmShown) ? s.filmShown : null;
     s.pushLoc = s.pushLoc && isNum(s.pushLoc.lat) && isNum(s.pushLoc.lon) ? { lat: s.pushLoc.lat, lon: s.pushLoc.lon } : null;
+    s.pushUnsub = typeof s.pushUnsub === "string" && /^https:\/\//.test(s.pushUnsub) ? s.pushUnsub : null;
     return s;
 }
 

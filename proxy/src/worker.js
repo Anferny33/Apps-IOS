@@ -1,12 +1,12 @@
 import { sendWebPush } from "./webpush.js";
 
-/* NINA-Proxy und Regen-Alarm für die Wetter-App (Cloudflare Worker).
+/* NINA-Proxy, Regen-Alarm und Rückmeldungen für die Wetter-App (Cloudflare Worker).
  *
  * Die Warn-API des Bundes (warnung.bund.de, Bundesamt für Bevölkerungsschutz)
  * liefert Katastrophen-, Hochwasser- und Polizeimeldungen, sendet aber keine
  * CORS-Header. Dieser Worker holt die Meldungen eines Landkreises, hängt die
- * Detailtexte an, bereinigt das HTML und liefert eine kompakte Liste mit
- * CORS-Freigabe für die Web-App aus.
+ * Detailtexte an, bereinigt das HTML, lässt Cancel und abgelaufene Meldungen weg
+ * und liefert eine kompakte Liste mit CORS-Freigabe für die Web-App aus.
  *
  *   GET /nina?lat=48.137&lon=11.575   Meldungen für einen Punkt: der Kreis wird über
  *                                     den BKG-Dienst (Verwaltungsgebiete 1:250 000,
@@ -17,7 +17,18 @@ import { sendWebPush } from "./webpush.js";
  *   POST /push/subscribe              Push-Abonnement mit Ort anlegen oder aktualisieren (KV SUBS)
  *   POST /push/unsubscribe            Push-Abonnement löschen
  *   POST /push/test                   Probenachricht an ein Abonnement (höchstens alle fünf Minuten)
+ *   POST /feedback                    Rückmeldung eines Testers ablegen (KV FEEDBACK, 90 Tage)
+ *   GET /feedback                     Ungelesene Rückmeldungen lesen (?all=1 alle), nur mit Bearer FEEDBACK_TOKEN
+ *   POST /feedback/ack                Rückmeldungen { ids } als gelesen markieren, nur mit Bearer FEEDBACK_TOKEN
  *   Cron alle 15 Minuten              Regen-Alarm: Vorhersage je Abonnement prüfen, Nachricht senden
+ *
+ * Zugriff: Die App ist öffentlich und hat kein Geheimnis, deshalb sind /nina, /push/* und
+ * POST /feedback bewusst ohne Anmeldung erreichbar. Schutz stattdessen: Anfragen mit fremdem
+ * Origin-Header bekommen 403 (CORS allein wäre keine Zugriffskontrolle; ohne Origin, etwa curl
+ * oder feedback.sh, geht es durch), Push-Endpunkte müssen per https auf einen bekannten
+ * Push-Dienst zeigen, Anfragekörper an /push/* sind in der Größe begrenzt, und subscribe, test
+ * und feedback sind je IP-Adresse (CF-Connecting-IP) über KV begrenzt. Nur das Lesen und
+ * Markieren der Rückmeldungen verlangt das Geheimnis FEEDBACK_TOKEN.
  *
  * Meldungen werden 2 Minuten, die Kreiszuordnung eines Punkts 1 Tag am Edge gecacht.
  */
@@ -50,12 +61,23 @@ const PUSH_PREFIX = "sub:";
 const PUSH_QUIET_MS = 3 * 3600000;          /* Sperrfrist zwischen zwei Nachrichten je Abonnement */
 const PUSH_HORIZON = 4;                     /* Viertelstunden nach der aktuellen: Regen innerhalb einer Stunde */
 const PUSH_TEST_GAP_MS = 5 * 60000;         /* Abstand zwischen zwei Probenachrichten je Abonnement */
+/* Push-Dienste der Browser (Chrome, Safari, Firefox, Edge); nur dorthin nimmt der Worker Endpunkte an */
+const PUSH_HOSTS = ["fcm.googleapis.com", "web.push.apple.com", "updates.push.services.mozilla.com", "push.services.mozilla.com"];
+const PUSH_HOST_SUFFIX = ".notify.windows.com";
+const PUSH_BODY_MAX = 4096;                 /* Zeichen je Anfrage an /push/*; ein Abonnement braucht etwa 400 */
+const PUSH_ENDPOINT_MAX = 2048;
+/* Rate-Begrenzung je IP-Adresse (Zähler in KV SUBS unter rate:<route>:<ip>, Fenster eine Stunde) */
+const RATE_PREFIX = "rate:";
+const RATE_WINDOW_S = 3600;
+const PUSH_RATE_MAX = 120;                  /* /push/subscribe je IP und Stunde; großzügig, weil hinter Carrier-NAT viele Geräte eine IPv4-Adresse teilen und syncPush bei Ortswechseln neu anmeldet */
+const PUSH_TEST_RATE_MAX = 10;              /* /push/test je IP und Stunde */
 
 /* Rückmeldungen der Tester (KV-Namespace FEEDBACK) */
 const FB_PREFIX = "fb:";
 const FB_RATE_PREFIX = "fbrate:";
 const FB_TTL_S = 90 * 86400;                /* Einträge verfallen nach 90 Tagen */
 const FB_RATE_MAX = 5, FB_RATE_WINDOW_S = 3600;  /* je Kennung höchstens fünf pro Stunde */
+const FB_RATE_IP_MAX = 20;                  /* je IP-Adresse höchstens zwanzig pro Stunde (Kennung ist frei wählbar) */
 const FB_TEXT_MIN = 3, FB_TEXT_MAX = 2000;
 const FB_KINDS = ["fehler", "idee", "lob"];
 const FB_META = { version: 20, ua: 200, view: 20, lastError: 300, ts: 40 };  /* erlaubte Textfelder mit Höchstlänge */
@@ -64,8 +86,12 @@ export default {
     async scheduled(event, env, ctx) { ctx.waitUntil(checkRain(env)); },
     async fetch(request, env, ctx) {
         const url = new URL(request.url);
-        const cors = corsHeaders(request.headers.get("Origin"));
+        const origin = request.headers.get("Origin");
+        const cors = corsHeaders(origin);
 
+        /* Fremde Seiten werden abgewiesen, nicht nur ohne CORS-Freigabe beantwortet. Anfragen ohne
+           Origin-Header (curl, feedback.sh, Cron-Tests) bleiben erlaubt, sie kommen nicht aus einem Browser. */
+        if (origin && ALLOWED_ORIGINS.indexOf(origin) < 0) return json({ error: "Origin nicht erlaubt" }, 403, cors);
         if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
         if (url.pathname === "/push/subscribe" || url.pathname === "/push/unsubscribe") {
             if (request.method !== "POST") return json({ error: "Nur POST" }, 405, cors);
@@ -136,6 +162,7 @@ export default {
 };
 
 function corsHeaders(origin) {
+    /* Fremde Origins bekommen oben 403; hier bleibt nur die Freigabe für die erlaubten (und für die 403-Antwort) */
     const allowed = origin && ALLOWED_ORIGINS.indexOf(origin) >= 0 ? origin : ALLOWED_ORIGINS[0];
     return {
         "Access-Control-Allow-Origin": allowed,
@@ -186,13 +213,23 @@ async function loadNina(ars) {
     const details = await Promise.all(picked.map(function (it) {
         return getJson("/warnings/" + encodeURIComponent(it.id) + ".json").catch(function () { return null; });
     }));
+    const now = Date.now();
     const warnings = picked.map(function (it, i) { return normalize(it, details[i]); })
-        .filter(function (w) { return w && w.msgType !== "Cancel"; });
+        .filter(function (w) { return w && w.msgType !== "Cancel" && !(w.expires && Date.parse(w.expires) < now); });
     warnings.sort(function (a, b) { return b.level - a.level || String(b.sent).localeCompare(String(a.sent)); });
     return { ars: ars, fetchedAt: new Date().toISOString(), source: "warnung.bund.de", warnings: warnings };
 }
 
-function normalize(item, detail) {
+/* Zeitangabe aus NINA (mit Zonenversatz, z. B. 2026-10-10T16:35:00+02:00) als ISO-Zeit in UTC, sonst null */
+function isoTime(v) {
+    const t = typeof v === "string" && v ? Date.parse(v) : NaN;
+    return isFinite(t) ? new Date(t).toISOString() : null;
+}
+
+/* Dashboard-Eintrag (item) und CAP-Details (detail) zu einer Meldung zusammenführen. Das Ablaufdatum
+   steht je nach Anbieter an verschiedenen Stellen: info[].expires in den Details, expiresDate im
+   Dashboard-Eintrag, selten payload.data.expires; der erste gefundene Wert gilt. */
+export function normalize(item, detail) {
     const data = item && item.payload && item.payload.data ? item.payload.data : {};
     const info = detail && Array.isArray(detail.info) ? (detail.info.find(function (i) { return i.language === "de-DE" || i.language === "de"; }) || detail.info[0]) : null;
     const provider = String(data.provider || "").toUpperCase();
@@ -212,7 +249,7 @@ function normalize(item, detail) {
         instruction: cleanText(info && info.instruction),
         sent: item.sent || (detail && detail.sent) || null,
         onset: info && info.onset ? info.onset : null,
-        expires: info && info.expires ? info.expires : null,
+        expires: isoTime(info && info.expires) || isoTime(item && item.expiresDate) || isoTime(data.expires) || isoTime(detail && detail.expires),
         web: info && info.web ? info.web : null,
         area: areas.join(", ")
     };
@@ -241,20 +278,66 @@ async function subId(endpoint) {
     return PUSH_PREFIX + Array.from(new Uint8Array(digest)).slice(0, 16).map(function (b) { return b.toString(16).padStart(2, "0"); }).join("");
 }
 
+/* Endpunkt eines Abonnements: https und ein bekannter Push-Dienst; der Worker schickt sonst an beliebige Adressen */
+export function knownPushEndpoint(endpoint) {
+    if (typeof endpoint !== "string" || !endpoint || endpoint.length > PUSH_ENDPOINT_MAX) return false;
+    let u;
+    try { u = new URL(endpoint); } catch (e) { return false; }
+    return u.protocol === "https:" && (PUSH_HOSTS.indexOf(u.hostname) >= 0 || u.hostname.endsWith(PUSH_HOST_SUFFIX));
+}
+
 function validSubscription(sub) {
-    return sub && typeof sub.endpoint === "string" && /^https:\/\//.test(sub.endpoint) && sub.keys &&
-        typeof sub.keys.p256dh === "string" && sub.keys.p256dh.length > 80 && typeof sub.keys.auth === "string" && sub.keys.auth.length > 10;
+    return sub && knownPushEndpoint(sub.endpoint) && sub.keys &&
+        typeof sub.keys.p256dh === "string" && sub.keys.p256dh.length > 80 && sub.keys.p256dh.length <= 200 &&
+        typeof sub.keys.auth === "string" && sub.keys.auth.length > 10 && sub.keys.auth.length <= 64;
+}
+
+/* Anfragekörper als JSON mit Größengrenze; liefert { body } oder { error: Response } */
+async function readJson(request, maxChars, cors) {
+    let text;
+    try { text = await request.text(); } catch (e) { return { error: json({ error: "JSON erwartet" }, 400, cors) }; }
+    if (text.length > maxChars) return { error: json({ error: "Anfrage zu groß" }, 413, cors) };
+    try { return { body: JSON.parse(text) }; } catch (e) { return { error: json({ error: "JSON erwartet" }, 400, cors) }; }
+}
+
+/* Aufrufer-Adresse für die Rate-Begrenzung; Cloudflare setzt den Kopf bei jeder Anfrage, wrangler dev ebenso */
+function clientIp(request) { return request.headers.get("CF-Connecting-IP") || "unbekannt"; }
+
+/* Einfacher Zähler in KV: true, wenn das Fenster für diesen Schlüssel voll ist; sonst wird mitgezählt */
+async function rateLimited(kv, key, max, windowS) {
+    let rate = null;
+    try { rate = JSON.parse(await kv.get(key)); } catch (e) { rate = null; }
+    const now = Date.now();
+    if (!rate || !rate.since || now - rate.since > windowS * 1000) rate = { n: 0, since: now };
+    if (rate.n >= max) return true;
+    rate.n++;
+    await kv.put(key, JSON.stringify(rate), { expirationTtl: windowS });
+    return false;
+}
+
+/* Alle Schlüssel eines Präfixes; KV liefert höchstens 1000 je Seite, der Cursor holt den Rest */
+async function listAll(kv, prefix) {
+    const keys = [];
+    let cursor = null;
+    do {
+        const page = await kv.list(cursor ? { prefix: prefix, cursor: cursor } : { prefix: prefix });
+        keys.push.apply(keys, page.keys);
+        cursor = page.list_complete === false && page.cursor ? page.cursor : null;
+    } while (cursor);
+    return keys;
 }
 
 async function pushRoute(pathname, request, env, cors) {
     if (!env.SUBS) return json({ error: "Kein KV-Speicher gebunden" }, 500, cors);
-    let body;
-    try { body = await request.json(); } catch (e) { return json({ error: "JSON erwartet" }, 400, cors); }
+    const r = await readJson(request, PUSH_BODY_MAX, cors);
+    if (r.error) return r.error;
+    const body = r.body;
     if (pathname === "/push/unsubscribe") {
-        if (!body || typeof body.endpoint !== "string") return json({ error: "endpoint fehlt" }, 400, cors);
+        if (!body || typeof body.endpoint !== "string" || body.endpoint.length > PUSH_ENDPOINT_MAX) return json({ error: "endpoint fehlt" }, 400, cors);
         await env.SUBS.delete(await subId(body.endpoint));
         return json({ ok: true }, 200, cors);
     }
+    if (await rateLimited(env.SUBS, RATE_PREFIX + "sub:" + clientIp(request), PUSH_RATE_MAX, RATE_WINDOW_S)) return json({ error: "Zu viele Anmeldungen, bitte später erneut" }, 429, cors);
     const sub = body && body.subscription, lat = Number(body && body.lat), lon = Number(body && body.lon);
     if (!validSubscription(sub) || !isFinite(lat) || !isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return json({ error: "Abonnement oder Ort ungültig" }, 400, cors);
     const id = await subId(sub.endpoint);
@@ -271,14 +354,21 @@ async function pushRoute(pathname, request, env, cors) {
     return json({ ok: true }, 200, cors);
 }
 
+/* VAPID braucht Schlüsselpaar und Absender (mailto:/https:, wrangler.toml); ohne sie wird nichts gesendet,
+   statt stillschweigend eine Beispieladresse auszuweisen */
+const VAPID_MISSING = "VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY oder VAPID_SUBJECT fehlt im Worker";
+function vapidConfigured(env) { return !!(env.VAPID_PRIVATE_KEY && env.VAPID_PUBLIC_KEY && env.VAPID_SUBJECT); }
+
 /* Probenachricht: zeigt, dass Abonnement, Schlüssel und Zustellung zusammenpassen. Der Aufrufer
    nennt seinen Endpunkt (nur die App kennt ihn); je Abonnement höchstens alle fünf Minuten. */
 async function pushTest(request, env, cors) {
     if (!env.SUBS) return json({ error: "Kein KV-Speicher gebunden" }, 500, cors);
-    if (!env.VAPID_PRIVATE_KEY || !env.VAPID_PUBLIC_KEY) return json({ error: "VAPID-Schlüssel fehlen im Worker" }, 500, cors);
-    let body;
-    try { body = await request.json(); } catch (e) { return json({ error: "JSON erwartet" }, 400, cors); }
-    if (!body || typeof body.endpoint !== "string") return json({ error: "endpoint fehlt" }, 400, cors);
+    if (!vapidConfigured(env)) return json({ error: VAPID_MISSING }, 500, cors);
+    const r = await readJson(request, PUSH_BODY_MAX, cors);
+    if (r.error) return r.error;
+    const body = r.body;
+    if (!body || typeof body.endpoint !== "string" || body.endpoint.length > PUSH_ENDPOINT_MAX) return json({ error: "endpoint fehlt" }, 400, cors);
+    if (await rateLimited(env.SUBS, RATE_PREFIX + "test:" + clientIp(request), PUSH_TEST_RATE_MAX, RATE_WINDOW_S)) return json({ error: "Zu viele Probenachrichten, bitte später erneut" }, 429, cors);
     const id = await subId(body.endpoint);
     let sub = null;
     try { sub = JSON.parse(await env.SUBS.get(id)); } catch (e) { sub = null; }
@@ -293,7 +383,7 @@ async function pushTest(request, env, cors) {
     let status;
     try {
         status = await sendWebPush({ endpoint: sub.endpoint, keys: sub.keys }, payload, {
-            publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY, subject: env.VAPID_SUBJECT || "mailto:wetter@example.org", ttl: 600, fetch: env.__fetch
+            publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY, subject: env.VAPID_SUBJECT, ttl: 600, fetch: env.__fetch
         });
     } catch (e) { return json({ error: "Versand fehlgeschlagen: " + (e && e.message ? e.message : String(e)) }, 502, cors); }
     if (status === 404 || status === 410) {
@@ -330,9 +420,10 @@ export function rainAlert(m15, wallNowMs) {
 export async function checkRain(env, deps) {
     const f = (deps && deps.fetch) || fetch, now = (deps && deps.now) || Date.now();
     const out = { checked: 0, sent: 0, removed: 0, errors: 0 };
-    if (!env.SUBS || !env.VAPID_PRIVATE_KEY || !env.VAPID_PUBLIC_KEY) return out;
-    const list = await env.SUBS.list({ prefix: PUSH_PREFIX });
-    for (const key of list.keys) {
+    if (!env.SUBS) return out;
+    if (!vapidConfigured(env)) { out.error = VAPID_MISSING; console.error(VAPID_MISSING); return out; }
+    const keys = await listAll(env.SUBS, PUSH_PREFIX);
+    for (const key of keys) {
         let sub;
         try { sub = JSON.parse(await env.SUBS.get(key.name)); } catch (e) { sub = null; }
         if (!sub) continue;
@@ -353,7 +444,7 @@ export async function checkRain(env, deps) {
                 url: "./"
             });
             const status = await sendWebPush({ endpoint: sub.endpoint, keys: sub.keys }, payload, {
-                publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY, subject: env.VAPID_SUBJECT || "mailto:wetter@example.org", ttl: 3600, fetch: f
+                publicKey: env.VAPID_PUBLIC_KEY, privateKey: env.VAPID_PRIVATE_KEY, subject: env.VAPID_SUBJECT, ttl: 3600, fetch: f
             });
             if (status === 404 || status === 410) { await env.SUBS.delete(key.name); out.removed++; continue; }
             if (status >= 200 && status < 300) {
@@ -402,14 +493,11 @@ async function feedbackPost(request, env, cors) {
     try { body = await request.json(); } catch (e) { return json({ error: "JSON erwartet" }, 400, cors); }
     const entry = cleanFeedback(body);
     if (!entry) return json({ error: "Text (mindestens 3 Zeichen) oder Kennung fehlt" }, 400, cors);
-    const rateKey = FB_RATE_PREFIX + body.id;
-    let rate = null;
-    try { rate = JSON.parse(await env.FEEDBACK.get(rateKey)); } catch (e) { rate = null; }
-    const now = Date.now();
-    if (!rate || !rate.since || now - rate.since > FB_RATE_WINDOW_S * 1000) rate = { n: 0, since: now };
-    if (rate.n >= FB_RATE_MAX) return json({ error: "Höchstens " + FB_RATE_MAX + " Rückmeldungen pro Stunde" }, 429, cors);
-    rate.n++;
-    await env.FEEDBACK.put(rateKey, JSON.stringify(rate), { expirationTtl: FB_RATE_WINDOW_S });
+    /* Je Kennung und zusätzlich je IP-Adresse, denn die Kennung wählt der Client selbst */
+    if (await rateLimited(env.FEEDBACK, FB_RATE_PREFIX + body.id, FB_RATE_MAX, FB_RATE_WINDOW_S) ||
+        await rateLimited(env.FEEDBACK, FB_RATE_PREFIX + "ip:" + clientIp(request), FB_RATE_IP_MAX, FB_RATE_WINDOW_S)) {
+        return json({ error: "Höchstens " + FB_RATE_MAX + " Rückmeldungen pro Stunde" }, 429, cors);
+    }
     await env.FEEDBACK.put(entry.id, JSON.stringify(entry), { expirationTtl: FB_TTL_S });
     return json({ ok: true, id: entry.id }, 200, cors);
 }
@@ -424,9 +512,9 @@ async function feedbackList(request, url, env, cors) {
     if (!env.FEEDBACK) return json({ error: "Kein KV-Speicher gebunden" }, 500, cors);
     if (!feedbackAuthorized(request, env)) return json({ error: "Nicht erlaubt" }, 401, cors);
     const all = url.searchParams.get("all") === "1";
-    const list = await env.FEEDBACK.list({ prefix: FB_PREFIX });
+    const keys = await listAll(env.FEEDBACK, FB_PREFIX);
     const items = [];
-    for (const key of list.keys) {
+    for (const key of keys) {
         let e = null;
         try { e = JSON.parse(await env.FEEDBACK.get(key.name)); } catch (err) { e = null; }
         if (e && (all || !e.read)) items.push(e);
