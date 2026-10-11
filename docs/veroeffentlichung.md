@@ -15,7 +15,7 @@ Die App läuft als Homescreen-Web-App weiter, ohne Store, ohne Konto.
 
 ## Phase 1: Entscheidungen vor dem Umbau
 
-- [ ] Name der App: „Wetter“ ist generisch und kollidiert mit Apples eigener App (Entscheidung).
+- [ ] Name der App: „Wetter“ ist generisch und kollidiert mit Apples eigener App (Entscheidung). Recherche vom 11.10.2026 in `docs/namen-recherche.md`: Empfehlung Heiter, Alternativen Belsole und Tagbogen; vor der Entscheidung Markenregister von Hand prüfen.
 - [ ] Eigenes Symbol, das sich von Apples Wetter-Symbol klar unterscheidet; Ausgangspunkt ist `icons/icon.svg`.
 - [ ] Bundle-ID in umgekehrter Domain-Schreibweise, etwa `de.<deinname>.<appname>` (Entscheidung).
 - [ ] Zielgeräte: nur iPhone oder auch iPad; Mindestversion iOS 16.4 wegen Push (Entscheidung).

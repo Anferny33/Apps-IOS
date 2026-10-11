@@ -8,8 +8,8 @@
 <meta name="apple-mobile-web-app-title" content="Wetter">
 <meta name="theme-color" content="#ECEAF4">
 <!-- Icon-Links tragen dieselbe Versions-Query wie Stylesheet und Skripte; die Offline-Hülle (sw.js) führt sie so -->
-<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=20261011d">
-<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=20261011d">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=20261011e">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=20261011e">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Wetter</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -19,7 +19,7 @@
      die Statusleiste (theme-color) folgt sofort mit, design.js setzt sie später nur noch bei Wechseln -->
 <script>try { if (localStorage.getItem("wetter:night") === "1") document.documentElement.classList.add("night"); } catch (e) {}</script>
 <script>try { var s0 = JSON.parse(localStorage.getItem("wetter:settings") || "{}"), nil0 = !!(s0 && s0.scheme === "nil"), ocker0 = !!(s0 && s0.scheme === "ocker"), zitrone0 = !!(s0 && s0.scheme === "zitrone"), n0 = document.documentElement.classList.contains("night"), m0 = document.querySelector('meta[name="theme-color"]'); if (nil0) document.documentElement.classList.add("scheme-nil"); if (ocker0) document.documentElement.classList.add("scheme-ocker"); if (zitrone0) document.documentElement.classList.add("scheme-zitrone"); if (m0) m0.setAttribute("content", zitrone0 ? (n0 ? "#501345" : "#f8ed43") : ocker0 ? (n0 ? "#111314" : "#ebd3a2") : nil0 ? (n0 ? "#051230" : "#bce4e5") : (n0 ? "#14121F" : "#ECEAF4")); } catch (e) {}</script>
-<link rel="stylesheet" href="modern.css?v=20261011d" id="cssModern">
+<link rel="stylesheet" href="modern.css?v=20261011e" id="cssModern">
 <!-- Schriftgrenze: die Systemschriftgröße wirkt bis zum 1,6-Fachen (27,2 px), darüber hält das Raster nicht mehr -->
 <script>try { var fs0 = parseFloat(getComputedStyle(document.documentElement).fontSize); if (fs0 > 27.2) document.documentElement.style.fontSize = "27.2px"; } catch (e) {}</script>
 </head>
@@ -157,7 +157,7 @@
 <div class="film hidden" id="film" role="dialog" aria-modal="true" aria-label="Tagesfilm">
     <canvas id="filmCanvas" width="1080" height="1920" aria-hidden="true"></canvas>
     <div class="film-bar">
-        <button type="button" class="film-btn" id="filmShare">Als Video teilen</button>
+        <button type="button" class="film-btn" id="filmShare">Video aufnehmen</button>
         <button type="button" class="film-btn ghost" id="filmClose">Schließen</button>
     </div>
     <div class="film-status" id="filmStatus" aria-live="polite"></div>
@@ -208,9 +208,9 @@
     <div class="src-body" id="fbBody"></div>
 </div>
 
-<script src="sonne.js?v=20261011d"></script>
-<script src="wetter-core.js?v=20261011d"></script>
-<script src="design.js?v=20261011d"></script>
+<script src="sonne.js?v=20261011e"></script>
+<script src="wetter-core.js?v=20261011e"></script>
+<script src="design.js?v=20261011e"></script>
 <script>initDesignApp();</script>
 <!-- Offline-Hülle: Seiten, Stylesheet, Skripte und Icons bleiben auch ohne Netz verfügbar -->
 <script>if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js").catch(function () {}); }</script>

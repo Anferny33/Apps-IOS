@@ -1212,7 +1212,7 @@ function boot(opts) {
   H.check('Tagesfilm: Chip schaltet die Begrüßung aus und sagt es an', sb.settingsValue('dayfilm') === false && G(sb,'live').textContent === 'Tagesfilm morgens aus.');
   sb.setSetting('dayfilm', true);
   sb.closeSettings();
-  H.check('Shell: Tagesfilm-Overlay mit Zeichenfläche 1080 × 1920, Teilen und Schließen', idxA.includes('<canvas id="filmCanvas" width="1080" height="1920"') && idxA.includes('id="filmShare">Als Video teilen</button>') && idxA.includes('id="filmClose">Schließen</button>') && cssA.includes('.film canvas'));
+  H.check('Shell: Tagesfilm-Overlay mit Zeichenfläche 1080 × 1920, Teilen und Schließen', idxA.includes('<canvas id="filmCanvas" width="1080" height="1920"') && idxA.includes('id="filmShare">Video aufnehmen</button>') && idxA.includes('id="filmClose">Schließen</button>') && cssA.includes('.film canvas'));
 
   /* VoiceOver-Durchlauf (Bedienungshilfen-Baum aus dem Simulator, 9. Oktober): geschlossene Blätter, zugeklappte
      Felder und die weiteren Tage standen im Baum; Modell-Chips waren vier lose Texte; Schalter ohne Feldnamen. */
@@ -1305,6 +1305,142 @@ function boot(opts) {
   H.check('Rückmeldung: Schließen entfernt die Klasse und die Tastatur-Anpassung', !sbB.document.body.classList.contains('fb-open') && fbStyle.bottom === '' && fbStyle.maxHeight === '', JSON.stringify(fbStyle));
   H.check('Rückmeldung: letzter Fehlertext wandert in die Metadaten', /nicht geladen werden|Keine Verbindung/.test(sbF.feedbackMeta().lastError) && sbB.feedbackMeta().lastError === '', sbF.feedbackMeta().lastError);
   H.check('Rückmeldung: Blatt über den Einstellungen, für Vorleser unsichtbar bis geöffnet', /#fbBg \{ z-index: 58; \}/.test(css) && /\.sheet\.fb \{ z-index: 59; \}/.test(css) && /body\.fb-open #fb \{ transform: none; \}/.test(css) && /body\.fb-open #fbBg \{ opacity: 1; pointer-events: auto; \}/.test(css) && /\.sheet\.fb input \{ padding-left: 14px; background-image: none; \}/.test(css) && /--safe-top: env\(safe-area-inset-top, 0px\);/.test(css));
+
+  /* Tagesfilm teilen: erst aufnehmen, dann im eigenen Tipp teilen (Nutzergeste frisch); jeder Fehler sichtbar.
+     Rekorder-Stub wie WebKit: stop() setzt nur den Zustand, Daten und onstop kommen asynchron (lateMs). */
+  const filmShares = [], filmRecs = []; let filmTracksStopped = 0, filmClicks = 0;
+  const sbF2 = boot({ fetchImpl: H.okFetch(data), geolocation: granted });
+  await wait(300);
+  sbF2.document.documentElement = H.el();
+  sbF2.requestAnimationFrame = () => 1; sbF2.cancelAnimationFrame = () => {};
+  sbF2.FILM_STOP_GRACE = 60;
+  const FB2 = id => sbF2.document.getElementById(id);
+  const FC2 = FB2('filmCanvas');
+  FC2.getContext = () => ctxStub;
+  function MR(stream, o) {
+    const self = this; this.state = 'inactive'; this.mimeType = o.mimeType; this.requests = 0; this.startArgs = null; filmRecs.push(this);
+    this.failStart = MR.failNext; MR.failNext = false;
+    this.start = (...args) => { self.startArgs = args; if (self.failStart) throw Object.assign(new Error('kaputt'), { name: 'NotSupportedError' }); self.state = 'recording'; };
+    this.requestData = () => { self.requests++; };
+    this.stop = () => { self.state = 'inactive'; setTimeout(() => { if (self.silent) return; if (self.ondataavailable && !self.empty) self.ondataavailable({ data: { size: self.size || 1500000 } }); if (self.onstop) self.onstop(); }, self.lateMs || 5); };
+  }
+  MR.isTypeSupported = m => m === 'video/mp4';
+  const lastRec = () => filmRecs[filmRecs.length - 1];
+  H.check('Tagesfilm: Gründe, warum ein Gerät nicht aufnehmen kann', sbF2.filmRecordBlocker() === 'die Zeichenfläche lässt sich hier nicht aufnehmen' && (FC2.captureStream = () => ({ getTracks: () => [{ stop() { filmTracksStopped++; } }] }), sbF2.filmRecordBlocker() === 'kein Videorekorder im Browser') && (sbF2.MediaRecorder = Object.assign(function () {}, { isTypeSupported: () => false }), sbF2.filmRecordBlocker() === 'kein unterstütztes Videoformat') && (sbF2.MediaRecorder = MR, sbF2.filmRecordBlocker() === null && sbF2.filmCanRecord() === true), sbF2.filmRecordBlocker());
+  delete sbF2.MediaRecorder;
+  sbF2.openFilm();
+  H.check('Tagesfilm: ohne Videorekorder zeigt das Blatt den Grund statt eines stummen Knopfs', FB2('filmShare').disabled === true && FB2('filmShare').textContent === 'Video aufnehmen' && FB2('filmStatus').textContent === 'Aufnahme auf diesem Gerät nicht möglich: kein Videorekorder im Browser.', FB2('filmStatus').textContent);
+  sbF2.closeFilm();
+  sbF2.MediaRecorder = MR; sbF2.navigator.share = o => { filmShares.push(o); return Promise.resolve(); }; sbF2.navigator.canShare = () => true;
+  sbF2.openFilm();
+  H.check('Tagesfilm: geöffnet mit Aufnahmeknopf, leerem Status, ohne Datei, Wurzel markiert', FB2('filmShare').textContent === 'Video aufnehmen' && FB2('filmShare').disabled === false && FB2('filmStatus').textContent === '' && sbF2.filmFile === null && sbF2.filmState === 'idle' && sbF2.document.documentElement.classList.contains('film-open'));
+  sbF2.document.activeElement = FB2('filmShare');
+  FB2('filmShare').trigger('click');
+  H.check('Tagesfilm: Tipp 1 startet genau eine MP4-Aufnahme ohne Zeitscheibe, Knopf gesperrt, Fokus auf Schließen, nichts geteilt', filmRecs.length === 1 && filmRecs[0].mimeType === 'video/mp4' && filmRecs[0].state === 'recording' && filmRecs[0].startArgs.length === 0 && FB2('filmShare').disabled === true && FB2('filmShare').textContent === 'Aufnahme läuft …' && FB2('filmStatus').textContent === 'Aufnahme läuft, zehn Sekunden …' && FB2('filmClose').focused === true && filmShares.length === 0 && sbF2.filmFile === null, FB2('filmStatus').textContent);
+  delete sbF2.document.activeElement;
+  H.check('Tagesfilm: Tipp während der Aufnahme tut nichts, erneutes Öffnen setzt nichts zurück', sbF2.shareFilm() === false && filmRecs.length === 1 && filmShares.length === 0 && sbF2.openFilm() === true && sbF2.filmState === 'recording' && sbF2.filmRecorder === filmRecs[0]);
+  sbF2.stopFilmRecording();
+  const stoppedSync = filmRecs[0].state === 'inactive' && sbF2.filmRecorder === filmRecs[0] && sbF2.filmFile === null;
+  await wait(30);
+  const readyNow = sbF2.filmFile && sbF2.filmFile.name === 'tagesfilm.mp4' && sbF2.filmFile.type === 'video/mp4' && sbF2.filmFile.size === 1500000 && FB2('filmShare').textContent === 'Video teilen' && FB2('filmShare').disabled === false && FB2('filmStatus').textContent === 'Video fertig (1,4 MB), zum Teilen tippen.' && filmTracksStopped === 1 && filmShares.length === 0 && sbF2.filmRecorder === null && sbF2.__lastFilm.size === 1500000 && filmRecs[0].requests === 0;
+  await wait(120);
+  H.check('Tagesfilm: Stopp ohne requestData, Datei kommt asynchron mit onstop, Wachhund greift danach nicht mehr ein', stoppedSync && readyNow && sbF2.filmState === 'ready' && sbF2.filmFile.size === 1500000 && FB2('filmStatus').textContent === 'Video fertig (1,4 MB), zum Teilen tippen.', 'sync=' + stoppedSync + ' ready=' + readyNow + ' ' + sbF2.filmState + ' ' + FB2('filmStatus').textContent);
+  FB2('filmShare').trigger('click');
+  const sharedSync = filmShares.length === 1 && filmShares[0].files[0] === sbF2.filmFile && filmShares[0].title === 'Tagesfilm' && FB2('filmShare').disabled === true;
+  await wait(0);
+  H.check('Tagesfilm: Tipp 2 ruft das Teilen-Blatt synchron im Tipp auf, danach „Geteilt.“ und erneut teilbar', sharedSync && FB2('filmStatus').textContent === 'Geteilt.' && FB2('filmShare').disabled === false && FB2('filmShare').textContent === 'Video teilen' && sbF2.filmFile !== null, FB2('filmStatus').textContent);
+  const fe = n => sbF2.filmShareError({ name: n, message: 'x' });
+  H.check('Tagesfilm: Fehlertexte je Fehlerart, Abbruch durch den Nutzer ist kein Fehler', fe('AbortError').text === '' && fe('AbortError').log === null && /noch einmal/.test(fe('NotAllowedError').text) && /noch offen/.test(fe('InvalidStateError').text) && fe('FooError').text === 'Teilen nicht möglich: FooError.' && fe('FooError').log === 'share: FooError x', JSON.stringify(fe('FooError')));
+  sbF2.navigator.share = () => Promise.reject(Object.assign(new Error('x'), { name: 'NotAllowedError' }));
+  FB2('filmShare').trigger('click'); await wait(0);
+  const notAllowed = /noch einmal/.test(FB2('filmStatus').textContent) && sbF2.lastErrorText === 'share: NotAllowedError x' && FB2('filmShare').disabled === false && FB2('filmShare').textContent === 'Video teilen';
+  sbF2.lastErrorText = 'vorher';
+  sbF2.navigator.share = () => Promise.reject(Object.assign(new Error('weg'), { name: 'AbortError' }));
+  FB2('filmShare').trigger('click'); await wait(0);
+  H.check('Tagesfilm: abgewiesenes Teilen wird erklärt und protokolliert, weggewischtes Blatt bleibt stumm', notAllowed && FB2('filmStatus').textContent === '' && sbF2.lastErrorText === 'vorher' && FB2('filmShare').disabled === false, FB2('filmStatus').textContent + ' | ' + sbF2.lastErrorText);
+  let gotFile = null; const beforeShares = filmShares.length;
+  sbF2.shareFilmFile({ name: 'x.mp4', size: 3, type: 'video/mp4' }, f => { gotFile = f; return Promise.resolve(); });
+  await wait(0);
+  let gotFn = null; sbF2.filmShareFn = f => { gotFn = f; return Promise.resolve(); };
+  FB2('filmShare').trigger('click'); await wait(0);
+  H.check('Tagesfilm: Teilen-Funktion ist injizierbar (Parameter und filmShareFn), fremde Datei rührt den Knopf nicht an', gotFile && gotFile.name === 'x.mp4' && gotFn === sbF2.filmFile && filmShares.length === beforeShares && sbF2.filmState === 'ready', String(gotFn && gotFn.name) + ' ' + sbF2.filmState);
+  sbF2.filmShareFn = null;
+  /* Teilen-Blatt wird nach der Aufnahme bewertet: Browser-Tab lädt herunter, Homescreen-App bekommt den Hinweis */
+  sbF2.navigator.share = () => Promise.reject(Object.assign(new Error('offen'), { name: 'InvalidStateError' }));
+  sbF2.closeFilm(); sbF2.openFilm(); FB2('filmShare').trigger('click'); sbF2.stopFilmRecording(); await wait(30);
+  delete sbF2.navigator.share;
+  const anchor = { click() { filmClicks++; }, remove() {} };
+  sbF2.URL = { createObjectURL: () => 'blob:x', revokeObjectURL() {} };
+  sbF2.document.createElement = () => anchor; sbF2.document.body.appendChild = () => {};
+  FB2('filmShare').trigger('click');
+  const tabDownload = anchor.download === 'tagesfilm.mp4' && filmClicks === 1 && FB2('filmStatus').textContent === 'Video wird heruntergeladen: tagesfilm.mp4';
+  sbF2.closeFilm(); sbF2.openFilm(); FB2('filmShare').trigger('click'); sbF2.stopFilmRecording(); await wait(30);
+  H.check('Tagesfilm: Browser-Tab ohne Teilen-Blatt bietet „Video herunterladen“ an und lädt beim Tipp herunter', tabDownload && FB2('filmShare').textContent === 'Video herunterladen' && FB2('filmShare').disabled === false && FB2('filmStatus').textContent === 'Video fertig (1,4 MB), zum Herunterladen tippen.' && sbF2.filmState === 'download', FB2('filmShare').textContent + ' ' + FB2('filmStatus').textContent);
+  sbF2.navigator.standalone = true;
+  sbF2.closeFilm(); sbF2.openFilm(); FB2('filmShare').trigger('click'); sbF2.stopFilmRecording(); await wait(30);
+  FB2('filmShare').trigger('click');
+  H.check('Tagesfilm: Homescreen-App ohne Teilen-Blatt zeigt den Hinweis gleich nach der Aufnahme, kein stiller Download', filmClicks === 1 && FB2('filmStatus').textContent === 'Teilen hier nicht möglich: kein Teilen-Blatt in diesem Browser. In Safari geöffnet lässt sich das Video herunterladen.' && FB2('filmShare').textContent === 'Video teilen' && FB2('filmShare').disabled === true && sbF2.lastErrorText.startsWith('share: ') && sbF2.filmFile !== null, FB2('filmStatus').textContent);
+  delete sbF2.navigator.standalone; sbF2.navigator.share = o => { filmShares.push(o); return Promise.resolve(); };
+  /* Schließen während der Aufnahme: spätes onstop läuft ins Leere */
+  sbF2.closeFilm(); sbF2.openFilm(); FB2('filmShare').trigger('click');
+  const recClose = lastRec(), stoppedBefore = filmTracksStopped, sharesBefore = filmShares.length;
+  sbF2.closeFilm();
+  await wait(30);
+  const closedClean = recClose.state === 'inactive' && sbF2.filmFile === null && sbF2.filmRecorder === null && filmTracksStopped === stoppedBefore + 1 && FB2('filmShare').textContent === 'Video aufnehmen' && FB2('filmStatus').textContent === '' && filmShares.length === sharesBefore && !sbF2.document.documentElement.classList.contains('film-open') && sbF2.filmState === 'idle';
+  sbF2.openFilm();
+  H.check('Tagesfilm: Schließen während der Aufnahme räumt auf, spätes onstop wird ignoriert, Neustart im Grundzustand', closedClean && sbF2.filmState === 'idle' && sbF2.filmFile === null, 'state=' + recClose.state + ' file=' + sbF2.filmFile + ' rec=' + sbF2.filmRecorder + ' tracks=' + filmTracksStopped + '/' + stoppedBefore + ' btn=' + FB2('filmShare').textContent + ' fs=' + sbF2.filmState);
+  FB2('filmShare').trigger('click'); sbF2.stopFilmRecording(); await wait(30); const readyBefore = sbF2.filmFile !== null; sbF2.closeFilm();
+  H.check('Tagesfilm: Schließen nach fertiger Aufnahme verwirft die Datei', readyBefore && sbF2.filmFile === null && FB2('filmShare').textContent === 'Video aufnehmen');
+  sbF2.openFilm(); FB2('filmShare').trigger('click'); lastRec().empty = true; sbF2.stopFilmRecording(); await wait(30);
+  H.check('Tagesfilm: leere Aufnahme wird gemeldet, Knopf wieder frei', FB2('filmStatus').textContent === 'Aufnahme ist leer, bitte noch einmal versuchen.' && FB2('filmShare').disabled === false && FB2('filmShare').textContent === 'Video aufnehmen' && sbF2.filmFile === null && sbF2.lastErrorText === 'film: leer', FB2('filmStatus').textContent);
+  /* Wachhund: bleibt onstop aus, schließt er ab; kommen Daten und onstop später doch noch, bleiben sie ohne Wirkung */
+  FB2('filmShare').trigger('click'); const recLate = lastRec(); recLate.lateMs = 200; sbF2.stopFilmRecording(); await wait(110);
+  const watchdogRan = FB2('filmStatus').textContent === 'Aufnahme ist leer, bitte noch einmal versuchen.' && sbF2.filmState === 'idle' && sbF2.filmRecorder === null;
+  await wait(200);
+  H.check('Tagesfilm: Wachhund meldet eine ausgebliebene Aufnahme ehrlich als leer; spätes onstop ändert nichts mehr', watchdogRan && sbF2.filmState === 'idle' && sbF2.filmFile === null && FB2('filmStatus').textContent === 'Aufnahme ist leer, bitte noch einmal versuchen.', 'wd=' + watchdogRan + ' ' + sbF2.filmState + ' ' + String(sbF2.filmFile));
+  /* Nachzügler-Stück eines alten Rekorders landet nicht in der neuen Aufnahme */
+  FB2('filmShare').trigger('click'); const recNew = lastRec(); recLate.ondataavailable({ data: { size: 999 } }); sbF2.stopFilmRecording(); await wait(30);
+  H.check('Tagesfilm: Stücke eines alten Rekorders werden verworfen', sbF2.filmFile && sbF2.filmFile.size === 1500000 && recNew !== recLate, JSON.stringify(sbF2.filmFile));
+  sbF2.closeFilm(); sbF2.openFilm();
+  /* Fehler beim Start und Abbruch durch den Rekorder: aufräumen, Grund zeigen, Spuren stoppen */
+  MR.failNext = true; const tracksBeforeFail = filmTracksStopped;
+  FB2('filmShare').trigger('click');
+  H.check('Tagesfilm: wirft start(), bleibt der Knopf nicht in „Aufnahme läuft“ hängen', FB2('filmStatus').textContent === 'Aufnahme nicht möglich: NotSupportedError.' && FB2('filmShare').disabled === false && FB2('filmShare').textContent === 'Video aufnehmen' && sbF2.filmRecorder === null && filmTracksStopped === tracksBeforeFail + 1 && sbF2.lastErrorText === 'film: NotSupportedError kaputt', FB2('filmStatus').textContent + ' tracks=' + (filmTracksStopped - tracksBeforeFail));
+  FB2('filmShare').trigger('click'); const recErr = lastRec(); recErr.onerror({ error: { name: 'UnknownError', message: 'x' } });
+  H.check('Tagesfilm: Fehler des Rekorders während der Aufnahme wird gemeldet, Knopf wieder frei', FB2('filmStatus').textContent === 'Aufnahme abgebrochen: UnknownError.' && sbF2.filmState === 'idle' && sbF2.filmRecorder === null && sbF2.lastErrorText === 'film: UnknownError x', FB2('filmStatus').textContent);
+  sbF2.closeFilm(); sbF2.openFilm();
+  sbF2.MediaRecorder = Object.assign(function () { throw Object.assign(new Error('nope'), { name: 'NotSupportedError' }); }, { isTypeSupported: () => true });
+  const tracksBeforeCtor = filmTracksStopped;
+  FB2('filmShare').trigger('click');
+  H.check('Tagesfilm: Konstruktorfehler wird gemeldet und protokolliert, die Zeichenfläche hört auf zu liefern', FB2('filmStatus').textContent === 'Aufnahme nicht möglich: NotSupportedError.' && FB2('filmShare').disabled === false && FB2('filmShare').textContent === 'Video aufnehmen' && sbF2.lastErrorText === 'film: NotSupportedError nope' && filmTracksStopped === tracksBeforeCtor + 1, FB2('filmStatus').textContent);
+  sbF2.closeFilm();
+  sbF2.renderSettings();
+  H.check('Tagesfilm: Hinweis in den Einstellungen nennt den Zwei-Schritt-Ablauf, kein verschluckter Share-Fehler mehr', G(sbF2,'settingsBody').innerHTML.includes('„Video teilen“ öffnet danach das Teilen-Blatt') && !/navigator\.share\([^)]*\)\.catch\(function \(\) \{\}\)/.test(DESIGN));
+
+  /* Dauer-Animationen: nur im Bild, nur bei sichtbarer Seite, nicht unter dem Tagesfilm */
+  const loopBlocks = (css.match(/[^{}]+\{[^}]*\}/g) || []).filter(b => /animation:/.test(b) && /infinite/.test(b));
+  H.check('Animationen: alle 13 Endlosschleifen folgen --loop-play, Langschreibweise hinter der Kurzschreibweise', loopBlocks.length === 13 && loopBlocks.every(b => b.includes('animation-play-state:') && b.includes('var(--loop-play, running)') && b.indexOf('animation-play-state') > b.indexOf('animation:')), loopBlocks.filter(b => !b.includes('--loop-play')).map(b => b.slice(0, 60)).join(' | ') + ' n=' + loopBlocks.length);
+  H.check('Animationen: Warnfeld hält nur den Puls an, die Einblendung läuft weiter', /\.warn\.lvl-3, \.warn\.lvl-4 \{[^}]*animation-play-state: running, var\(--loop-play, running\);/.test(css));
+  H.check('Animationen: Schalter für außerhalb des Bilds, verborgene Seite und Tagesfilm; reduzierte Bewegung bleibt stärker', css.includes('.offscreen, html.bg, html.film-open { --loop-play: paused; }') && /html\.reduce \*, html\.reduce \*::before, html\.reduce \*::after \{ animation: none !important/.test(css) && DESIGN.includes('v.trim() === "infinite"'));
+  const ga = H.el(), gb = H.el();
+  sb.loopGateUpdate([{ target: ga, isIntersecting: false }, { target: gb, isIntersecting: true }, { isIntersecting: false }]);
+  const gate1 = ga.classList.contains('offscreen') && !gb.classList.contains('offscreen');
+  sb.loopGateUpdate([{ target: ga, isIntersecting: true }, { target: gb, isIntersecting: false }]);
+  H.check('Animationen: der Beobachter setzt und löscht die Klasse offscreen je Sichtbarkeit', gate1 && !ga.classList.contains('offscreen') && gb.classList.contains('offscreen'));
+  const ioAll = [];
+  const IOAll = function (cb, opts) { const inst = { cb, opts, targets: [] }; ioAll.push(inst); this.observe = t => inst.targets.push(t); };
+  const sbL = boot({ fetchImpl: H.okFetch(data), geolocation: granted, IntersectionObserver: IOAll });
+  await wait(300);
+  const gateIO = ioAll.find(i => i.opts && i.opts.threshold === 0), wantIds = ['hero', 'warnings', 'insight', 'details', 'hourly', 'days', 'models'];
+  H.check('Animationen: ein eigener Beobachter (Schwelle 0) hält genau die sieben stabilen Wrapper, der Vorschauleisten-Beobachter bleibt der letzte', gateIO && gateIO.targets.length === 7 && wantIds.every(id => gateIO.targets.includes(sbL.document.getElementById(id))) && ioAll[ioAll.length - 1].opts.threshold === 0.15, ioAll.map(i => JSON.stringify(i.opts) + ':' + i.targets.length).join(' '));
+  const docEvL = {};
+  const sbBg = boot({ fetchImpl: H.okFetch(data), geolocation: granted, docEvents: docEvL });
+  await wait(300);
+  sbBg.document.documentElement = H.el();
+  sbBg.document.hidden = true; (docEvL.visibilitychange || []).forEach(fn => fn());
+  const bgOn = sbBg.document.documentElement.classList.contains('bg');
+  sbBg.document.hidden = false; (docEvL.visibilitychange || []).forEach(fn => fn());
+  H.check('Animationen: verborgene Seite setzt html.bg, sichtbare Seite löscht es', bgOn && !sbBg.document.documentElement.classList.contains('bg'));
 
   const sbSV = boot({ fetchImpl: H.okFetch(data), geolocation: granted, storage: { 'wetter:view': 'wind', 'wetter:settings': JSON.stringify({ startView: 'rain', motion: 'reduce' }) } });
   await wait(300);

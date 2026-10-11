@@ -9,7 +9,7 @@
      nicht zur zweiten App ohne Manifest wird; der Seitentitel unten bleibt „Regenradar“ -->
 <meta name="apple-mobile-web-app-title" content="Wetter">
 <meta name="theme-color" content="#ECEAF4">
-<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=20261011d">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=20261011e">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Regenradar</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -21,7 +21,7 @@
      (im Radar-Blatt lädt die Startseite diese Seite bei jedem Wechsel neu); die Statusleiste (theme-color) folgt sofort mit -->
 <script>try { if (localStorage.getItem("wetter:night") === "1") document.documentElement.classList.add("night"); } catch (e) {}</script>
 <script>try { var s0 = JSON.parse(localStorage.getItem("wetter:settings") || "{}"), nil0 = !!(s0 && s0.scheme === "nil"), ocker0 = !!(s0 && s0.scheme === "ocker"), zitrone0 = !!(s0 && s0.scheme === "zitrone"), n0 = document.documentElement.classList.contains("night"), m0 = document.querySelector('meta[name="theme-color"]'); if (nil0) document.documentElement.classList.add("scheme-nil"); if (ocker0) document.documentElement.classList.add("scheme-ocker"); if (zitrone0) document.documentElement.classList.add("scheme-zitrone"); if (m0) m0.setAttribute("content", zitrone0 ? (n0 ? "#501345" : "#f8ed43") : ocker0 ? (n0 ? "#111314" : "#ebd3a2") : nil0 ? (n0 ? "#051230" : "#bce4e5") : (n0 ? "#14121F" : "#ECEAF4")); } catch (e) {}</script>
-<link rel="stylesheet" href="modern.css?v=20261011d" id="cssModern">
+<link rel="stylesheet" href="modern.css?v=20261011e" id="cssModern">
 <!-- Schriftgrenze: die Systemschriftgröße wirkt bis zum 1,6-Fachen (27,2 px), darüber hält das Raster nicht mehr -->
 <script>try { var fs0 = parseFloat(getComputedStyle(document.documentElement).fontSize); if (fs0 > 27.2) document.documentElement.style.fontSize = "27.2px"; } catch (e) {}</script>
 <!-- Eingebettet im Radar-Blatt der Startseite (?embed=1): Kopfzeile und Tab-Leiste bleiben weg -->
@@ -265,8 +265,8 @@
 </div>
 
 <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
-<script src="sonne.js?v=20261011d"></script>
-<script src="radar.js?v=20261011d"></script>
+<script src="sonne.js?v=20261011e"></script>
+<script src="radar.js?v=20261011e"></script>
 <script>if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js").catch(function () {}); }</script>
 </body>
 </html>

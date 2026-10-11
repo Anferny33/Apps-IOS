@@ -101,6 +101,22 @@ function introElapsed() {
 const INTRO_SCALE = 0.6;
 function dl(seconds) { return Math.max(0, seconds * INTRO_SCALE - introElapsed()).toFixed(2); }
 
+/* Endlosschleifen nur im Bild: der Beobachter setzt .offscreen an stabile Wrapper (deren innerHTML wechselt,
+   der Knoten bleibt), die vererbte CSS-Property --loop-play hält die Loops an; html.bg bei verborgener Seite,
+   html.film-open unter dem Tagesfilm. Einmal-Einblendungen lesen die Property nicht. */
+const LOOP_GATE_IDS = ["hero", "warnings", "insight", "details", "hourly", "days", "models"];
+function loopGateUpdate(entries) {
+    (entries || []).forEach(function (e) {
+        if (e && e.target && e.target.classList) e.target.classList.toggle("offscreen", !e.isIntersecting);
+    });
+}
+function initLoopGate() {
+    if (typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(loopGateUpdate, { threshold: 0 });
+    LOOP_GATE_IDS.forEach(function (id) { const el = D(id); if (el) io.observe(el); });
+}
+function setBackground(hidden) { const root = document.documentElement; if (root && root.classList) root.classList.toggle("bg", !!hidden); }
+
 /* Einmal-Animationen eines Feldes neu starten (beim Aufklappen eines Instrument-Felds).
    Dauerläufer wie Windlinien,
    Regentropfen oder Sonnenstrahlen laufen ungestört weiter. */
@@ -3005,7 +3021,8 @@ function feedbackSettingsHtml() {
  * morgens als Begrüßung, auf Wunsch als Video aufgenommen und geteilt. Alles auf dem Gerät.
  * ------------------------------------------------------------------ */
 const FILM_LEN = 10;
-let filmRaf = null, filmStart = 0, filmScene0 = null, filmRecorder = null;
+let filmRaf = null, filmStart = 0, filmScene0 = null;
+var filmRecorder = null;   /* var: Tests lesen den Zustand über die Sandbox */
 
 function fmtLongDate(iso) {
     const d = new Date(iso + "T12:00:00");
@@ -3138,13 +3155,50 @@ function filmLoop() {
 }
 
 /* Film öffnen und abspielen; false, wenn keine Zeichenfläche da ist (Harness) oder keine Daten */
+/* Zustände des Film-Knopfs: blocked (Gerät kann nicht aufnehmen), idle, recording, ready (Datei liegt bereit, Teilen-Blatt
+   vorhanden), download (Browser-Tab ohne Teilen-Blatt), sharing, shareBlocked (Homescreen-App ohne Teilen-Blatt).
+   Teilen passiert in einem eigenen Tipp, nie am Ende der Aufnahme: iOS verlangt eine frische Nutzergeste
+   (transiente Aktivierung, etwa fünf Sekunden), zehn Sekunden Aufnahme überschreiten sie immer. */
+var filmFile = null, filmShareFn = null, filmState = "idle", filmOpen = false, FILM_STOP_GRACE = 2000;
+let filmStopTimer = null, filmWatchdog = null, filmStream = null, filmChunks = [], filmMimeUsed = null;
+const FILM_BUTTON = {
+    blocked: ["Video aufnehmen", true], idle: ["Video aufnehmen", false], recording: ["Aufnahme läuft …", true],
+    ready: ["Video teilen", false], download: ["Video herunterladen", false], sharing: ["Video teilen", true], shareBlocked: ["Video teilen", true]
+};
+
+function setFilmButton(state) {
+    filmState = state;
+    const b = D("filmShare"), def = FILM_BUTTON[state] || FILM_BUTTON.idle;
+    if (!b) return;
+    /* Ein gesperrter Knopf verliert den Fokus; er wandert auf „Schließen“, damit Escape und Vorleser im Blatt bleiben */
+    if (def[1] && document.activeElement === b && D("filmClose") && D("filmClose").focus) D("filmClose").focus();
+    b.textContent = def[0];
+    b.disabled = def[1];
+}
+function setFilmStatus(text) { if (D("filmStatus")) D("filmStatus").textContent = text || ""; }
+function rootClass(cls, on) { const root = document.documentElement; if (root && root.classList) root.classList.toggle(cls, !!on); }
+function stopFilmTracks() {
+    if (filmStream && filmStream.getTracks) filmStream.getTracks().forEach(function (tr) { if (tr.stop) tr.stop(); });
+    filmStream = null;
+}
+function clearFilmTimers() {
+    if (filmStopTimer) { clearTimeout(filmStopTimer); filmStopTimer = null; }
+    if (filmWatchdog) { clearTimeout(filmWatchdog); filmWatchdog = null; }
+}
+
 function openFilm() {
     const ctx = filmCanvasCtx(), box = D("film");
     if (!ctx || !box || !lastData) return false;
+    /* Schon offen (etwa Begrüßung nach Rückkehr in den Vordergrund): laufende Aufnahme oder fertige Datei bleiben */
+    if (filmOpen) return true;
+    filmOpen = true;
     filmScene0 = filmScene(lastData.fc, lastLoc);
     box.classList.remove("hidden");
-    if (D("filmStatus")) D("filmStatus").textContent = "";
-    if (D("filmShare")) D("filmShare").disabled = !filmCanRecord();
+    rootClass("film-open", true);
+    filmFile = null;
+    const blocker = filmRecordBlocker();
+    setFilmButton(blocker ? "blocked" : "idle");
+    setFilmStatus(blocker ? "Aufnahme auf diesem Gerät nicht möglich: " + blocker + "." : "");
     filmStart = Date.now();
     if (filmRaf && typeof cancelAnimationFrame === "function") cancelAnimationFrame(filmRaf);
     filmLoop();
@@ -3156,10 +3210,19 @@ function openFilm() {
 function closeFilm() {
     const box = D("film");
     if (box && box.classList) box.classList.add("hidden");
+    filmOpen = false;
+    rootClass("film-open", false);
     if (filmRaf && typeof cancelAnimationFrame === "function") cancelAnimationFrame(filmRaf);
     filmRaf = null;
-    if (filmRecorder && filmRecorder.state === "recording") { try { filmRecorder.stop(); } catch (e) {} }
-    filmRecorder = null;
+    clearFilmTimers();
+    const rec = filmRecorder;
+    filmRecorder = null;   /* späte onstop/ondataavailable laufen damit ins Leere */
+    if (rec) { try { if (rec.state === "recording") rec.stop(); } catch (e) { /* schon beendet */ } }
+    stopFilmTracks();
+    filmChunks = [];
+    filmFile = null;
+    setFilmButton("idle");
+    setFilmStatus("");
     if (D("settingsBtn") && D("settingsBtn").focus) D("settingsBtn").focus();
 }
 
@@ -3184,46 +3247,168 @@ function filmMime(isSupported) {
     for (let i = 0; i < list.length; i++) if (ok(list[i])) return list[i];
     return null;
 }
-function filmCanRecord() {
+/* Warum das Gerät nicht aufnehmen kann, sonst null */
+function filmRecordBlocker() {
     const c = D("filmCanvas");
-    return !!(c && c.captureStream && typeof MediaRecorder !== "undefined" && filmMime());
+    if (!c || !c.captureStream) return "die Zeichenfläche lässt sich hier nicht aufnehmen";
+    if (typeof MediaRecorder === "undefined") return "kein Videorekorder im Browser";
+    if (!filmMime()) return "kein unterstütztes Videoformat";
+    return null;
+}
+function filmCanRecord() { return !filmRecordBlocker(); }
+
+/* Tipp auf den Knopf: erst aufnehmen, beim nächsten Tipp teilen oder herunterladen */
+function shareFilm() {
+    if (filmState === "ready" || filmState === "download") return shareFilmFile();
+    if (filmState === "idle") return recordFilm();
+    return false;
 }
 
-/* Film von vorn abspielen und dabei aufnehmen, dann teilen oder herunterladen */
-function shareFilm() {
-    const c = D("filmCanvas"), status = D("filmStatus");
-    const mime = filmMime();
+/* Aufnahme nicht möglich oder abgebrochen: aufräumen, Grund zeigen, Knopf wieder frei */
+function failFilmRecording(rec, err, prefix) {
+    if (rec && rec !== filmRecorder) return;
+    filmRecorder = null;
+    clearFilmTimers();
+    stopFilmTracks();
+    filmChunks = [];
+    const name = err && err.name ? err.name : "Fehler";
+    setFilmStatus(prefix + ": " + name + ".");
+    lastErrorText = "film: " + name + " " + (err && err.message ? err.message : "");
+    setFilmButton("idle");
+}
+
+/* Film von vorn abspielen und dabei aufnehmen; am Ende liegt die Datei bereit, geteilt wird erst beim nächsten Tipp.
+   Ohne Zeitscheibe: beim Stopp liefert WebKit die ganze Datei in einem Stück, kein Abruf ist dann in Flug. */
+function recordFilm() {
+    const c = D("filmCanvas"), mime = filmMime();
     if (!c || !c.captureStream || !mime || filmRecorder) return false;
-    const stream = c.captureStream(30), chunks = [];
-    let rec;
-    try { rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 6000000 }); } catch (e) { if (status) status.textContent = "Aufnahme nicht möglich."; return false; }
-    filmRecorder = rec;
-    rec.ondataavailable = function (ev) { if (ev.data && ev.data.size) chunks.push(ev.data); };
-    rec.onstop = function () {
+    let rec = null;
+    try {
+        filmStream = c.captureStream(30);
+        rec = new MediaRecorder(filmStream, { mimeType: mime, videoBitsPerSecond: 6000000 });
+        rec.ondataavailable = function (ev) { if (rec === filmRecorder && ev && ev.data && ev.data.size) filmChunks.push(ev.data); };
+        rec.onstop = function () { finishFilmRecording(rec); };
+        rec.onerror = function (ev) { failFilmRecording(rec, ev && ev.error ? ev.error : ev, "Aufnahme abgebrochen"); };
+        filmRecorder = rec; filmChunks = []; filmFile = null; filmMimeUsed = mime;
+        rec.start();
+    } catch (e) {
         filmRecorder = null;
-        stream.getTracks().forEach(function (tr) { tr.stop(); });
-        const ext = mime.indexOf("mp4") >= 0 ? "mp4" : "webm";
-        const blob = new Blob(chunks, { type: mime.split(";")[0] });
-        const file = typeof File === "function" ? new File([blob], "tagesfilm." + ext, { type: blob.type }) : null;
-        if (status) status.textContent = "";
-        if (D("filmShare")) D("filmShare").disabled = false;
-        if (file && navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share) {
-            navigator.share({ files: [file], title: "Tagesfilm" }).catch(function () {});
-        } else {
-            const a = document.createElement("a");
-            a.href = URL.createObjectURL(blob); a.download = "tagesfilm." + ext;
-            document.body.appendChild(a); a.click();
-            setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
-        }
-        window.__lastFilm = { size: blob.size, type: blob.type };
-    };
-    if (D("filmShare")) D("filmShare").disabled = true;
-    if (status) status.textContent = "Aufnahme läuft, zehn Sekunden …";
+        failFilmRecording(null, e, "Aufnahme nicht möglich");
+        return false;
+    }
+    setFilmButton("recording");
+    setFilmStatus("Aufnahme läuft, zehn Sekunden …");
     filmStart = Date.now();
     if (filmRaf && typeof cancelAnimationFrame === "function") cancelAnimationFrame(filmRaf);
     filmLoop();
-    rec.start(250);
-    setTimeout(function () { if (rec.state === "recording") rec.stop(); }, FILM_LEN * 1000 + 300);
+    filmStopTimer = setTimeout(stopFilmRecording, FILM_LEN * 1000 + 300);
+    return true;
+}
+
+function stopFilmRecording() {
+    if (filmStopTimer) { clearTimeout(filmStopTimer); filmStopTimer = null; }
+    const rec = filmRecorder;
+    if (!rec) return;
+    if (rec.state === "recording") { try { rec.stop(); } catch (e) { /* schon beendet */ } }
+    /* Bleibt onstop aus, schließt der Wachhund ab; ohne Stücke meldet er ehrlich eine leere Aufnahme */
+    if (filmRecorder === rec && !filmWatchdog) filmWatchdog = setTimeout(function () { finishFilmRecording(rec); }, FILM_STOP_GRACE);
+}
+
+function finishFilmRecording(rec) {
+    if (rec !== filmRecorder) return;          /* schon abgeschlossen oder Film geschlossen */
+    filmRecorder = null;
+    clearFilmTimers();
+    stopFilmTracks();
+    const mime = filmMimeUsed || "video/webm", ext = mime.indexOf("mp4") >= 0 ? "mp4" : "webm", type = mime.split(";")[0];
+    const chunks = filmChunks; filmChunks = [];
+    const blob = typeof Blob === "function" ? new Blob(chunks, { type: type })
+        : { size: chunks.reduce(function (n, ch) { return n + (ch.size || 0); }, 0), type: type };
+    if (!blob.size) {
+        setFilmStatus("Aufnahme ist leer, bitte noch einmal versuchen.");
+        lastErrorText = "film: leer";
+        setFilmButton("idle");
+        return;
+    }
+    filmFile = typeof File === "function" ? new File([blob], "tagesfilm." + ext, { type: type }) : Object.assign(blob, { name: "tagesfilm." + ext });
+    window.__lastFilm = { size: blob.size, type: blob.type };
+    const mb = (blob.size / 1048576).toFixed(1).replace(".", ",");
+    const blocker = filmShareBlocker(filmFile);
+    if (blocker && pushStandalone()) {
+        /* Homescreen-App ohne Teilen-Blatt: ein stiller Download hätte keinen Download-Manager und kein Zurück */
+        setFilmButton("shareBlocked");
+        setFilmStatus("Teilen hier nicht möglich: " + blocker + ". In Safari geöffnet lässt sich das Video herunterladen.");
+        lastErrorText = "share: " + blocker;
+    } else if (blocker) {
+        setFilmButton("download");
+        setFilmStatus("Video fertig (" + mb + " MB), zum Herunterladen tippen.");
+    } else {
+        setFilmButton("ready");
+        setFilmStatus("Video fertig (" + mb + " MB), zum Teilen tippen.");
+    }
+}
+
+/* Warum das Teilen-Blatt hier nicht geht, sonst null */
+function filmShareBlocker(file) {
+    const nav = typeof navigator !== "undefined" ? navigator : {};
+    if (!nav.share) return "kein Teilen-Blatt in diesem Browser";
+    if (nav.canShare && !nav.canShare({ files: [file] })) return "Videodateien lassen sich hier nicht teilen";
+    return null;
+}
+function defaultFilmShare(file) { return navigator.share({ files: [file], title: "Tagesfilm" }); }
+
+/* Fehler beim Teilen in Text und Protokollzeile übersetzen; ein weggewischtes Blatt ist kein Fehler */
+function filmShareError(err) {
+    const name = err && err.name ? err.name : "Fehler", msg = err && err.message ? err.message : "";
+    if (name === "AbortError") return { text: "", log: null };
+    let text;
+    if (name === "NotAllowedError") text = "Teilen nicht erlaubt. Bitte noch einmal auf „Video teilen“ tippen.";
+    else if (name === "InvalidStateError") text = "Das Teilen-Blatt ist noch offen.";
+    else if (name === "NotSupportedError" || name === "TypeError") text = "Diese Datei lässt sich hier nicht teilen (" + name + ").";
+    else text = "Teilen nicht möglich: " + name + ".";
+    return { text: text, log: "share: " + name + " " + msg };
+}
+function filmShareFailed(err) {
+    const e = filmShareError(err);
+    setFilmStatus(e.text);
+    if (e.log) lastErrorText = e.log;
+    setFilmButton("ready");
+}
+
+/* Teilen im Tipp: navigator.share synchron, damit die Geste zählt; share ist für Tests injizierbar.
+   Knopf und Status werden nur für die eigene Datei geführt und nur, solange sie noch die aktuelle ist. */
+function shareFilmFile(file, share) {
+    file = file || filmFile;
+    if (!file) return false;
+    const own = file === filmFile;
+    const blocker = filmShareBlocker(file);
+    if (blocker) {
+        if (pushStandalone()) {
+            if (own) {
+                setFilmStatus("Teilen hier nicht möglich: " + blocker + ". In Safari geöffnet lässt sich das Video herunterladen.");
+                setFilmButton("shareBlocked");
+            }
+            lastErrorText = "share: " + blocker;
+            return false;
+        }
+        downloadFilm(file);
+        if (own) setFilmStatus("Video wird heruntergeladen: " + file.name);
+        return true;
+    }
+    if (own) { setFilmButton("sharing"); setFilmStatus(""); }
+    let p;
+    try { p = (share || filmShareFn || defaultFilmShare)(file); } catch (e) { if (own) filmShareFailed(e); return false; }
+    Promise.resolve(p)
+        .then(function () { if (own && file === filmFile) { setFilmStatus("Geteilt."); setFilmButton("ready"); } })
+        .catch(function (e) { if (own && file === filmFile) filmShareFailed(e); });
+    return true;
+}
+
+function downloadFilm(file) {
+    if (typeof URL === "undefined" || !URL.createObjectURL || !document.createElement) return false;
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(file); a.download = file.name || "tagesfilm";
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); if (a.remove) a.remove(); }, 2000);
     return true;
 }
 
@@ -3439,7 +3624,7 @@ function filmSettingsHtml() {
     return '<section class="set-sec"><h3>Tagesfilm</h3>' +
         '<div class="set-row"><span class="set-lbl">Morgens als Begrüßung</span><div class="seg" role="group" aria-label="Tagesfilm"><button type="button" class="set-chip" data-key="dayfilm" data-val="0" aria-pressed="' + (settings.dayfilm ? 'false' : 'true') + '">Aus</button><button type="button" class="set-chip" data-key="dayfilm" data-val="1" aria-pressed="' + (settings.dayfilm ? 'true' : 'false') + '">An</button></div></div>' +
         '<div class="set-row"><button type="button" class="set-btn" id="filmPlay">Jetzt abspielen</button></div>' +
-        '<div class="set-note">Zehn Sekunden aus den Tageswerten: Sonnenbogen, Temperaturkurve, Regen. Läuft einmal am Tag beim ersten Öffnen, nicht bei reduzierter Bewegung. Teilen nimmt den Film auf dem Gerät als Video auf.</div></section>';
+        '<div class="set-note">Zehn Sekunden aus den Tageswerten: Sonnenbogen, Temperaturkurve, Regen. Läuft einmal am Tag beim ersten Öffnen, nicht bei reduzierter Bewegung. Zum Teilen wird der Film zuerst als Video aufgenommen; „Video teilen“ öffnet danach das Teilen-Blatt, im Browser ohne Teilen-Blatt lädt der Knopf das Video herunter.</div></section>';
 }
 
 function renderSettings() {
@@ -4224,6 +4409,7 @@ function initDesignApp() {
     /* Sichtbarwerden: Aktualität und Nacht nachführen, Daten neu laden; ein GPS-Ort wird nur neu geortet,
        wenn die letzte Ortung älter als GPS_MAX_AGE ist */
     document.addEventListener("visibilitychange", function () {
+        setBackground(document.hidden);
         if (document.hidden) return;
         updateFreshness();
         updateNight();
@@ -4241,6 +4427,8 @@ function initDesignApp() {
     if (D("trendBtn")) D("trendBtn").addEventListener("click", toggleTrend);
     initRadarSheet();
     initFilm();
+    initLoopGate();
+    setBackground(!!document.hidden);
     initTabs();
     initModeToggle();
     initViews();
