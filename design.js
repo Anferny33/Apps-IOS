@@ -2707,7 +2707,7 @@ const SETTING_GROUPS = [
         { key: "motion", label: "Animationen", opts: [["system", "Wie das System"], ["reduce", "Reduziert"]] }
     ] },
     { title: "Farbschema", rows: [
-        { key: "scheme", label: "Palette", opts: [["bento", "Bento (Standard)"], ["nil", "Nil (Sanzo Wada)"], ["ocker", "Ocker (Sanzo Wada)"]], note: "Nil: nilblauer Grund, weiße Karten, Indigo-Schrift; Ocker: elfenbeinfarbener Grund, weiße Karten, schwarze Schrift, violetter Akzent. Farben aus Sanzo Wadas Farbkombinationen; Tag und Nacht." }
+        { key: "scheme", label: "Palette", opts: [["bento", "Bento (Standard)"], ["nil", "Nil (Sanzo Wada)"], ["ocker", "Ocker (Sanzo Wada)"], ["zitrone", "Zitrone (Sanzo Wada)"]], note: "Nil: nilblauer Grund, weiße Karten, Indigo-Schrift; Ocker: elfenbeinfarbener Grund, weiße Karten, schwarze Schrift, violetter Akzent; Zitrone: zitronengelber Grund, weiße Karten, pflaumendunkle Schrift, Aprikosen-Akzent. Farben aus Sanzo Wadas Farbkombinationen; Tag und Nacht." }
     ] },
     { title: "Rausgehen", rows: [
         { key: "rainTol", label: "Regen", opts: [[-10, "Streng"], [0, "Normal"], [10, "Locker"]], note: "Verschiebt die Regenrisiko-Grenze um 10 Punkte." },
@@ -3683,11 +3683,13 @@ function nightNowAt(fc, nowIso) {
 function nightRoot() { return document.documentElement && document.documentElement.classList ? document.documentElement : document.body; }
 
 /* Farbschemata: Klasse am Wurzelelement und Farbe der Statusleiste am Tag und nachts. Bento trägt keine Klasse und folgt dem Grund,
-   Nil Nile Blue bzw. Deep Indigo, Ocker Ivory Buff bzw. Black; das Startskript in index.html und radar.html führt dieselben Werte. */
+   Nil Nile Blue bzw. Deep Indigo, Ocker Ivory Buff bzw. Black, Zitrone Lemon Yellow bzw. Cotinga Purple; das Startskript in index.html
+   und radar.html führt dieselben Werte. */
 const SCHEMES = {
     bento: { cls: "", day: "#ECEAF4", night: "#14121F" },
     nil: { cls: "scheme-nil", day: "#bce4e5", night: "#051230" },
-    ocker: { cls: "scheme-ocker", day: "#ebd3a2", night: "#111314" }
+    ocker: { cls: "scheme-ocker", day: "#ebd3a2", night: "#111314" },
+    zitrone: { cls: "scheme-zitrone", day: "#f8ed43", night: "#501345" }
 };
 
 /* Farbe der Statusleiste je Farbschema (SCHEMES) und Nacht; liefert sie zurück.

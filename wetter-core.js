@@ -501,7 +501,7 @@ function normalizeSettings(p) {
     if (["C", "F"].indexOf(s.temp) < 0) s.temp = "C";
     if (["kmh", "ms", "kn", "bft"].indexOf(s.wind) < 0) s.wind = "kmh";
     if (["system", "reduce"].indexOf(s.motion) < 0) s.motion = "system";
-    if (["bento", "nil", "ocker"].indexOf(s.scheme) < 0) s.scheme = "bento";
+    if (["bento", "nil", "ocker", "zitrone"].indexOf(s.scheme) < 0) s.scheme = "bento";
     if (["last", "overview", "rain", "wind", "warm", "light"].indexOf(s.startView) < 0) s.startView = "last";
     if ([-10, 0, 10].indexOf(s.rainTol) < 0) s.rainTol = 0;
     if ([-2, 0, 2].indexOf(s.feelAdj) < 0) s.feelAdj = 0;

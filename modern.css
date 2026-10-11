@@ -38,11 +38,12 @@
 .theme-rain, .theme-storm                 { --hero: #BFD6F6; }
 .theme-snow                               { --hero: #E4ECF5; }
 .theme-clear-night, .theme-partly-night   { --hero: #8FA3E0; }
-/* Akzent: aktiver Tab, Jetzt-Knopf der Vorschauleiste, Kreis im Hinweisfeld. Im Bento-Schema die Hero-Farbe, in den Schemata Nil
-   und Ocker ein eigener Ton (html.scheme-nil body, html.scheme-ocker body). Steht am body statt an :root, weil var(--hero) dort
-   aufgelöst wird, wo es steht, und --hero an den Theme-Klassen des body hängt; an :root bliebe der Akzent bei der Sonnenfarbe.
+/* Akzent: aktiver Tab, Jetzt-Knopf der Vorschauleiste, Kreis im Hinweisfeld. Im Bento-Schema die Hero-Farbe, in den Schemata Nil,
+   Ocker und Zitrone ein eigener Ton (html.scheme-nil body, html.scheme-ocker body, html.scheme-zitrone body). Steht am body statt an
+   :root, weil var(--hero) dort aufgelöst wird, wo es steht, und --hero an den Theme-Klassen des body hängt; an :root bliebe der Akzent
+   bei der Sonnenfarbe.
    --fair-bar: trockener Temperaturbalken im 14-Tage-Feld, am Tag die Hero-Farbe (Rückfall in der Regel), nachts und in den
-   Schemata Nil und Ocker die Sonnenfarbe, weil die abgedunkelten Hero-Töne im dunklen Feld untergehen (html.night, html.scheme-*). */
+   Schemata Nil, Ocker und Zitrone die Sonnenfarbe, weil die abgedunkelten Hero-Töne im dunklen Feld untergehen (html.night, html.scheme-*). */
 body { --accent: var(--hero); --accent-ink: var(--ink); }
 
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -391,7 +392,8 @@ html.night .tile.uv, html.night .tile.wind, html.night .tile.rain, html.night .t
 .drow .lo { color: var(--dark-muted); text-align: right; }
 .drow .hi { font-weight: 700; }
 .drow .bar { flex: 1; height: 8px; background: rgba(255,255,255,0.12); border-radius: 4px; position: relative; }
-.drow .bar i { position: absolute; top: 0; bottom: 0; border-radius: 4px; background: var(--wind); }
+/* Bewölkt-Balken: am Tag die Wind-Kachelfarbe, nachts über --cloud-bar eine helle Farbe, weil die dunklen Nacht-Kachelfarben auf der Spur untergehen */
+.drow .bar i { position: absolute; top: 0; bottom: 0; border-radius: 4px; background: var(--cloud-bar, var(--wind)); }
 .drow.wet .bar i { background: var(--dark-blue); }
 .drow.fair .bar i { background: var(--fair-bar, var(--hero)); }
 .drow .bar b { position: absolute; top: -2px; width: 12px; height: 12px; border-radius: 50%; background: var(--white); border: 2px solid var(--dark); margin-left: -6px; }
@@ -800,9 +802,10 @@ footer a { color: var(--ink); }
 @keyframes twinkle    { from { opacity: 0.25; } to { opacity: 1; } }
 
 /* ---------- Nachtpalette: folgt dem Sonnenstand am Ort (Klasse night auf <html>) ----------
-   --fair-bar: trockener Balken im dunklen 14-Tage-Feld in der Sonnenfarbe, die abgedunkelte Hero-Farbe ginge unter (#5C4F24 auf #3A3553 1,4:1) */
+   --fair-bar: trockener Balken im dunklen 14-Tage-Feld in der Sonnenfarbe, die abgedunkelte Hero-Farbe ginge unter (#5C4F24 auf #3A3553 1,4:1)
+   --cloud-bar: bewölkter Balken in der Wind-Kachelfarbe des Tages, die Nachtfarbe #27392B ginge auf der Spur unter (1,5:1), #D9E7D3 erreicht 6,2:1 */
 html.night {
-    --fair-bar: var(--sun);
+    --fair-bar: var(--sun); --cloud-bar: #D9E7D3;
     --ground: #14121F; --card: #221F33; --soft: #2E2A45; --line: #3A3553;
     --ink: #F1EFF8; --ink-2: #A9A3C4;
     --uv: #5A3A2E; --wind: #27392B; --rain: #34496E; --wet: #243048; --rain-ink: #BFD6F6; --lilac: #3A2F57;
@@ -875,6 +878,7 @@ html.scheme-nil .tile.uv, html.scheme-nil .tile.wind, html.scheme-nil .tile.rain
 html.scheme-nil:not(.night) .light-now.golden { color: #644b1e; }                  /* Sepia: das Bento-Braun bleibt auf Hermosa Pink unter 4,5:1 */
 /* Nachtpalette des Schemas: Deep Indigo als Grund, Dark Tyrian Blue als Karte, Slate Color als dunkles Feld */
 html.scheme-nil.night {
+    --cloud-bar: #c1c494;                                                           /* Olive Buff (Wind-Kachel des Tages) für den bewölkten Balken, 3,9:1 auf der Spur; Blackish Olive ginge unter (1,2:1) */
     --ground: #051230; --card: #12354e; --soft: #34454c; --line: #34454c;
     --ink: #bce4e5; --ink-2: #a5c8d1;                                               /* Nile Blue, Light Glaucous Blue */
     --uv: #644b1e; --wind: #42533e; --rain: #1c4286; --lilac: #4e1d4c;              /* Sepia, Blackish Olive, Deep Lyons Blue, Dusky Madder Violet */
@@ -926,6 +930,7 @@ html.scheme-ocker .tile.uv, html.scheme-ocker .tile.wind, html.scheme-ocker .til
 html.scheme-ocker:not(.night) .light-now.golden { color: #4b3317; } html.scheme-ocker:not(.night) .light-now.blue { color: #12354e; }
 /* Nachtpalette des Schemas: Black als Grund, Dark Tyrian Blue als Karte, Slate Color als dunkles Feld, Ivory Buff als Schrift */
 html.scheme-ocker.night {
+    --cloud-bar: #c1c494;                                                           /* Olive Buff (Wind-Kachel des Tages) für den bewölkten Balken, 3,9:1 auf der Spur; Blackish Olive ginge unter (1,2:1) */
     --ground: #111314; --card: #12354e; --soft: #34454c; --line: #34454c;
     --ink: #ebd3a2; --ink-2: #a5c8d1;                                               /* Ivory Buff, Light Glaucous Blue (Warm Gray bliebe auf Slate Color bei 3,9:1) */
     --uv: #793327; --wind: #42533e; --rain: #064f6e; --lilac: #653514;              /* Hay's Russet, Blackish Olive, Vandar Poel's Blue, Mars Brown Tobacco */
@@ -942,6 +947,61 @@ html.scheme-ocker.night body { --accent: #b984af; --accent-ink: #111314; }
 html.scheme-ocker.night .tile.uv, html.scheme-ocker.night .tile.wind, html.scheme-ocker.night .tile.rain, html.scheme-ocker.night .tile.sun, html.scheme-ocker.night .tp-wind, html.scheme-ocker.night .tp-rain, html.scheme-ocker.night .tp-sun { --ink-2: #a7d4e4; }
 html.scheme-ocker.night .hcol.now .t, html.scheme-ocker.night .hcol.now .p, html.scheme-ocker.night .mchip.hl .k { color: #4b3317; }
 html.scheme-ocker.night .wc-critical { color: #f37f94; }                           /* Eosine Pink: das Bento-Rot bleibt auf Dark Tyrian Blue unter 4,5:1 */
+/* ---------- Farbschema „Zitrone“ nach Sanzo Wada (Kombinationen 253 und 317, Ergänzungen aus derselben Palette) ----------
+   Wählbar in den Einstellungen: Klasse scheme-zitrone auf <html>, index.html setzt sie vor dem ersten Zeichnen aus dem Speicher.
+   Dieselben Token wie :root und html.night; Cotinga Purple auf Lemon Yellow, weiße Karten, Apricot Orange als Sonne und einziger Akzent, laut wie ein Plakat.
+   --fair-bar: trockener Balken im 14-Tage-Feld in Apricot Orange statt Hero-Farbe, 5,8:1 auf Cotinga Purple, nachts 3,05:1 auf Helvetia Blue (Hero #6450a1 dort 1,1:1) */
+html.scheme-zitrone {
+    --fair-bar: var(--sun);
+    --ground: #f8ed43; --card: #ffffff; --soft: #f8ed43; --line: #f8ed43;           /* Lemon Yellow, White */
+    --ink: #501345; --ink-2: #12354e; --white: #ffffff;                             /* Cotinga Purple, Dark Tyrian Blue */
+    --sun: #f68c50; --hero: #f68c50;                                                /* Apricot Orange */
+    --uv: #fcc79b; --wind: #c2ae93; --rain: #b5decc; --lilac: #f68c50;              /* Light Pinkish Cinnamon, Ecru, Turquoise Green, Apricot Orange */
+    --rain-ink: #1c4286; --wet: #a7d4e4;                                            /* Deep Lyons Blue auf Pale King's Blue */
+    --dark: #501345; --dark-muted: #b5b1d8; --dark-blue: #a7d4e4;                   /* Cotinga Purple, Grayish Lavender - A, Pale King's Blue */
+    --good-bg: #b5decc;                                                             /* Turquoise Green */
+    --wfill: #96d1aa; --windy-ink: #004f46; --lfill: #fbe6a0; --nightcol: #b5b1d8;  /* Cobalt Green, Dusky Green, Naples Yellow, Grayish Lavender - A */
+    /* Wärme-Tönungen kühl bis warm: Pale King's Blue, Turquoise Green, Sulpher Yellow, Seashell Pink, Light Pinkish Cinnamon */
+    --tc1: #a7d4e4; --tc2: #b5decc; --tc3: #f5ecc2; --tc4: #fdd4bd; --tc5: #fcc79b;
+}
+html.scheme-zitrone body { --accent: #f68c50; --accent-ink: #501345; }             /* Apricot Orange mit Cotinga Purple, 5,8:1; nachts dieselbe Fläche, siehe Nachtblock */
+/* Hero je Wetterlage: Apricot Orange, Ecru, Turquoise Green, Nile Blue; Nacht-Themes Blue Violet mit Lemon Yellow als Schrift */
+html.scheme-zitrone .theme-clear-day, html.scheme-zitrone .theme-partly-day     { --hero: #f68c50; }
+html.scheme-zitrone .theme-cloudy, html.scheme-zitrone .theme-fog               { --hero: #c2ae93; }
+html.scheme-zitrone .theme-rain, html.scheme-zitrone .theme-storm               { --hero: #b5decc; }
+html.scheme-zitrone .theme-snow                                                 { --hero: #bce4e5; }
+html.scheme-zitrone .theme-clear-night, html.scheme-zitrone .theme-partly-night { --hero: #6450a1; }
+html.scheme-zitrone .theme-clear-night .hero-field, html.scheme-zitrone .theme-partly-night .hero-field,
+html.scheme-zitrone .theme-clear-night .hero-field .big-icon, html.scheme-zitrone .theme-partly-night .hero-field .big-icon { color: #f8ed43; }
+/* Chips auf Blue Violet: dieselbe Tönung wie nachts (12 % Cotinga Purple, 5,9:1) statt der hellen Nil/Ocker-Tönung (12 % Weiß, 4,1:1); die Bento-Tönung läge ebenfalls bei 5,9:1 */
+html.scheme-zitrone .theme-clear-night .hero-field .chips span, html.scheme-zitrone .theme-partly-night .hero-field .chips span { background: rgba(80,19,69,0.12); }
+/* Jetzt-Knopf im dunklen Hero: Cotinga Purple hebt sich von Blue Violet nicht ab (2,1:1), Lemon Yellow schon (5,4:1), Schrift 11,3:1 */
+html.scheme-zitrone .theme-clear-night .hero-field .meta .now-btn, html.scheme-zitrone .theme-partly-night .hero-field .meta .now-btn { background: #f8ed43; color: #501345; }
+/* Nebentext auf den getönten Kacheln: Dark Tyrian Blue reicht auf allen vier (5,3:1 auf Apricot Orange), das Bento-Grau nicht (3,4:1) */
+html.scheme-zitrone .tile.uv, html.scheme-zitrone .tile.wind, html.scheme-zitrone .tile.rain, html.scheme-zitrone .tile.sun, html.scheme-zitrone .tp-wind, html.scheme-zitrone .tp-rain, html.scheme-zitrone .tp-sun { --ink-2: #12354e; }
+/* Lichtphasen auf Apricot Orange: Bento-Braun 2,5:1 und Bento-Blau 4,0:1 reichen nicht, Vandyke Brown 4,9:1 und Dark Tyrian Blue 5,3:1 */
+html.scheme-zitrone:not(.night) .light-now.golden { color: #4b3317; } html.scheme-zitrone:not(.night) .light-now.blue { color: #12354e; }
+/* Nachtpalette des Schemas: Cotinga Purple als Grund, Slate Color als Karte, Helvetia Blue als dunkles Feld, Lemon Yellow als Schrift */
+html.scheme-zitrone.night {
+    --cloud-bar: #ebd3a2;                                                           /* Ivory Buff für den bewölkten Balken, 3,8:1 auf der Spur über Helvetia Blue; Blackish Olive ginge unter (1,5:1), Ecru bliebe bei 2,6:1 */
+    --ground: #501345; --card: #34454c; --soft: #40456a; --line: #40456a;           /* Cotinga Purple, Slate Color, Violet Blue */
+    --ink: #f8ed43; --ink-2: #a7d4e4;                                               /* Lemon Yellow, Pale King's Blue */
+    --uv: #793327; --wind: #42533e; --rain: #1c4286; --lilac: #653514;              /* Hay's Russet, Blackish Olive, Deep Lyons Blue, Mars Brown Tobacco */
+    --rain-ink: #a7d4e4; --wet: #1c4286;                                            /* Pale King's Blue auf Deep Lyons Blue */
+    --dark: #005b8d; --dark-muted: #fcc79b; --dark-blue: #a7d4e4;                   /* Helvetia Blue, Light Pinkish Cinnamon (4,8:1), Pale King's Blue */
+    --good-bg: #112f2c;                                                             /* Deep Slate Green */
+    --wfill: #004f46; --windy-ink: #96d1aa; --lfill: #644b1e; --nightcol: #1e0e3f;  /* Dusky Green, Cobalt Green, Sepia, Dull Violet Black */
+    /* Wärme-Tönungen kühl bis warm: Vandar Poel's Blue, Violet Blue, Blackish Olive, Sepia, Hay's Russet */
+    --tc1: #064f6e; --tc2: #40456a; --tc3: #42533e; --tc4: #644b1e; --tc5: #793327;
+}
+html.scheme-zitrone.night body { --hero: #6450a1; }                                /* Blue Violet für alle Wetterlagen, Schrift ist nachts hell */
+/* Akzent nachts: Apricot Orange bleibt, 3,05:1 auf Helvetia Blue (Tab-Pille, Hinweiskreis und Jetzt-Knopf liegen auf --dark), Cotinga Purple darauf 5,8:1 */
+html.scheme-zitrone.night body { --accent: #f68c50; --accent-ink: #501345; }
+/* Chips nachts auf Blue Violet: die Bento-Nachttönung (12 % Weiß) drückt Lemon Yellow auf 4,1:1, 12 % Cotinga Purple hält 5,9:1 */
+html.scheme-zitrone.night .hero-field .chips span { background: rgba(80,19,69,0.12); }
+html.scheme-zitrone.night .tile.uv, html.scheme-zitrone.night .tile.wind, html.scheme-zitrone.night .tile.rain, html.scheme-zitrone.night .tile.sun, html.scheme-zitrone.night .tp-wind, html.scheme-zitrone.night .tp-rain, html.scheme-zitrone.night .tp-sun { --ink-2: #a7d4e4; }
+html.scheme-zitrone.night .hcol.now .t, html.scheme-zitrone.night .hcol.now .p, html.scheme-zitrone.night .mchip.hl .k { color: #501345; }
+html.scheme-zitrone.night .wc-critical { color: #f8b6ba; }                         /* Corinthian Pink (5,9:1): das Bento-Rot bleibt auf Slate Color bei 3,2:1, Eosine Pink bei 3,9:1 */
 /* Weiches Überblenden beim Wechsel (Nacht und Farbschema): die Klasse fade liegt nur eine Sekunde an. Die Akzentflächen (Tab-Pille,
    Hinweiskreis, Jetzt-Knopf der Vorschauleiste), die Vorschauleiste und das offene Blatt laufen mit, sonst springen sie beim Schemawechsel */
 html.fade body, html.fade .field, html.fade .tile, html.fade .hcol, html.fade .loc, html.fade .iconbtn, html.fade .tabs nav,

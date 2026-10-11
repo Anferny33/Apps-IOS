@@ -809,8 +809,9 @@ function radarToggleMode() {
 }
 
 /* Statusleiste je Farbschema und Nacht wie auf der Startseite (Bento wie der Grund, Nil Nile Blue bzw. Deep Indigo, Ocker Ivory Buff
-   bzw. Black); die Klasse scheme-nil oder scheme-ocker setzt radar.html vor dem Stylesheet aus wetter:settings. Liefert die Farbe zurück. */
-const SCHEME_BAR = { "scheme-nil": { day: "#bce4e5", night: "#051230" }, "scheme-ocker": { day: "#ebd3a2", night: "#111314" } };
+   bzw. Black, Zitrone Lemon Yellow bzw. Cotinga Purple); die Klasse scheme-nil, scheme-ocker oder scheme-zitrone setzt radar.html vor
+   dem Stylesheet aus wetter:settings. Liefert die Farbe zurück. */
+const SCHEME_BAR = { "scheme-nil": { day: "#bce4e5", night: "#051230" }, "scheme-ocker": { day: "#ebd3a2", night: "#111314" }, "scheme-zitrone": { day: "#f8ed43", night: "#501345" } };
 function updateThemeColor() {
     const root = document.documentElement && document.documentElement.classList ? document.documentElement : null;
     const night = !!(root && root.classList.contains("night"));
