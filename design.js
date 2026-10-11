@@ -3299,6 +3299,27 @@ function droppedText(n) {
     return (n === 1 ? '1 gespeicherte Rückmeldung hat der Worker abgelehnt, sie wurde' : n + ' gespeicherte Rückmeldungen hat der Worker abgelehnt, sie wurden') + ' verworfen.';
 }
 
+/* Maus und Tastatur vorhanden? Nur dann darf das Textfeld per Skript den Fokus bekommen: auf dem iPhone zeigt
+   ein per Skript fokussiertes Feld keine Tastatur und reagiert danach auch nicht mehr auf den Tipp. */
+function finePointer() {
+    try { return typeof matchMedia === "function" && matchMedia("(hover: hover) and (pointer: fine)").matches; } catch (e) { return false; }
+}
+
+/* iPhone-Tastatur: das feste Blatt bliebe sonst hinter ihr. Höhe und Abstand folgen dem sichtbaren Ausschnitt. */
+function fitFeedbackSheet() {
+    const sheet = D("fb");
+    if (!sheet || !sheet.style) return;
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    const total = typeof window !== "undefined" ? window.innerHeight : 0;
+    const open = document.body && document.body.classList && document.body.classList.contains("fb-open");
+    if (!vv || !open || !total) { sheet.style.bottom = ""; sheet.style.maxHeight = ""; return; }
+    const hidden = Math.max(0, Math.round(total - vv.height - vv.offsetTop));
+    let safeTop = 0;
+    try { safeTop = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--safe-top")) || 0; } catch (e) { safeTop = 0; }
+    sheet.style.bottom = hidden > 0 ? hidden + "px" : "";
+    sheet.style.maxHeight = hidden > 0 ? Math.max(200, Math.round(vv.height - 8 - safeTop)) + "px" : "";
+}
+
 function openFeedback(trigger) {
     if (!D("fb") || !D("fbBody")) return;
     fbTrigger = trigger || null;
@@ -3307,11 +3328,16 @@ function openFeedback(trigger) {
     if (state.dropped) { state.dropped = 0; saveFeedbackState(state); }   /* Hinweis einmal gezeigt */
     document.body.classList.add("fb-open");
     if (D("fbLink")) D("fbLink").setAttribute("aria-expanded", "true");
-    setTimeout(function () { if (D("fbText") && D("fbText").focus) D("fbText").focus(); }, 300);
+    setTimeout(function () {
+        const target = finePointer() ? D("fbText") : D("fbClose");
+        if (target && target.focus) target.focus();
+    }, 300);
+    fitFeedbackSheet();
 }
 
 function closeFeedback() {
     document.body.classList.remove("fb-open");
+    fitFeedbackSheet();
     if (D("fbLink")) D("fbLink").setAttribute("aria-expanded", "false");
     const back = fbTrigger && fbTrigger.focus ? fbTrigger : D("fbLink");
     if (back && back.focus) back.focus();
@@ -3398,6 +3424,8 @@ function initFeedback() {
         if (k) { setFeedbackKind(k.getAttribute("data-kind")); return; }
         if (q("#fbSend")) sendFeedback();
     });
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (vv && vv.addEventListener) { vv.addEventListener("resize", fitFeedbackSheet); vv.addEventListener("scroll", fitFeedbackSheet); }
     flushFeedbackQueue().catch(function () {});
 }
 

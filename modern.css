@@ -605,6 +605,7 @@ html.night .trip-btn { background: var(--ink); color: var(--ground); }
 .sheet.src { z-index: 53; }
 
 /* ---------- Rückmeldung: Blatt über den Einstellungen ---------- */
+:root { --safe-top: env(safe-area-inset-top, 0px); } /* vom Skript gelesen, wenn die Tastatur das Blatt nach oben schiebt */
 #fbBg { z-index: 58; }
 .sheet.fb { z-index: 59; }
 body.fb-open #fbBg { opacity: 1; pointer-events: auto; }

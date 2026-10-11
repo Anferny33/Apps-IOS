@@ -1288,10 +1288,23 @@ function boot(opts) {
   sbB.openFeedback(null);
   H.check('Rückmeldung: Hinweis auf die verworfene Rückmeldung im Blatt, danach gelöscht', FB('fbBody').innerHTML.includes('<div class="fb-msg">1 gespeicherte Rückmeldung hat der Worker abgelehnt, sie wurde verworfen.</div>') && !JSON.parse(sbB._store['wetter:feedback']).dropped, FB('fbBody').innerHTML.slice(FB('fbBody').innerHTML.indexOf('fb-msg'), FB('fbBody').innerHTML.indexOf('fb-msg') + 120));
   fbMode = 'ok';
+  sbB.innerHeight = 800; sbB.visualViewport = { height: 500, offsetTop: 0 };
+  sbB.getComputedStyle = () => ({ getPropertyValue: n => n === '--safe-top' ? '59px' : '' });
+  sbB.fitFeedbackSheet();
+  H.check('Rückmeldung: oberer Sicherheitsbereich wird von der Höhe abgezogen', FB('fb').style.maxHeight === '433px', FB('fb').style.maxHeight);
+  delete sbB.getComputedStyle;
+  sbB.fitFeedbackSheet();
+  const fbStyle = FB('fb').style;
+  H.check('Rückmeldung: iPhone-Tastatur verkleinert den Ausschnitt, das Blatt rückt darüber und wird begrenzt', fbStyle.bottom === '300px' && fbStyle.maxHeight === '492px', JSON.stringify(fbStyle));
+  sbB.visualViewport = { height: 800, offsetTop: 0 }; sbB.fitFeedbackSheet();
+  H.check('Rückmeldung: ohne Tastatur keine Verschiebung', fbStyle.bottom === '' && fbStyle.maxHeight === '', JSON.stringify(fbStyle));
+  await wait(350);
+  H.check('Rückmeldung: auf Touch-Geräten kein Autofokus ins Textfeld, Fokus auf Schließen', FB('fbClose').focused === true && !FB('fbText').focused, FB('fbClose').focused);
+  sbB.visualViewport = { height: 500, offsetTop: 0 }; sbB.fitFeedbackSheet();
   sbB.closeFeedback();
-  H.check('Rückmeldung: Schließen entfernt die Klasse', !sbB.document.body.classList.contains('fb-open'));
+  H.check('Rückmeldung: Schließen entfernt die Klasse und die Tastatur-Anpassung', !sbB.document.body.classList.contains('fb-open') && fbStyle.bottom === '' && fbStyle.maxHeight === '', JSON.stringify(fbStyle));
   H.check('Rückmeldung: letzter Fehlertext wandert in die Metadaten', /nicht geladen werden|Keine Verbindung/.test(sbF.feedbackMeta().lastError) && sbB.feedbackMeta().lastError === '', sbF.feedbackMeta().lastError);
-  H.check('Rückmeldung: Blatt über den Einstellungen, für Vorleser unsichtbar bis geöffnet', /#fbBg \{ z-index: 58; \}/.test(css) && /\.sheet\.fb \{ z-index: 59; \}/.test(css) && /body\.fb-open #fb \{ transform: none; \}/.test(css) && /body\.fb-open #fbBg \{ opacity: 1; pointer-events: auto; \}/.test(css) && /\.sheet\.fb input \{ padding-left: 14px; background-image: none; \}/.test(css));
+  H.check('Rückmeldung: Blatt über den Einstellungen, für Vorleser unsichtbar bis geöffnet', /#fbBg \{ z-index: 58; \}/.test(css) && /\.sheet\.fb \{ z-index: 59; \}/.test(css) && /body\.fb-open #fb \{ transform: none; \}/.test(css) && /body\.fb-open #fbBg \{ opacity: 1; pointer-events: auto; \}/.test(css) && /\.sheet\.fb input \{ padding-left: 14px; background-image: none; \}/.test(css) && /--safe-top: env\(safe-area-inset-top, 0px\);/.test(css));
 
   const sbSV = boot({ fetchImpl: H.okFetch(data), geolocation: granted, storage: { 'wetter:view': 'wind', 'wetter:settings': JSON.stringify({ startView: 'rain', motion: 'reduce' }) } });
   await wait(300);

@@ -55,12 +55,14 @@ und neue Ideen aus der Arbeit. Nach jeder Änderung wird die Liste nachgezogen u
 - [ ] Gegencheck mit echtem VoiceOver (Wischen, Rotor) auf dem iPhone, wenn es passt. Klein.
 - [x] Rückkanal für Tester (09.10.2026): Blatt „Rückmeldung“ in Fußzeile und Einstellungen, Worker-Routen mit KV `FEEDBACK`, `proxy/feedback.sh`; Spezifikation `docs/superpowers/specs/2026-10-09-rueckkanal-design.md`
 - [ ] Tägliche geplante Aufgabe, die neue Rückmeldungen sichtet, sobald mehrere Tester aktiv sind. Klein.
+- [ ] Dauer-Animationen (Nachtpalette, Hero, Kacheln) halten den Seitenprozess im Simulator bei 30 bis 100 % CPU (Zeichnen und Layout, kein Skript). Auf dem Gerät Akku prüfen; Endlosanimationen nach dem Start ausklingen lassen oder nur im sichtbaren Bereich laufen lassen. Mittel.
 
 ## Rückmeldungen aus der Testrunde
 
 Einträge aus `proxy/feedback.sh`, je mit Einschätzung und Vorschlag; Umsetzung nach Freigabe je Punkt.
 
-- (noch keine)
+- [ ] 09.10.2026, Idee (iPhone, Homescreen-App, Version q): „Mehr Farbschemata nach dem Buch ‚A Dictionary of Color Combinations‘ (Sanzo Wada)“. Einschätzung: machbar ohne Dienst; die 348 Kombinationen des Buchs liegen als freie Daten vor, Farben selbst sind nicht geschützt. Vorschlag: Einstellung „Farbschema“ mit Standard plus drei bis fünf Wada-Kombinationen, je auf die Token (Grund, Karte, Tinte, Hero, Dunkel, Regen, Windig) abgebildet, Nachtvariante abgeleitet, Kontrast-Checks aus den Tests sichern die Lesbarkeit. Mittel. Wartet auf Freigabe.
+- [x] 09.10.2026, Fehler (mündlich): Eingabefenster auf dem iPhone, Tastatur erschien beim Tippen nicht bzw. verdeckte Textfeld und Knöpfe. Ursache: Autofokus per Skript außerhalb der Tipp-Geste, festes Blatt hinter der Tastatur. Behoben in `20261009r`.
 - [x] Regen-Alarm in Betrieb genommen (09.10.2026): KV-Namespace SUBS, Geheimnis VAPID_PRIVATE_KEY, Worker deployt mit Cron */15 und Testroute `/push/test`
 - [x] Regen-Alarm auf dem iPhone geprüft: Probenachricht angekommen (09.10.2026); der erste Schlüssel-Upload hatte einen Zeilenumbruch, der Worker schneidet das jetzt selbst ab
 - [x] Tagesfilm samt Aufnahme auf dem echten iPhone geprüft (09.10.2026)
