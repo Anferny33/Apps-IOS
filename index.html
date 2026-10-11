@@ -8,8 +8,8 @@
 <meta name="apple-mobile-web-app-title" content="Wetter">
 <meta name="theme-color" content="#ECEAF4">
 <!-- Icon-Links tragen dieselbe Versions-Query wie Stylesheet und Skripte; die Offline-Hülle (sw.js) führt sie so -->
-<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=20261011a">
-<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=20261011a">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=20261011b">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=20261011b">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Wetter</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -19,7 +19,7 @@
      die Statusleiste (theme-color) folgt sofort mit, design.js setzt sie später nur noch bei Wechseln -->
 <script>try { if (localStorage.getItem("wetter:night") === "1") document.documentElement.classList.add("night"); } catch (e) {}</script>
 <script>try { var s0 = JSON.parse(localStorage.getItem("wetter:settings") || "{}"), nil0 = !!(s0 && s0.scheme === "nil"), ocker0 = !!(s0 && s0.scheme === "ocker"), n0 = document.documentElement.classList.contains("night"), m0 = document.querySelector('meta[name="theme-color"]'); if (nil0) document.documentElement.classList.add("scheme-nil"); if (ocker0) document.documentElement.classList.add("scheme-ocker"); if (m0) m0.setAttribute("content", ocker0 ? (n0 ? "#111314" : "#ebd3a2") : nil0 ? (n0 ? "#051230" : "#bce4e5") : (n0 ? "#14121F" : "#ECEAF4")); } catch (e) {}</script>
-<link rel="stylesheet" href="modern.css?v=20261011a" id="cssModern">
+<link rel="stylesheet" href="modern.css?v=20261011b" id="cssModern">
 <!-- Schriftgrenze: die Systemschriftgröße wirkt bis zum 1,6-Fachen (27,2 px), darüber hält das Raster nicht mehr -->
 <script>try { var fs0 = parseFloat(getComputedStyle(document.documentElement).fontSize); if (fs0 > 27.2) document.documentElement.style.fontSize = "27.2px"; } catch (e) {}</script>
 </head>
@@ -65,7 +65,7 @@
         <div class="views a-up" id="views" role="group" aria-label="Ansicht" style="animation-delay:.45s"></div>
 
         <div class="field white a-up" id="hoursField" style="animation-delay:.48s">
-            <h2>Nächste Stunden <span class="r"><button type="button" class="trend-btn" id="trendBtn" aria-expanded="false" aria-controls="trend">Verlauf 48 h</button></span></h2>
+            <h2>Nächste Stunden <span class="r"><button type="button" class="trend-btn" id="trendBtn" aria-expanded="false" aria-controls="trend">Verlauf 48 h<span class="chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span></button></span></h2>
             <div class="answer hidden" id="viewAnswer"></div>
             <div id="hourly" class="skel" style="height:112px">&nbsp;</div>
             <div class="note" id="hourlyNote">Blaue Felder: Regenrisiko ab 25 %</div>
@@ -208,9 +208,9 @@
     <div class="src-body" id="fbBody"></div>
 </div>
 
-<script src="sonne.js?v=20261011a"></script>
-<script src="wetter-core.js?v=20261011a"></script>
-<script src="design.js?v=20261011a"></script>
+<script src="sonne.js?v=20261011b"></script>
+<script src="wetter-core.js?v=20261011b"></script>
+<script src="design.js?v=20261011b"></script>
 <script>initDesignApp();</script>
 <!-- Offline-Hülle: Seiten, Stylesheet, Skripte und Icons bleiben auch ohne Netz verfügbar -->
 <script>if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js").catch(function () {}); }</script>

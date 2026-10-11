@@ -1070,6 +1070,7 @@ function boot(opts) {
   sb.toggleTrend();
   H.check('Verlauf: wieder zu', !G(sb,'trend').classList.contains('open') && G(sb,'trendBtn').getAttribute('aria-expanded') === 'false');
   H.check('Shell: Verlaufsknopf und Feld in index.html, Stile', idxA.includes('id="trendBtn" aria-expanded="false" aria-controls="trend"') && idxA.includes('id="trend" role="region"') && cssA.includes('.trend .tline'));
+  H.check('Verlauf: Knopf trägt das Kachel-Chevron und dreht es im offenen Zustand', /id="trendBtn"[^>]*>Verlauf 48 h<span class="chev" aria-hidden="true"><svg/.test(idxA) && cssA.includes('.trend-btn[aria-expanded="true"] .chev svg { transform: rotate(180deg); }'));
   // Regenradar als Blatt
   H.check('Radar: Blatt mit Rahmen in index.html, Tab als Dialogöffner, Vollbild-Link, Radarseite kennt den Einbettungsmodus', idxA.includes('id="radarSheet" role="dialog"') && idxA.includes('<iframe id="radarFrame" title="Regenradar"') && idxA.includes('id="radarTab" aria-label="Radar" aria-haspopup="dialog"') && idxA.includes('class="src-link radar-full" href="radar.html">Vollbild</a>') && radarA.includes('document.documentElement.classList.add("embed")') && radarA.includes('html.embed .rshell .top, html.embed .tabs { display: none; }') && cssA.includes('body.radar-open #radarSheet { transform: none; }'));
   G(sb,'radarTab').trigger('click', { preventDefault() { this.prevented = true; } });

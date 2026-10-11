@@ -520,8 +520,14 @@ body.sheet-open #sheet, body.radar-open #radarSheet, body.settings-open #setting
 @keyframes rowFlash { 0% { background: rgba(255,255,255,0.22); } 100% { background: transparent; } }
 
 /* ---------- Verlaufssicht (48 Stunden) unter dem Stundenstreifen ---------- */
-.trend-btn { padding: 0; border: 0; background: none; font: inherit; font-size: 0.706rem; font-weight: 600; color: var(--ink-2); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
-.trend-btn[aria-expanded="true"] { color: var(--ink); }
+/* Verlauf 48 h: dieselbe Aufklapp-Schaltfläche wie bei den Kacheln (Chevron, dreht sich im offenen Zustand),
+   damit erkennbar ist, dass sich hier ein Feld öffnet */
+.trend-btn { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 0 6px 0 10px; border: 0; border-radius: 999px; background: var(--soft); font: inherit; font-size: 0.706rem; font-weight: 600; color: var(--ink); cursor: pointer; }
+.trend-btn .chev { flex: none; width: 18px; height: 18px; display: flex; color: var(--ink-2); }
+.trend-btn .chev svg { width: 18px; height: 18px; transition: transform 0.3s ease; }
+.trend-btn[aria-expanded="true"] { background: var(--dark); color: var(--white); }
+.trend-btn[aria-expanded="true"] .chev { color: var(--white); }
+.trend-btn[aria-expanded="true"] .chev svg { transform: rotate(180deg); }
 .trend-btn:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; border-radius: 4px; }
 .trend-panel { margin-top: 0; }
 .trend-panel .tpanel-body { margin: 12px 0 0; padding: 10px 6px 4px; background: var(--soft); }
