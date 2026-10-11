@@ -808,12 +808,15 @@ function radarToggleMode() {
     radarNight();
 }
 
-/* Statusleiste je Farbschema und Nacht wie auf der Startseite (Bento wie der Grund, Nil Nile Blue bzw. Deep Indigo);
-   die Klasse scheme-nil setzt radar.html vor dem Stylesheet aus wetter:settings. Liefert die Farbe zurück. */
+/* Statusleiste je Farbschema und Nacht wie auf der Startseite (Bento wie der Grund, Nil Nile Blue bzw. Deep Indigo, Ocker Ivory Buff
+   bzw. Black); die Klasse scheme-nil oder scheme-ocker setzt radar.html vor dem Stylesheet aus wetter:settings. Liefert die Farbe zurück. */
+const SCHEME_BAR = { "scheme-nil": { day: "#bce4e5", night: "#051230" }, "scheme-ocker": { day: "#ebd3a2", night: "#111314" } };
 function updateThemeColor() {
     const root = document.documentElement && document.documentElement.classList ? document.documentElement : null;
-    const night = !!(root && root.classList.contains("night")), nil = !!(root && root.classList.contains("scheme-nil"));
-    const color = nil ? (night ? "#051230" : "#bce4e5") : (night ? "#14121F" : "#ECEAF4");
+    const night = !!(root && root.classList.contains("night"));
+    let bar = { day: "#ECEAF4", night: "#14121F" };
+    Object.keys(SCHEME_BAR).forEach(function (cls) { if (root && root.classList.contains(cls)) bar = SCHEME_BAR[cls]; });
+    const color = night ? bar.night : bar.day;
     const metaEl = document.querySelector ? document.querySelector('meta[name="theme-color"]') : null;
     if (metaEl) metaEl.setAttribute("content", color);
     return color;

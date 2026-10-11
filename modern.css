@@ -38,11 +38,11 @@
 .theme-rain, .theme-storm                 { --hero: #BFD6F6; }
 .theme-snow                               { --hero: #E4ECF5; }
 .theme-clear-night, .theme-partly-night   { --hero: #8FA3E0; }
-/* Akzent: aktiver Tab, Jetzt-Knopf der Vorschauleiste, Kreis im Hinweisfeld. Im Bento-Schema die Hero-Farbe, im Schema Nil
-   ein eigener Ton (html.scheme-nil body). Steht am body statt an :root, weil var(--hero) dort aufgelöst wird, wo es steht,
-   und --hero an den Theme-Klassen des body hängt; an :root bliebe der Akzent bei der Sonnenfarbe.
-   --fair-bar: trockener Temperaturbalken im 14-Tage-Feld, am Tag die Hero-Farbe (Rückfall in der Regel), nachts und im
-   Schema Nil die Sonnenfarbe, weil die abgedunkelten Hero-Töne im dunklen Feld untergehen (html.night, html.scheme-nil). */
+/* Akzent: aktiver Tab, Jetzt-Knopf der Vorschauleiste, Kreis im Hinweisfeld. Im Bento-Schema die Hero-Farbe, in den Schemata Nil
+   und Ocker ein eigener Ton (html.scheme-nil body, html.scheme-ocker body). Steht am body statt an :root, weil var(--hero) dort
+   aufgelöst wird, wo es steht, und --hero an den Theme-Klassen des body hängt; an :root bliebe der Akzent bei der Sonnenfarbe.
+   --fair-bar: trockener Temperaturbalken im 14-Tage-Feld, am Tag die Hero-Farbe (Rückfall in der Regel), nachts und in den
+   Schemata Nil und Ocker die Sonnenfarbe, weil die abgedunkelten Hero-Töne im dunklen Feld untergehen (html.night, html.scheme-*). */
 body { --accent: var(--hero); --accent-ink: var(--ink); }
 
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -883,6 +883,59 @@ html.scheme-nil.night body { --hero: #064f6e; }                                 
 html.scheme-nil.night .tile.uv, html.scheme-nil.night .tile.wind, html.scheme-nil.night .tile.rain, html.scheme-nil.night .tile.sun, html.scheme-nil.night .tp-wind, html.scheme-nil.night .tp-rain, html.scheme-nil.night .tp-sun { --ink-2: #a7d4e4; }
 html.scheme-nil.night .hcol.now .t, html.scheme-nil.night .hcol.now .p, html.scheme-nil.night .mchip.hl .k { color: #34454c; }
 html.scheme-nil.night .wc-critical { color: #f37f94; }                             /* Eosine Pink: das Bento-Rot bleibt auf Dark Tyrian Blue unter 4,5:1 */
+/* ---------- Farbschema „Ocker“ nach Sanzo Wada (Kombinationen 126 und 344, Ergänzungen aus derselben Palette) ----------
+   Wählbar in den Einstellungen: Klasse scheme-ocker auf <html>, index.html setzt sie vor dem ersten Zeichnen aus dem Speicher.
+   Dieselben Token wie :root und html.night; Black auf Ivory Buff, weiße Karten, Aconite Violet als einziger Akzent (nachts Lilac), warm statt kühl.
+   --fair-bar: trockener Balken im 14-Tage-Feld in Yellow Ocher statt Hero-Farbe, 9,7:1 auf Black, nachts 5,2:1 auf Slate Color (Hero #1c4286 dort 1,0:1) */
+html.scheme-ocker {
+    --fair-bar: var(--sun);
+    --ground: #ebd3a2; --card: #ffffff; --soft: #ebd3a2; --line: #ebd3a2;           /* Ivory Buff, White */
+    --ink: #111314; --ink-2: #4b3317; --white: #ffffff;                             /* Black, Vandyke Brown */
+    --sun: #e2b540; --hero: #e2b540;                                                /* Yellow Ocher */
+    --uv: #eea78c; --wind: #c1c494; --rain: #a5c8d1; --lilac: #f99d1b;              /* Vinaceous Cinnamon, Olive Buff, Light Glaucous Blue, Yellow Orange */
+    --rain-ink: #1c4286; --wet: #a7d4e4;                                            /* Deep Lyons Blue auf Pale King's Blue */
+    --dark: #111314; --dark-muted: #a1a39a; --dark-blue: #a5c8d1;                   /* Black, Warm Gray, Light Glaucous Blue */
+    --good-bg: #b7c2a9;                                                             /* Dark Greenish Glaucous */
+    --wfill: #afd472; --windy-ink: #42533e; --lfill: #fbe6a0; --nightcol: #a1a39a;  /* Yellow Green, Blackish Olive, Naples Yellow, Warm Gray */
+    /* Wärme-Tönungen kühl bis warm: Pale King's Blue, Glaucous Green, Sulpher Yellow, Cinnamon Buff, Pinkish Cinnamon */
+    --tc1: #a7d4e4; --tc2: #b4cdc2; --tc3: #f5ecc2; --tc4: #fdc57e; --tc5: #eeb480;
+}
+html.scheme-ocker body { --accent: #a36aa5; --accent-ink: #111314; }               /* Aconite Violet mit Black, 4,6:1; nachts Lilac, siehe Nachtblock */
+/* Hero je Wetterlage: Yellow Ocher, Warm Gray, Olympic Blue (Black darauf 4,7:1, Chips hell getönt), Pale King's Blue; Nacht-Themes Deep Lyons Blue mit heller Schrift */
+html.scheme-ocker .theme-clear-day, html.scheme-ocker .theme-partly-day     { --hero: #e2b540; }
+html.scheme-ocker .theme-cloudy, html.scheme-ocker .theme-fog               { --hero: #a1a39a; }
+html.scheme-ocker .theme-rain, html.scheme-ocker .theme-storm               { --hero: #5a82b3; }
+html.scheme-ocker .theme-snow                                               { --hero: #a7d4e4; }
+html.scheme-ocker .theme-clear-night, html.scheme-ocker .theme-partly-night { --hero: #1c4286; }
+html.scheme-ocker .theme-clear-night .hero-field, html.scheme-ocker .theme-partly-night .hero-field,
+html.scheme-ocker .theme-clear-night .hero-field .big-icon, html.scheme-ocker .theme-partly-night .hero-field .big-icon { color: #ebd3a2; }
+html.scheme-ocker .theme-clear-night .hero-field .chips span, html.scheme-ocker .theme-partly-night .hero-field .chips span { background: rgba(255,255,255,0.12); }
+/* Chips auf Olympic Blue: mit der Bento-Tönung (10 % #1e1b2e) fällt Black auf 4,1:1, die helle Tönung wie bei den Nacht-Themes hebt es auf 5,7:1 (nachts auf Deep Lyons Blue 4,8:1) */
+html.scheme-ocker .theme-rain .hero-field .chips span, html.scheme-ocker .theme-storm .hero-field .chips span { background: rgba(255,255,255,0.12); }
+/* Jetzt-Knopf im dunklen Hero: Black hebt sich von Deep Lyons Blue nicht ab (1,9:1), Ivory Buff schon (6,6:1), Schrift 12,8:1 */
+html.scheme-ocker .theme-clear-night .hero-field .meta .now-btn, html.scheme-ocker .theme-partly-night .hero-field .meta .now-btn { background: #ebd3a2; color: #111314; }
+/* Nebentext auf den getönten Kacheln: Vandyke Brown reicht auf allen vier (5,5:1 auf Yellow Orange), das Bento-Grau nicht (3,8:1) */
+html.scheme-ocker .tile.uv, html.scheme-ocker .tile.wind, html.scheme-ocker .tile.rain, html.scheme-ocker .tile.sun, html.scheme-ocker .tp-wind, html.scheme-ocker .tp-rain, html.scheme-ocker .tp-sun { --ink-2: #4b3317; }
+/* Lichtphasen auf Yellow Orange: Bento-Braun 2,8:1 und Bento-Blau 4,5:1 reichen nicht, Vandyke Brown 5,5:1 und Dark Tyrian Blue 6,0:1 */
+html.scheme-ocker:not(.night) .light-now.golden { color: #4b3317; } html.scheme-ocker:not(.night) .light-now.blue { color: #12354e; }
+/* Nachtpalette des Schemas: Black als Grund, Dark Tyrian Blue als Karte, Slate Color als dunkles Feld, Ivory Buff als Schrift */
+html.scheme-ocker.night {
+    --ground: #111314; --card: #12354e; --soft: #34454c; --line: #34454c;
+    --ink: #ebd3a2; --ink-2: #a5c8d1;                                               /* Ivory Buff, Light Glaucous Blue (Warm Gray bliebe auf Slate Color bei 3,9:1) */
+    --uv: #793327; --wind: #42533e; --rain: #064f6e; --lilac: #653514;              /* Hay's Russet, Blackish Olive, Vandar Poel's Blue, Mars Brown Tobacco */
+    --rain-ink: #a7d4e4; --wet: #1c4286;                                            /* Pale King's Blue auf Deep Lyons Blue */
+    --dark: #34454c; --dark-muted: #c2ae93; --dark-blue: #a5c8d1;                   /* Slate Color, Ecru (4,6:1; Warm Gray bliebe auf Slate Color bei 3,9:1), Light Glaucous Blue */
+    --good-bg: #253122;                                                             /* Deep Slate Olive */
+    --wfill: #42533e; --windy-ink: #afd472; --lfill: #644b1e; --nightcol: #111314;  /* Blackish Olive, Yellow Green, Sepia, Black */
+    /* Wärme-Tönungen kühl bis warm: Vandar Poel's Blue, Violet Blue, Blackish Olive, Mars Brown Tobacco, Vandyke Red */
+    --tc1: #064f6e; --tc2: #40456a; --tc3: #42533e; --tc4: #653514; --tc5: #82241f;
+}
+html.scheme-ocker.night body { --hero: #1c4286; }                                  /* Deep Lyons Blue für alle Wetterlagen, Schrift ist nachts hell */
+/* Akzent nachts: Aconite Violet hebt sich von Slate Color nicht ab (2,5:1, Tab-Pille, Hinweiskreis und Jetzt-Knopf liegen auf --dark), Lilac 3,3:1, Black darauf 6,2:1 */
+html.scheme-ocker.night body { --accent: #b984af; --accent-ink: #111314; }
+html.scheme-ocker.night .tile.uv, html.scheme-ocker.night .tile.wind, html.scheme-ocker.night .tile.rain, html.scheme-ocker.night .tile.sun, html.scheme-ocker.night .tp-wind, html.scheme-ocker.night .tp-rain, html.scheme-ocker.night .tp-sun { --ink-2: #a7d4e4; }
+html.scheme-ocker.night .hcol.now .t, html.scheme-ocker.night .hcol.now .p, html.scheme-ocker.night .mchip.hl .k { color: #4b3317; }
+html.scheme-ocker.night .wc-critical { color: #f37f94; }                           /* Eosine Pink: das Bento-Rot bleibt auf Dark Tyrian Blue unter 4,5:1 */
 /* Weiches Überblenden beim Wechsel (Nacht und Farbschema): die Klasse fade liegt nur eine Sekunde an. Die Akzentflächen (Tab-Pille,
    Hinweiskreis, Jetzt-Knopf der Vorschauleiste), die Vorschauleiste und das offene Blatt laufen mit, sonst springen sie beim Schemawechsel */
 html.fade body, html.fade .field, html.fade .tile, html.fade .hcol, html.fade .loc, html.fade .iconbtn, html.fade .tabs nav,

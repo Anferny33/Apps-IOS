@@ -2707,7 +2707,7 @@ const SETTING_GROUPS = [
         { key: "motion", label: "Animationen", opts: [["system", "Wie das System"], ["reduce", "Reduziert"]] }
     ] },
     { title: "Farbschema", rows: [
-        { key: "scheme", label: "Palette", opts: [["bento", "Bento (Standard)"], ["nil", "Nil (Sanzo Wada)"]], note: "Nil: nilblauer Grund, weiße Karten, Indigo-Schrift, Farben aus Sanzo Wadas Farbkombinationen; Tag und Nacht." }
+        { key: "scheme", label: "Palette", opts: [["bento", "Bento (Standard)"], ["nil", "Nil (Sanzo Wada)"], ["ocker", "Ocker (Sanzo Wada)"]], note: "Nil: nilblauer Grund, weiße Karten, Indigo-Schrift; Ocker: elfenbeinfarbener Grund, weiße Karten, schwarze Schrift, violetter Akzent. Farben aus Sanzo Wadas Farbkombinationen; Tag und Nacht." }
     ] },
     { title: "Rausgehen", rows: [
         { key: "rainTol", label: "Regen", opts: [[-10, "Streng"], [0, "Normal"], [10, "Locker"]], note: "Verschiebt die Regenrisiko-Grenze um 10 Punkte." },
@@ -3682,27 +3682,42 @@ function nightNowAt(fc, nowIso) {
 
 function nightRoot() { return document.documentElement && document.documentElement.classList ? document.documentElement : document.body; }
 
-/* Farbe der Statusleiste je Farbschema und Nacht (Bento wie der Grund, Nil Nile Blue bzw. Deep Indigo); liefert sie zurück.
+/* Farbschemata: Klasse am Wurzelelement und Farbe der Statusleiste am Tag und nachts. Bento trägt keine Klasse und folgt dem Grund,
+   Nil Nile Blue bzw. Deep Indigo, Ocker Ivory Buff bzw. Black; das Startskript in index.html und radar.html führt dieselben Werte. */
+const SCHEMES = {
+    bento: { cls: "", day: "#ECEAF4", night: "#14121F" },
+    nil: { cls: "scheme-nil", day: "#bce4e5", night: "#051230" },
+    ocker: { cls: "scheme-ocker", day: "#ebd3a2", night: "#111314" }
+};
+
+/* Farbe der Statusleiste je Farbschema (SCHEMES) und Nacht; liefert sie zurück.
    Beim Start zählt auch die Nachtklasse aus index.html, nightOn folgt erst mit den ersten Daten. */
 function updateThemeColor() {
     const root = nightRoot();
     const night = nightOn || !!(root && root.classList && root.classList.contains("night"));
-    const color = settings.scheme === "nil" ? (night ? "#051230" : "#bce4e5") : (night ? "#14121F" : "#ECEAF4");
+    const scheme = SCHEMES[settings.scheme] || SCHEMES.bento;
+    const color = night ? scheme.night : scheme.day;
     const meta = document.querySelector ? document.querySelector('meta[name="theme-color"]') : null;
     if (meta) meta.setAttribute("content", color);
     return color;
 }
 
-/* Farbschema: Klasse scheme-nil am Wurzelelement (index.html setzt sie vor dem ersten Zeichnen aus dem Speicher);
-   bei Wechsel blendet die Seite wie beim Nachtwechsel eine Sekunde weich über. Ein geladenes Radar-Blatt lädt wie beim
-   Nachtwechsel neu: radar.html liest das Schema selbst aus wetter:settings, das setSetting vor dem Anwenden speichert. */
+/* Farbschema: genau eine der Klassen aus SCHEMES am Wurzelelement, bei Bento keine (index.html setzt sie vor dem ersten Zeichnen
+   aus dem Speicher); bei Wechsel blendet die Seite wie beim Nachtwechsel eine Sekunde weich über. Ein geladenes Radar-Blatt lädt wie
+   beim Nachtwechsel neu: radar.html liest das Schema selbst aus wetter:settings, das setSetting vor dem Anwenden speichert. */
 function applyScheme(name) {
     const root = nightRoot();
-    const on = name === "nil";
-    const was = root && root.classList ? root.classList.contains("scheme-nil") : false;
-    if (root && root.classList) root.classList.toggle("scheme-nil", on);
+    const can = !!(root && root.classList);
+    const want = (SCHEMES[name] || SCHEMES.bento).cls;
+    let was = "";
+    if (can) Object.keys(SCHEMES).forEach(function (key) {
+        const cls = SCHEMES[key].cls;
+        if (!cls) return;
+        if (root.classList.contains(cls)) was = cls;
+        root.classList.toggle(cls, cls === want);
+    });
     updateThemeColor();
-    if (was === on || !root || !root.classList) return;
+    if (!can || was === want) return;
     root.classList.add("fade");
     clearTimeout(nightFadeTimer);
     nightFadeTimer = setTimeout(function () { root.classList.remove("fade"); }, 1000);
