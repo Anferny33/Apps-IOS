@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Box Breathing</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            overflow: hidden;
+        }
+
+        /* Header */
+        .header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 30px;
+        }
+
+        .header-icon {
+            width: 28px;
+            height: 28px;
+            opacity: 0.8;
+            cursor: pointer;
+            transition: opacity 0.3s;
+        }
+
+        .header-icon:hover {
+            opacity: 1;
+        }
+
+        .logo {
+            width: 36px;
+            height: 36px;
+        }
+
+        /* Main Container */
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 30px;
+        }
+
+        /* Breathing Box */
+        .breathing-box {
+            position: relative;
+            width: 280px;
+            height: 280px;
+        }
+
+        /* Corner paths */
+        .box-path {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+        }
+
+        .box-path svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Segments container */
+        .segments-container {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+        }
+
+        .segment {
+            position: absolute;
+            border-radius: 4px;
+            opacity: 0.3;
+            transition: opacity 0.15s ease;
+        }
+
+        .segment.active {
+            opacity: 1;
+        }
+
+        /* Top segments (Inhale) - Red */
+        .segment.top {
+            background: #e74c3c;
+            width: 20px;
+            height: 12px;
+            top: 8px;
+        }
+
+        /* Right segments (Hold) - Orange */
+        .segment.right {
+            background: #f39c12;
+            width: 12px;
+            height: 20px;
+            right: 8px;
+        }
+
+        /* Bottom segments (Exhale) - Blue */
+        .segment.bottom {
+            background: #3498db;
+            width: 20px;
+            height: 12px;
+            bottom: 8px;
+        }
+
+        /* Left segments (Hold) - Gray */
+        .segment.left {
+            background: #5d6d7e;
+            width: 12px;
+            height: 20px;
+            left: 8px;
+        }
+
+        /* Center content */
+        .center-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .mountain-icon {
+            width: 100px;
+            height: 80px;
+            opacity: 0.9;
+        }
+
+        .phase-text {
+            font-size: 24px;
+            font-weight: 300;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .timer {
+            font-size: 48px;
+            font-weight: 200;
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        /* Info Section */
+        .info-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 280px;
+            margin-top: 20px;
+        }
+
+        .level-info {
+            text-align: center;
+        }
+
+        .level-label {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 8px;
+        }
+
+        .level-value {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-size: 28px;
+            font-weight: 300;
+        }
+
+        .arrow {
+            font-size: 18px;
+            opacity: 0.5;
+            cursor: pointer;
+            transition: opacity 0.3s;
+        }
+
+        .arrow:hover {
+            opacity: 1;
+        }
+
+        /* Round indicator */
+        .round-indicator {
+            position: relative;
+            width: 70px;
+            height: 70px;
+        }
+
+        .round-circle {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+
+        .round-bg {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.1);
+            stroke-width: 4;
+        }
+
+        .round-progress {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.8);
+            stroke-width: 4;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 0.5s ease;
+        }
+
+        .round-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        .round-label {
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.5);
+            display: block;
+        }
+
+        .round-value {
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        /* Start button */
+        .start-btn {
+            margin-top: 30px;
+            padding: 15px 50px;
+            font-size: 18px;
+            font-weight: 500;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4);
+        }
+
+        .start-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(52, 152, 219, 0.5);
+        }
+
+        .start-btn:active {
+            transform: translateY(0);
+        }
+
+        .start-btn.running {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4);
+        }
+
+        /* Settings Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: #1a1a2e;
+            padding: 30px;
+            border-radius: 20px;
+            max-width: 320px;
+            width: 90%;
+        }
+
+        .modal h2 {
+            margin-bottom: 20px;
+            font-weight: 400;
+        }
+
+        .setting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .setting-label {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .setting-control {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .setting-btn {
+            width: 30px;
+            height: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: transparent;
+            color: white;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .setting-value {
+            font-size: 18px;
+            min-width: 30px;
+            text-align: center;
+        }
+
+        .modal-close {
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        /* Box frame SVG */
+        .box-frame {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <svg class="header-icon" viewBox="0 0 24 24" fill="white">
+            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+        </svg>
+        <svg class="logo" viewBox="0 0 100 80" fill="white">
+            <polygon points="50,5 90,75 10,75" fill="none" stroke="white" stroke-width="3"/>
+            <polygon points="50,25 75,65 25,65" fill="none" stroke="white" stroke-width="2"/>
+            <polygon points="50,40 62,60 38,60" fill="none" stroke="white" stroke-width="1.5"/>
+        </svg>
+        <svg class="header-icon" id="settingsBtn" viewBox="0 0 24 24" fill="white">
+            <path d="M19.14,12.94c0.04-0.31,0.06-0.63,0.06-0.94c0-0.31-0.02-0.63-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.37,4.82,11.69,4.82,12s0.02,0.63,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+        </svg>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Breathing Box -->
+        <div class="breathing-box">
+            <!-- Box Frame -->
+            <svg class="box-frame" viewBox="0 0 280 280">
+                <!-- Rounded rectangle path -->
+                <rect x="20" y="20" width="240" height="240" rx="40" ry="40"
+                      fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="8"/>
+            </svg>
+
+            <!-- Segments Container -->
+            <div class="segments-container" id="segmentsContainer">
+                <!-- Segments will be generated by JavaScript -->
+            </div>
+
+            <!-- Center Content -->
+            <div class="center-content">
+                <svg class="mountain-icon" viewBox="0 0 100 80" fill="white">
+                    <polygon points="50,5 90,75 10,75" fill="none" stroke="white" stroke-width="2.5"/>
+                    <polygon points="50,20 72,65 28,65" fill="none" stroke="white" stroke-width="2"/>
+                    <polygon points="50,35 60,58 40,58" fill="none" stroke="white" stroke-width="1.5"/>
+                </svg>
+                <div class="phase-text" id="phaseText">Bereit</div>
+                <div class="timer" id="timer">4</div>
+            </div>
+        </div>
+
+        <!-- Info Section -->
+        <div class="info-section">
+            <div class="level-info">
+                <div class="level-label">Sekunden pro Phase</div>
+                <div class="level-value">
+                    <span class="arrow" id="decreaseTime">◀</span>
+                    <span id="timeValue">4</span>
+                    <span class="arrow" id="increaseTime">▶</span>
+                </div>
+            </div>
+
+            <div class="round-indicator">
+                <svg class="round-circle" viewBox="0 0 70 70">
+                    <circle class="round-bg" cx="35" cy="35" r="30"/>
+                    <circle class="round-progress" id="roundProgress" cx="35" cy="35" r="30"
+                            stroke-dasharray="188.5" stroke-dashoffset="188.5"/>
+                </svg>
+                <div class="round-text">
+                    <span class="round-label">Runde</span>
+                    <span class="round-value" id="roundValue">0/10</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Start Button -->
+        <button class="start-btn" id="startBtn">Start</button>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal">
+            <h2>Einstellungen</h2>
+            <div class="setting-item">
+                <span class="setting-label">Runden</span>
+                <div class="setting-control">
+                    <button class="setting-btn" id="decreaseRounds">−</button>
+                    <span class="setting-value" id="roundsValue">10</span>
+                    <button class="setting-btn" id="increaseRounds">+</button>
+                </div>
+            </div>
+            <div class="setting-item">
+                <span class="setting-label">Sekunden</span>
+                <div class="setting-control">
+                    <button class="setting-btn" id="decreaseSeconds">−</button>
+                    <span class="setting-value" id="secondsValue">4</span>
+                    <button class="setting-btn" id="increaseSeconds">+</button>
+                </div>
+            </div>
+            <button class="modal-close" id="modalClose">Schließen</button>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        let config = {
+            secondsPerPhase: 4,
+            totalRounds: 10,
+            currentRound: 0,
+            segmentsPerSide: 8
+        };
+
+        // State
+        let state = {
+            isRunning: false,
+            currentPhase: 0, // 0: inhale, 1: hold1, 2: exhale, 3: hold2
+            currentSecond: 0,
+            intervalId: null
+        };
+
+        const phases = [
+            { name: 'Einatmen', side: 'top', color: '#e74c3c' },
+            { name: 'Halten', side: 'right', color: '#f39c12' },
+            { name: 'Ausatmen', side: 'bottom', color: '#3498db' },
+            { name: 'Halten', side: 'left', color: '#5d6d7e' }
+        ];
+
+        // DOM Elements
+        const segmentsContainer = document.getElementById('segmentsContainer');
+        const phaseText = document.getElementById('phaseText');
+        const timer = document.getElementById('timer');
+        const startBtn = document.getElementById('startBtn');
+        const roundProgress = document.getElementById('roundProgress');
+        const roundValue = document.getElementById('roundValue');
+        const timeValue = document.getElementById('timeValue');
+
+        // Generate segments
+        function generateSegments() {
+            segmentsContainer.innerHTML = '';
+            const n = config.segmentsPerSide;
+
+            // Calculate positions
+            const boxSize = 280;
+            const padding = 30;
+            const cornerRadius = 40;
+            const segmentGap = 6;
+
+            // Available length for segments on each side (excluding corners)
+            const sideLength = boxSize - 2 * padding - 2 * cornerRadius;
+            const segmentWidth = (sideLength - (n - 1) * segmentGap) / n;
+
+            // Top segments (left to right)
+            for (let i = 0; i < n; i++) {
+                const segment = document.createElement('div');
+                segment.className = 'segment top';
+                segment.dataset.side = 'top';
+                segment.dataset.index = i;
+                segment.style.left = `${padding + cornerRadius + i * (segmentWidth + segmentGap)}px`;
+                segment.style.width = `${segmentWidth}px`;
+                segmentsContainer.appendChild(segment);
+            }
+
+            // Right segments (top to bottom)
+            for (let i = 0; i < n; i++) {
+                const segment = document.createElement('div');
+                segment.className = 'segment right';
+                segment.dataset.side = 'right';
+                segment.dataset.index = i;
+                segment.style.top = `${padding + cornerRadius + i * (segmentWidth + segmentGap)}px`;
+                segment.style.height = `${segmentWidth}px`;
+                segmentsContainer.appendChild(segment);
+            }
+
+            // Bottom segments (right to left)
+            for (let i = 0; i < n; i++) {
+                const segment = document.createElement('div');
+                segment.className = 'segment bottom';
+                segment.dataset.side = 'bottom';
+                segment.dataset.index = i;
+                segment.style.right = `${padding + cornerRadius + i * (segmentWidth + segmentGap)}px`;
+                segment.style.width = `${segmentWidth}px`;
+                segmentsContainer.appendChild(segment);
+            }
+
+            // Left segments (bottom to top)
+            for (let i = 0; i < n; i++) {
+                const segment = document.createElement('div');
+                segment.className = 'segment left';
+                segment.dataset.side = 'left';
+                segment.dataset.index = i;
+                segment.style.bottom = `${padding + cornerRadius + i * (segmentWidth + segmentGap)}px`;
+                segment.style.height = `${segmentWidth}px`;
+                segmentsContainer.appendChild(segment);
+            }
+        }
+
+        // Update segments based on current phase and progress
+        function updateSegments() {
+            const segments = segmentsContainer.querySelectorAll('.segment');
+            const currentSide = phases[state.currentPhase].side;
+            const progress = (state.currentSecond + 1) / config.secondsPerPhase;
+            const activeCount = Math.ceil(progress * config.segmentsPerSide);
+
+            segments.forEach(segment => {
+                const side = segment.dataset.side;
+                const index = parseInt(segment.dataset.index);
+
+                // Keep previous phases lit
+                const phaseIndex = phases.findIndex(p => p.side === side);
+
+                if (phaseIndex < state.currentPhase) {
+                    segment.classList.add('active');
+                } else if (phaseIndex === state.currentPhase) {
+                    segment.classList.toggle('active', index < activeCount);
+                } else {
+                    segment.classList.remove('active');
+                }
+            });
+        }
+
+        // Reset segments
+        function resetSegments() {
+            const segments = segmentsContainer.querySelectorAll('.segment');
+            segments.forEach(segment => segment.classList.remove('active'));
+        }
+
+        // Update round progress
+        function updateRoundProgress() {
+            const circumference = 2 * Math.PI * 30;
+            const progress = config.currentRound / config.totalRounds;
+            const offset = circumference * (1 - progress);
+            roundProgress.style.strokeDashoffset = offset;
+            roundValue.textContent = `${config.currentRound}/${config.totalRounds}`;
+        }
+
+        // Breathing cycle tick
+        function tick() {
+            state.currentSecond++;
+
+            if (state.currentSecond >= config.secondsPerPhase) {
+                state.currentSecond = 0;
+                state.currentPhase++;
+
+                if (state.currentPhase >= 4) {
+                    state.currentPhase = 0;
+                    config.currentRound++;
+                    updateRoundProgress();
+                    resetSegments();
+
+                    if (config.currentRound >= config.totalRounds) {
+                        stopBreathing();
+                        phaseText.textContent = 'Fertig!';
+                        timer.textContent = '✓';
+                        return;
+                    }
+                }
+            }
+
+            updateDisplay();
+            updateSegments();
+        }
+
+        // Update display
+        function updateDisplay() {
+            phaseText.textContent = phases[state.currentPhase].name;
+            timer.textContent = config.secondsPerPhase - state.currentSecond;
+        }
+
+        // Start breathing
+        function startBreathing() {
+            state.isRunning = true;
+            state.currentPhase = 0;
+            state.currentSecond = -1;
+            config.currentRound = 0;
+
+            startBtn.textContent = 'Stop';
+            startBtn.classList.add('running');
+
+            resetSegments();
+            updateRoundProgress();
+            tick();
+
+            state.intervalId = setInterval(tick, 1000);
+        }
+
+        // Stop breathing
+        function stopBreathing() {
+            state.isRunning = false;
+            clearInterval(state.intervalId);
+
+            startBtn.textContent = 'Start';
+            startBtn.classList.remove('running');
+        }
+
+        // Reset to initial state
+        function resetState() {
+            stopBreathing();
+            resetSegments();
+            phaseText.textContent = 'Bereit';
+            timer.textContent = config.secondsPerPhase;
+            config.currentRound = 0;
+            updateRoundProgress();
+        }
+
+        // Event listeners
+        startBtn.addEventListener('click', () => {
+            if (state.isRunning) {
+                resetState();
+            } else {
+                startBreathing();
+            }
+        });
+
+        // Time controls
+        document.getElementById('increaseTime').addEventListener('click', () => {
+            if (config.secondsPerPhase < 10) {
+                config.secondsPerPhase++;
+                timeValue.textContent = config.secondsPerPhase;
+                document.getElementById('secondsValue').textContent = config.secondsPerPhase;
+                if (!state.isRunning) timer.textContent = config.secondsPerPhase;
+            }
+        });
+
+        document.getElementById('decreaseTime').addEventListener('click', () => {
+            if (config.secondsPerPhase > 2) {
+                config.secondsPerPhase--;
+                timeValue.textContent = config.secondsPerPhase;
+                document.getElementById('secondsValue').textContent = config.secondsPerPhase;
+                if (!state.isRunning) timer.textContent = config.secondsPerPhase;
+            }
+        });
+
+        // Settings modal
+        document.getElementById('settingsBtn').addEventListener('click', () => {
+            document.getElementById('modalOverlay').classList.add('active');
+        });
+
+        document.getElementById('modalClose').addEventListener('click', () => {
+            document.getElementById('modalOverlay').classList.remove('active');
+        });
+
+        document.getElementById('modalOverlay').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) {
+                e.currentTarget.classList.remove('active');
+            }
+        });
+
+        // Settings controls
+        document.getElementById('increaseRounds').addEventListener('click', () => {
+            if (config.totalRounds < 20) {
+                config.totalRounds++;
+                document.getElementById('roundsValue').textContent = config.totalRounds;
+                updateRoundProgress();
+            }
+        });
+
+        document.getElementById('decreaseRounds').addEventListener('click', () => {
+            if (config.totalRounds > 1) {
+                config.totalRounds--;
+                document.getElementById('roundsValue').textContent = config.totalRounds;
+                updateRoundProgress();
+            }
+        });
+
+        document.getElementById('increaseSeconds').addEventListener('click', () => {
+            if (config.secondsPerPhase < 10) {
+                config.secondsPerPhase++;
+                document.getElementById('secondsValue').textContent = config.secondsPerPhase;
+                timeValue.textContent = config.secondsPerPhase;
+                if (!state.isRunning) timer.textContent = config.secondsPerPhase;
+            }
+        });
+
+        document.getElementById('decreaseSeconds').addEventListener('click', () => {
+            if (config.secondsPerPhase > 2) {
+                config.secondsPerPhase--;
+                document.getElementById('secondsValue').textContent = config.secondsPerPhase;
+                timeValue.textContent = config.secondsPerPhase;
+                if (!state.isRunning) timer.textContent = config.secondsPerPhase;
+            }
+        });
+
+        // Initialize
+        generateSegments();
+        updateRoundProgress();
+    </script>
+</body>
+</html>

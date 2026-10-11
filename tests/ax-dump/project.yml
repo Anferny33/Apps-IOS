@@ -1,0 +1,35 @@
+name: AXDump
+options:
+  bundleIdPrefix: de.knodt.axdump
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+targets:
+  AXHost:
+    type: application
+    platform: iOS
+    sources: [AXHost]
+    info:
+      path: AXHost/Info.plist
+      properties:
+        UILaunchScreen: {}
+    settings:
+      base:
+        CODE_SIGNING_ALLOWED: "NO"
+  AXDumpUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [AXDumpUITests]
+    dependencies:
+      - target: AXHost
+    settings:
+      base:
+        CODE_SIGNING_ALLOWED: "NO"
+schemes:
+  AXDump:
+    build:
+      targets:
+        AXHost: all
+        AXDumpUITests: [test]
+    test:
+      targets: [AXDumpUITests]
