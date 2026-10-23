@@ -1,0 +1,14 @@
+{
+  "name": "wetter-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Wetter-App für den aktuellen Standort – statische Web-App ohne Build-Schritt",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "test": "node tests/run.js",
+    "preview": "node tests/build-phone-preview.js index"
+  }
+}
