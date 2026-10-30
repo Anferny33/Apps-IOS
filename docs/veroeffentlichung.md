@@ -8,14 +8,14 @@ die Reihenfolge ein Vorschlag. Punkte mit „Entscheidung“ brauchen deine Wahl
 
 Die App läuft als Homescreen-Web-App weiter, ohne Store, ohne Konto.
 
-- [ ] Testanleitung als kurze Seite oder Nachricht: Link https://anferny33.github.io/Apps-IOS/, in Safari öffnen, Teilen, „Zum Home-Bildschirm“, von dort starten. Hinweis: Regen-Alarm und Tagesfilm-Teilen nur aus der Homescreen-App, iOS 16.4 oder neuer.
+- [x] Testanleitung und Link an die Freundesrunde (bis 27.10.2026 verschickt). Ursprünglich: Link https://anferny33.github.io/Apps-IOS/, in Safari öffnen, Teilen, „Zum Home-Bildschirm“, von dort starten. Hinweis: Regen-Alarm und Tagesfilm-Teilen nur aus der Homescreen-App, iOS 16.4 oder neuer.
 - [x] Rückkanal: Blatt „Rückmeldung“ in der App (Fußzeile und Einstellungen) an den eigenen Worker, Lesen mit `proxy/feedback.sh`. Entschieden am 9. Oktober 2026.
 - [ ] Nutzung im Blick behalten: Open-Meteo erlaubt die kostenlose Nutzung nur nicht-kommerziell und bis 10.000 Aufrufe am Tag; jede Installation ruft die API direkt auf. Für eine Handvoll Tester reicht das.
 - [ ] Rückmeldungen in `docs/verbesserungen.md` sammeln und abarbeiten.
 
 ## Phase 1: Entscheidungen vor dem Umbau
 
-- [ ] Name der App: „Wetter“ ist generisch und kollidiert mit Apples eigener App (Entscheidung). Recherche vom 11.10.2026 in `docs/namen-recherche.md`: Empfehlung Heiter, Alternativen Belsole und Tagbogen; vor der Entscheidung Markenregister von Hand prüfen.
+- [x] Name der App: Entscheidung 27.10.2026 für **Goldstunde** (Recherche in `docs/namen-recherche.md`; „Beautiful Weather“ ist im Store vergeben). Stand: keine App im App Store DE/AT/CH/IT/US/GB, keine Marke oder Firma per Websuche, goldstunde.app/.de/.at/.ch frei, .com seit 2019 vergeben. Offen: DPMA und EUIPO von Hand prüfen (Klassen 9 und 42), Domain sichern, Name in App Store Connect anlegen, sobald das Konto da ist.
 - [ ] Eigenes Symbol, das sich von Apples Wetter-Symbol klar unterscheidet; Ausgangspunkt ist `icons/icon.svg`.
 - [ ] Bundle-ID in umgekehrter Domain-Schreibweise, etwa `de.<deinname>.<appname>` (Entscheidung).
 - [ ] Zielgeräte: nur iPhone oder auch iPad; Mindestversion iOS 16.4 wegen Push (Entscheidung).

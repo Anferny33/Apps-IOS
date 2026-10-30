@@ -8,3 +8,5 @@ proxy/.dev.vars
 tests/ax-dump/AXDump.xcodeproj/
 tests/ax-dump/dd/
 tests/ax-dump/dump-*.txt
+# Launch-Videos aus /brag (Hyperframes): lokal, nicht im Git
+brag-output*/
