@@ -565,7 +565,7 @@ Erwartet: sechs `ok   Route …`, „Alle Checks bestanden.“ Dazu `npm test` k
 **Files:**
 - Modify: `proxy/README.md`
 
-- [ ] **Schritt 1: Abschnitt „WeatherKit“ einfügen** (vor „## Regen-Alarm (Web Push)“):
+- [x] **Schritt 1: Abschnitt „WeatherKit“ einfügen** (vor „## Regen-Alarm (Web Push)“):
 
 ```markdown
 ## WeatherKit (Vorhersage)
@@ -609,7 +609,7 @@ curl -s -H "Origin: http://localhost:8000" "http://localhost:8787/wk?lat=49.01&l
 ```
 ```
 
-- [ ] **Schritt 2: Vorhandene Sätze anpassen**
+- [x] **Schritt 2: Vorhandene Sätze anpassen**
 
 - Im Abschnitt „Werkzeuge und Geheimnisse“ den `.dev.vars`-Block um die drei WeatherKit-Zeilen ergänzen:
 

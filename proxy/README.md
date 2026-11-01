@@ -24,6 +24,9 @@ lokal in `proxy/.dev.vars`, einer Datei mit einer Zeile je Wert, die nicht im Gi
 ```
 VAPID_PRIVATE_KEY=<privater VAPID-Schlüssel, base64url>
 FEEDBACK_TOKEN=<beliebiges langes Geheimnis für das Lesen der Rückmeldungen>
+WEATHERKIT_PRIVATE_KEY=<Inhalt der .p8-Datei, eine Zeile>
+WEATHERKIT_KEY_ID=<Key-ID>
+WEATHERKIT_TEAM_ID=<Team-ID>
 ```
 
 `proxy/feedback.sh` liest `FEEDBACK_TOKEN` aus dieser Datei. Öffentliche Werte (VAPID_PUBLIC_KEY,
@@ -39,14 +42,55 @@ npx wrangler login
 npx wrangler deploy
 ```
 
-Die URL aus der Ausgabe gehört in `wetter-core.js` (`NINA_PROXY`).
+Die URL aus der Ausgabe gehört in `wetter-core.js` (`WORKER_URL`).
 Lokal testen mit `npx wrangler dev` (läuft auf http://localhost:8787).
 
 Erlaubte Aufrufer stehen in `ALLOWED_ORIGINS` in `src/worker.js`: Anfragen mit einem anderen
-Origin-Header bekommen 403, Anfragen ohne Origin (curl, `feedback.sh`) gehen durch. Die Routen
+Origin-Header bekommen 403, Anfragen ohne Origin (curl, `feedback.sh`) gehen durch; Ausnahme sind `/wk` und
+`/wk/attribution`, die ohne Origin 403 liefern. Die Routen
 `/nina`, `/push/*` und `POST /feedback` sind bewusst ohne Anmeldung erreichbar, die App hat kein
 Geheimnis; stattdessen begrenzt der Worker subscribe, test und feedback je IP-Adresse, nimmt nur
 Push-Endpunkte bekannter Dienste (Apple, Google, Mozilla, Microsoft) an und deckelt die Größe.
+
+## WeatherKit (Vorhersage)
+
+Die Vorhersage der App kommt über `GET /wk?lat=49.01&lon=12.10` von Apple WeatherKit. Der Worker
+bestimmt die Zone des Orts (`tz-lookup`), fragt Stunden ab dem Vortag für 120 Stunden und Tage ab heute
+für zehn Tage ab, cacht je Gitterpunkt (zwei Nachkommastellen, etwa 1 km) zehn Minuten und antwortet
+mit `{ "timezone": "Europe/Berlin", "data": <WeatherKit-Antwort unverändert> }`. `GET /wk/attribution`
+liefert Logo und Namen für die Pflichtnennung. Beide Routen verlangen einen erlaubten Origin-Header;
+`curl` braucht deshalb `-H "Origin: http://localhost:8000"`. Je IP sind 20 Anfragen je Minute erlaubt
+(Rate-Limiting-Binding `WK_LIMIT` in `wrangler.toml`).
+
+Vier Werte aus dem Apple Developer Program (developer.apple.com, Certificates, Identifiers & Profiles):
+
+1. **Team-ID**: oben rechts unter dem Kontonamen, zehn Zeichen.
+2. **Service-ID**: Identifiers, Plus, „Services IDs“, Kennung in umgekehrter Domain-Schreibweise
+   (z. B. `de.beispiel.goldstunde.weatherkit`); nach dem Anlegen WeatherKit ankreuzen. Steht in
+   `wrangler.toml` als `WEATHERKIT_SERVICE_ID`.
+3. **Key-ID und .p8-Datei**: Keys, Plus, Name vergeben, WeatherKit ankreuzen, Continue, Register,
+   Download. Die Datei `AuthKey_<KEY-ID>.p8` gibt es nur einmal zum Herunterladen; sicher ablegen,
+   nie ins Repo.
+
+Geheimnisse setzen (Wert ohne Zeilenumbruch, deshalb `printf '%s'`):
+
+```bash
+cd proxy
+printf '%s' "$(cat ~/Pfad/AuthKey_ABC123DEF4.p8)" | npx wrangler secret put WEATHERKIT_PRIVATE_KEY
+printf '%s' "ABC123DEF4" | npx wrangler secret put WEATHERKIT_KEY_ID
+printf '%s' "TEAM123456" | npx wrangler secret put WEATHERKIT_TEAM_ID
+```
+
+Lokal dieselben drei Werte in `proxy/.dev.vars` (der Schlüssel in einer Zeile, Kopfzeilen dürfen
+bleiben, Umbrüche durch `\n` oder ganz weglassen). Das Token (ES256, 60 Minuten) signiert der Worker
+selbst und verwendet es 50 Minuten wieder. In der Mitgliedschaft sind 500 000 Abrufe im Monat
+enthalten; der Verbrauch steht unter developer.apple.com, Services, WeatherKit.
+
+Fixture für die Tests holen (echte Antwort für Regensburg, `wrangler dev` läuft auf 8787):
+
+```bash
+curl -s -H "Origin: http://localhost:8000" "http://localhost:8787/wk?lat=49.01&lon=12.10" > ../tests/fixtures/weatherkit-$(date +%F).json
+```
 
 ## Regen-Alarm (Web Push)
 
