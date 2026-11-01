@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- App-Icon im Bento-Design: Sonnengelb, Sonne hinter weißer Wolke mit dunkler Kontur (wie das Hero-Icon).
+       iOS rundet die Ecken selbst; der Hintergrund ist deshalb bewusst deckend und randlos. -->
+  <rect width="1024" height="1024" fill="#F6D35B"/>
+  <g transform="translate(94 100) scale(9)" fill="none" stroke="#1E1B2E" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+    <g>
+      <path d="M34 10v7M34 55v7M8 36h7M53 36h7M15.6 17.6l5 5M47.4 49.4l5 5M15.6 54.4l5-5M47.4 22.6l5-5"/>
+      <circle cx="34" cy="36" r="13" fill="#FFFFFF"/>
+    </g>
+    <path d="M41 82h31a13.5 13.5 0 0 0 1-27A19.5 19.5 0 0 0 38 57a12.75 12.75 0 0 0 3 25z" fill="#FFFFFF"/>
+  </g>
+</svg>
