@@ -92,7 +92,7 @@ Erwartet `3`. Steht dort `0`, Tasks 1 bis 4 trotzdem bauen (sie laufen mit einem
 - Create: `proxy/src/weatherkit.js`
 - Test: `tests/smoke-push.js` (neuer Block vor „// Push-Routen mit KV-Stub“)
 
-- [ ] **Schritt 1: `tz-lookup` installieren**
+- [x] **Schritt 1: `tz-lookup` installieren**
 
 ```bash
 cd ~/Projekte/Apps-IOS/proxy && npm install tz-lookup@6 && cat package.json && ls package-lock.json
@@ -100,7 +100,7 @@ cd ~/Projekte/Apps-IOS/proxy && npm install tz-lookup@6 && cat package.json && l
 
 Erwartet: `package.json` enthält `"dependencies": { "tz-lookup": "^6.1.25" }` (Version kann abweichen), `package-lock.json` existiert, `node_modules/` liegt in `.gitignore` (schon vorhanden).
 
-- [ ] **Schritt 2: Fehlschlagende Tests schreiben**
+- [x] **Schritt 2: Fehlschlagende Tests schreiben**
 
 In `tests/smoke-push.js` direkt vor der Zeile `// Push-Routen mit KV-Stub; …` einfügen:
 
@@ -126,12 +126,12 @@ In `tests/smoke-push.js` direkt vor der Zeile `// Push-Routen mit KV-Stub; …` 
   check('WeatherKit: 16 Viertelstunden ab der laufenden, Zeitstempel = Intervall-Ende in Ortszeit, erste vier aus Minuten, Rest aus Stundenvierteln',
     nc16.time.length === 16 && nc16.time[0] === '2026-09-25T14:30' && nc16.time[15] === '2026-09-25T18:15' && nc16.precipitation.join(',') === '0,0,0.3,0.3,0.2,0.2,0.2,0.1,0.1,0.1,0.1,0,0,0,0,0' && nc16.source.slice(0, 5).join(',') === 'min,min,min,min,hour', nc16.precipitation.join(',') + ' | ' + nc16.source.join(','));
   const nc16b = wk.wkMinutely15({ currentWeather: wkSample.currentWeather, forecastHourly: wkSample.forecastHourly }, 'Europe/Berlin', nowWk);
-  check('WeatherKit: ohne Minutenvorhersage kommen alle 16 aus den Stunden; ohne Stunden bleibt der Wert null', nc16b.precipitation.slice(0, 6).join(',') === '0,0,0,0,0.2,0.2' && nc16b.source.every(s => s === 'hour') && wk.wkMinutely15({ currentWeather: wkSample.currentWeather }, 'Europe/Berlin', nowWk).precipitation.every(v => v === null), nc16b.precipitation.join(','));
+  check('WeatherKit: ohne Minutenvorhersage kommen alle 16 aus den Stunden; ohne Stunden bleibt der Wert null', nc16b.precipitation.slice(0, 6).join(',') === '0,0,0,0.2,0.2,0.2' && nc16b.source.every(s => s === 'hour') && wk.wkMinutely15({ currentWeather: wkSample.currentWeather }, 'Europe/Berlin', nowWk).precipitation.every(v => v === null), nc16b.precipitation.join(','));
   const partial = wk.wkMinutely15({ currentWeather: wkSample.currentWeather, forecastNextHour: { minutes: minutesFrom(nowWk, nowWk, nowWk + 10 * 60000, 1.2) } }, 'Europe/Berlin', nowWk);
   check('WeatherKit: angebrochene erste Viertelstunde wird aus den vorhandenen Minuten anteilig aufgefüllt (10 Minuten mit 1,2 mm/h → 0,3 mm für 15 Minuten)', partial.precipitation[0] === 0.3 && partial.precipitation[1] === 0, partial.precipitation.slice(0, 3).join(','));
 ```
 
-- [ ] **Schritt 3: Tests laufen lassen, Fehlschlag sehen**
+- [x] **Schritt 3: Tests laufen lassen, Fehlschlag sehen**
 
 ```bash
 cd ~/Projekte/Apps-IOS && node tests/smoke-push.js 2>&1 | tail -3
@@ -139,7 +139,7 @@ cd ~/Projekte/Apps-IOS && node tests/smoke-push.js 2>&1 | tail -3
 
 Erwartet: Abbruch mit `Cannot find module …weatherkit.js` (Exit-Code 1).
 
-- [ ] **Schritt 4: Modul anlegen**
+- [x] **Schritt 4: Modul anlegen**
 
 `proxy/src/weatherkit.js`:
 
@@ -244,7 +244,7 @@ export function wkMinutely15(wk, tz, anchorMs) {
 }
 ```
 
-- [ ] **Schritt 5: Tests laufen lassen**
+- [x] **Schritt 5: Tests laufen lassen**
 
 ```bash
 cd ~/Projekte/Apps-IOS && node tests/smoke-push.js 2>&1 | grep -E "WeatherKit|bestanden|fehlgeschlagen"
@@ -262,7 +262,7 @@ Erwartet: sieben Zeilen `ok   WeatherKit: …`, am Ende „Alle Checks bestanden
 - Modify: `proxy/src/weatherkit.js`
 - Test: `tests/smoke-push.js` (hinter dem Block aus Task 1)
 
-- [ ] **Schritt 1: Fehlschlagende Tests schreiben**
+- [x] **Schritt 1: Fehlschlagende Tests schreiben**
 
 Hinter dem Block aus Task 1 einfügen:
 
@@ -293,8 +293,8 @@ Hinter dem Block aus Task 1 einfügen:
   const wr1 = await wk.fetchWeatherKit(wkEnv, 49.0134, 12.1016, { fetch: appleFetch, now: nowWk });
   const wr2 = await wk.fetchWeatherKit(wkEnv, 49.0101, 12.0990, { fetch: appleFetch, now: nowWk });
   const wr3 = await wk.fetchWeatherKit(wkEnv, 48.137, 11.575, { fetch: appleFetch, now: nowWk });
-  check('WeatherKit: Abruf mit Bearer-Token, gerundeten Koordinaten, Zone und Fenster; derselbe Gitterpunkt kommt aus dem Cache, ein anderer Punkt nutzt dasselbe Token',
-    wr1.ok && wr1.timezone === 'Europe/Berlin' && wr1.data.currentWeather.asOf === '2026-09-25T12:20:00Z' && wr2.ok && wr3.ok && appleCalls.length === 2 && appleCalls[0].url.startsWith('https://weatherkit.apple.com/api/v1/weather/de/49.01/12.1?') && appleCalls[0].url.includes('timezone=Europe%2FBerlin') && appleCalls[0].url.includes('hourlyStart=2026-09-23T22%3A00%3A00Z') && appleCalls[0].init.headers.Authorization === 'Bearer ' + tok1 && appleCalls[1].init.headers.Authorization === appleCalls[0].init.headers.Authorization, appleCalls.map(c => c.url).join(' | '));
+  check('WeatherKit: Abruf mit Bearer-Token, gerundeten Koordinaten, Zone und Fenster; derselbe Gitterpunkt kommt aus dem Cache, ein anderer Punkt nutzt dasselbe Token (Signatur ist zufällig, daher Header und Claims vergleichen)',
+    wr1.ok && wr1.timezone === 'Europe/Berlin' && wr1.data.currentWeather.asOf === '2026-09-25T12:20:00Z' && wr2.ok && wr3.ok && appleCalls.length === 2 && appleCalls[0].url.startsWith('https://weatherkit.apple.com/api/v1/weather/de/49.01/12.1?') && appleCalls[0].url.includes('timezone=Europe%2FBerlin') && appleCalls[0].url.includes('hourlyStart=2026-09-23T22%3A00%3A00Z') && appleCalls[0].init.headers.Authorization.startsWith('Bearer ' + th + '.' + tc + '.') && appleCalls[1].init.headers.Authorization === appleCalls[0].init.headers.Authorization, appleCalls.map(c => c.url).join(' | '));
   const failFetch = async () => ({ ok: false, status: 401, json: async () => ({}) });
   const wr4 = await wk.fetchWeatherKit(wkEnv, 52.52, 13.405, { fetch: failFetch, now: nowWk });
   const wr5 = await wk.fetchWeatherKit(wkEnv, 52.52, 13.405, { fetch: appleFetch, now: nowWk });
@@ -306,7 +306,7 @@ Hinter dem Block aus Task 1 einfügen:
   delete globalThis.caches;
 ```
 
-- [ ] **Schritt 2: Fehlschlag sehen**
+- [x] **Schritt 2: Fehlschlag sehen**
 
 ```bash
 cd ~/Projekte/Apps-IOS && node tests/smoke-push.js 2>&1 | tail -3
@@ -314,7 +314,7 @@ cd ~/Projekte/Apps-IOS && node tests/smoke-push.js 2>&1 | tail -3
 
 Erwartet: `TypeError: wk.resetTokenCache is not a function`.
 
-- [ ] **Schritt 3: Token, Abruf und Attribution anhängen**
+- [x] **Schritt 3: Token, Abruf und Attribution anhängen**
 
 Ans Ende von `proxy/src/weatherkit.js`:
 
@@ -336,10 +336,10 @@ function pemToDer(pem) {
 
 /* JWT ES256: Header {alg, kid, id: Team.Service}, Claims {iss, iat, exp, sub}; 50 Minuten wiederverwendet */
 export async function signWeatherKitJwt(env, nowMs) {
-    const now = Math.floor((nowMs || Date.now()) / 1000);
-    if (tokenCache && tokenCache.exp - now > TOKEN_TTL_S - TOKEN_REUSE_S) return tokenCache.value;
     const missing = REQUIRED.filter(function (k) { return !env || !env[k]; });
     if (missing.length) throw new Error("WeatherKit nicht konfiguriert, es fehlt: " + missing.join(", "));
+    const now = Math.floor((nowMs || Date.now()) / 1000);
+    if (tokenCache && tokenCache.exp - now > TOKEN_TTL_S - TOKEN_REUSE_S) return tokenCache.value;
     const key = await crypto.subtle.importKey("pkcs8", pemToDer(env.WEATHERKIT_PRIVATE_KEY), { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
     const header = b64url(te.encode(JSON.stringify({ alg: "ES256", kid: env.WEATHERKIT_KEY_ID, id: env.WEATHERKIT_TEAM_ID + "." + env.WEATHERKIT_SERVICE_ID })));
     const claims = b64url(te.encode(JSON.stringify({ iss: env.WEATHERKIT_TEAM_ID, iat: now, exp: now + TOKEN_TTL_S, sub: env.WEATHERKIT_SERVICE_ID })));
@@ -405,7 +405,7 @@ export async function fetchAttribution(env, opts) {
 }
 ```
 
-- [ ] **Schritt 4: Tests laufen lassen**
+- [x] **Schritt 4: Tests laufen lassen**
 
 ```bash
 cd ~/Projekte/Apps-IOS && node tests/smoke-push.js 2>&1 | grep -E "WeatherKit|bestanden|fehlgeschlagen"

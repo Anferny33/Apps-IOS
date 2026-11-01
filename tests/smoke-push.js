@@ -70,6 +70,69 @@ const te = new TextEncoder(), td = new TextDecoder();
   check('Alarmregel: kein Alarm, wenn es schon regnet oder nur später als 60 Minuten', worker.rainAlert(m15([0.4, 0.5, 0, 0, 0, 0, 0, 0]), now) === null && worker.rainAlert(m15([0, 0, 0, 0, 0, 0.5, 0.5, 0.5]), now) === null && worker.rainAlert(m15([0, 0, 0, 0, 0, 0, 0, 0]), now) === null);
   check('Alarmregel: Nieselspuren unter 0,1 mm zählen nicht', worker.rainAlert(m15([0, 0.05, 0.05, 0.05, 0, 0, 0, 0]), now) === null);
 
+  // WeatherKit-Modul: Zonen-Helfer, Abfragefenster, Nowcast aus Minuten und Stunden
+  const wk = await import(pathToFileURL(path.join(__dirname, '..', 'proxy', 'src', 'weatherkit.js')).href);
+  check('WeatherKit: Ortszeit-String aus UTC, Zeitumstellung 26.10.2025 (03:00 → 02:00) und 29.03.2026 (02:00 → 03:00)',
+    wk.localString(Date.parse('2026-09-25T12:15:00Z'), 'Europe/Berlin') === '2026-09-25T14:15' && wk.localString(Date.parse('2025-10-26T00:30:00Z'), 'Europe/Berlin') === '2025-10-26T02:30' && wk.localString(Date.parse('2025-10-26T01:30:00Z'), 'Europe/Berlin') === '2025-10-26T02:30' && wk.localString(Date.parse('2026-03-29T01:30:00Z'), 'Europe/Berlin') === '2026-03-29T03:30' && wk.localString(Date.parse('2026-01-05T00:00:00Z'), 'Europe/Berlin') === '2026-01-05T01:00',
+    [wk.localString(Date.parse('2025-10-26T00:30:00Z'), 'Europe/Berlin'), wk.localString(Date.parse('2026-03-29T01:30:00Z'), 'Europe/Berlin')].join(' | '));
+  check('WeatherKit: Zonenversatz in Sekunden (Sommer 7200, Winter 3600, Kolkata 19800) und Mitternacht als UTC-Zeitpunkt',
+    wk.zoneOffsetMs(Date.parse('2026-09-25T12:15:00Z'), 'Europe/Berlin') === 7200000 && wk.zoneOffsetMs(Date.parse('2026-01-05T12:00:00Z'), 'Europe/Berlin') === 3600000 && wk.zoneOffsetMs(Date.parse('2026-01-05T12:00:00Z'), 'Asia/Kolkata') === 19800000 && wk.localMidnightUtc('2026-09-25', 'Europe/Berlin') === Date.parse('2026-09-24T22:00:00Z') && wk.localMidnightUtc('2026-01-05', 'Europe/Berlin') === Date.parse('2026-01-04T23:00:00Z') && wk.localMidnightUtc('2026-03-29', 'Europe/Berlin') === Date.parse('2026-03-28T23:00:00Z'),
+    [wk.zoneOffsetMs(Date.parse('2026-01-05T12:00:00Z'), 'Asia/Kolkata'), new Date(wk.localMidnightUtc('2026-09-25', 'Europe/Berlin')).toISOString()].join(' | '));
+  const q = wk.weatherKitQuery('Europe/Berlin', Date.parse('2026-09-25T12:15:00Z'));
+  check('WeatherKit: Abfragefenster Stunden ab Vortag 00:00 Ortszeit für 120 h, Tage ab heute für 10 Tage, vier Datensätze, Zone',
+    q.get('dataSets') === 'currentWeather,forecastHourly,forecastDaily,forecastNextHour' && q.get('timezone') === 'Europe/Berlin' && q.get('hourlyStart') === '2026-09-23T22:00:00Z' && q.get('hourlyEnd') === '2026-09-28T22:00:00Z' && q.get('dailyStart') === '2026-09-24T22:00:00Z' && q.get('dailyEnd') === '2026-10-04T22:00:00Z', q.toString());
+  check('WeatherKit: Gitterpunkt auf zwei Nachkommastellen, Zone aus den Koordinaten (Regensburg)', wk.gridKey(49.0134, 12.1016) === '49.01,12.10' && wk.timezoneOf(49.01, 12.10) === 'Europe/Berlin' && wk.timezoneOf(40.71, -74.01) === 'America/New_York', wk.timezoneOf(49.01, 12.10));
+  /* Nowcast: jetzt 14:20 Ortszeit (12:20Z), Minuten ab jetzt mit 1,2 mm/h von 14:45 bis 15:20, Stunde 15 mit 0,8 mm, Stunde 16 mit 0,4 mm */
+  const nowWk = Date.parse('2026-09-25T12:20:00Z');
+  const minutesFrom = (startMs, rainFrom, rainTo, mmh) => Array.from({ length: 60 }, (_, k) => { const t = startMs + k * 60000; return { startTime: new Date(t).toISOString().replace(/\.\d{3}Z$/, 'Z'), precipitationIntensity: t >= rainFrom && t < rainTo ? mmh : 0, precipitationChance: t >= rainFrom && t < rainTo ? 0.8 : 0 }; });
+  const hoursFrom = (startMs, amounts) => amounts.map((mm, i) => ({ forecastStart: new Date(startMs + i * 3600000).toISOString().replace(/\.\d{3}Z$/, 'Z'), precipitationAmount: mm }));
+  const wkSample = { currentWeather: { asOf: '2026-09-25T12:20:00Z' }, forecastNextHour: { minutes: minutesFrom(nowWk, Date.parse('2026-09-25T12:45:00Z'), Date.parse('2026-09-25T13:20:00Z'), 1.2) }, forecastHourly: { hours: hoursFrom(Date.parse('2026-09-25T10:00:00Z'), [0, 0, 0, 0.8, 0.4, 0, 0, 0, 0]) } };
+  const nc16 = wk.wkMinutely15(wkSample, 'Europe/Berlin', nowWk);
+  check('WeatherKit: 16 Viertelstunden ab der laufenden, Zeitstempel = Intervall-Ende in Ortszeit, erste vier aus Minuten, Rest aus Stundenvierteln',
+    nc16.time.length === 16 && nc16.time[0] === '2026-09-25T14:30' && nc16.time[15] === '2026-09-25T18:15' && nc16.precipitation.join(',') === '0,0,0.3,0.3,0.2,0.2,0.2,0.1,0.1,0.1,0.1,0,0,0,0,0' && nc16.source.slice(0, 5).join(',') === 'min,min,min,min,hour', nc16.precipitation.join(',') + ' | ' + nc16.source.join(','));
+  const nc16b = wk.wkMinutely15({ currentWeather: wkSample.currentWeather, forecastHourly: wkSample.forecastHourly }, 'Europe/Berlin', nowWk);
+  check('WeatherKit: ohne Minutenvorhersage kommen alle 16 aus den Stunden; ohne Stunden bleibt der Wert null', nc16b.precipitation.slice(0, 6).join(',') === '0,0,0,0.2,0.2,0.2' && nc16b.source.every(s => s === 'hour') && wk.wkMinutely15({ currentWeather: wkSample.currentWeather }, 'Europe/Berlin', nowWk).precipitation.every(v => v === null), nc16b.precipitation.join(','));
+  const partial = wk.wkMinutely15({ currentWeather: wkSample.currentWeather, forecastNextHour: { minutes: minutesFrom(nowWk, nowWk, nowWk + 10 * 60000, 1.2) } }, 'Europe/Berlin', nowWk);
+  check('WeatherKit: angebrochene erste Viertelstunde wird aus den vorhandenen Minuten anteilig aufgefüllt (10 Minuten mit 1,2 mm/h → 0,3 mm für 15 Minuten)', partial.precipitation[0] === 0.3 && partial.precipitation[1] === 0, partial.precipitation.slice(0, 3).join(','));
+
+  // Token (ES256 mit .p8 im PKCS#8-Format) und Abruf mit Cache; Testschlüssel wird zur Laufzeit erzeugt, nie eingecheckt
+  const wkKeys = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+  const p8 = Buffer.from(await crypto.subtle.exportKey('pkcs8', wkKeys.privateKey)).toString('base64');
+  const wkEnv = { WEATHERKIT_PRIVATE_KEY: '-----BEGIN PRIVATE KEY-----\n' + p8.replace(/(.{64})/g, '$1\n') + '\n-----END PRIVATE KEY-----\n', WEATHERKIT_KEY_ID: 'ABC123DEF4', WEATHERKIT_TEAM_ID: 'TEAM123456', WEATHERKIT_SERVICE_ID: 'de.example.goldstunde.weatherkit' };
+  wk.resetTokenCache();
+  const tok1 = await wk.signWeatherKitJwt(wkEnv, nowWk);
+  const [th, tc, ts] = tok1.split('.');
+  const jwtHeader = JSON.parse(td.decode(wp.fromB64url(th))), jwtClaims = JSON.parse(td.decode(wp.fromB64url(tc)));
+  const jwtOk = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, wkKeys.publicKey, wp.fromB64url(ts), te.encode(th + '.' + tc));
+  check('WeatherKit: Token mit kid, id = Team.Service, iss, sub, iat/exp (60 min) und gültiger ES256-Signatur; PEM-Kopfzeilen und Umbrüche stören nicht',
+    jwtOk && jwtHeader.alg === 'ES256' && jwtHeader.kid === 'ABC123DEF4' && jwtHeader.id === 'TEAM123456.de.example.goldstunde.weatherkit' && jwtClaims.iss === 'TEAM123456' && jwtClaims.sub === 'de.example.goldstunde.weatherkit' && jwtClaims.iat === Math.floor(nowWk / 1000) && jwtClaims.exp === jwtClaims.iat + 3600, JSON.stringify([jwtHeader, jwtClaims]));
+  const tok2 = await wk.signWeatherKitJwt(wkEnv, nowWk + 49 * 60000), tok3 = await wk.signWeatherKitJwt(wkEnv, nowWk + 51 * 60000);
+  check('WeatherKit: Token wird 50 Minuten wiederverwendet, danach neu signiert', tok2 === tok1 && tok3 !== tok1, [tok2 === tok1, tok3 !== tok1].join(','));
+  let wkErr = null;
+  try { await wk.signWeatherKitJwt({ WEATHERKIT_KEY_ID: 'x' }, nowWk); } catch (e) { wkErr = e.message; }
+  check('WeatherKit: ohne die vier Werte eine Fehlermeldung mit den Namen', /WEATHERKIT_PRIVATE_KEY/.test(wkErr) && /WEATHERKIT_TEAM_ID/.test(wkErr), wkErr);
+  /* Cache-Stub wie caches.default: Request-URL als Schlüssel, Antworten geklont */
+  const cacheStore = new Map();
+  const cacheStub = { match: async r => { const hit = cacheStore.get(typeof r === 'string' ? r : r.url); return hit ? hit.clone() : undefined; }, put: async (r, res) => { cacheStore.set(typeof r === 'string' ? r : r.url, res.clone()); } };
+  globalThis.caches = { default: cacheStub };
+  const appleCalls = [];
+  const appleFetch = async (url, init) => { appleCalls.push({ url: String(url), init }); return { ok: true, status: 200, json: async () => ({ currentWeather: { asOf: '2026-09-25T12:20:00Z' } }) }; };
+  wk.resetTokenCache();
+  const wr1 = await wk.fetchWeatherKit(wkEnv, 49.0134, 12.1016, { fetch: appleFetch, now: nowWk });
+  const wr2 = await wk.fetchWeatherKit(wkEnv, 49.0101, 12.0990, { fetch: appleFetch, now: nowWk });
+  const wr3 = await wk.fetchWeatherKit(wkEnv, 48.137, 11.575, { fetch: appleFetch, now: nowWk });
+  check('WeatherKit: Abruf mit Bearer-Token, gerundeten Koordinaten, Zone und Fenster; derselbe Gitterpunkt kommt aus dem Cache, ein anderer Punkt nutzt dasselbe Token (Signatur ist zufällig, daher Header und Claims vergleichen)',
+    wr1.ok && wr1.timezone === 'Europe/Berlin' && wr1.data.currentWeather.asOf === '2026-09-25T12:20:00Z' && wr2.ok && wr3.ok && appleCalls.length === 2 && appleCalls[0].url.startsWith('https://weatherkit.apple.com/api/v1/weather/de/49.01/12.1?') && appleCalls[0].url.includes('timezone=Europe%2FBerlin') && appleCalls[0].url.includes('hourlyStart=2026-09-23T22%3A00%3A00Z') && appleCalls[0].init.headers.Authorization.startsWith('Bearer ' + th + '.' + tc + '.') && appleCalls[1].init.headers.Authorization === appleCalls[0].init.headers.Authorization, appleCalls.map(c => c.url).join(' | '));
+  const failFetch = async () => ({ ok: false, status: 401, json: async () => ({}) });
+  const wr4 = await wk.fetchWeatherKit(wkEnv, 52.52, 13.405, { fetch: failFetch, now: nowWk });
+  const wr5 = await wk.fetchWeatherKit(wkEnv, 52.52, 13.405, { fetch: appleFetch, now: nowWk });
+  check('WeatherKit: Apple-Fehler kommt mit Status und Grund zurück und wird nicht gecacht', wr4.ok === false && wr4.status === 401 && wr4.reason === 'WeatherKit HTTP 401' && wr5.ok === true && appleCalls.length === 3, JSON.stringify(wr4) + ' ' + appleCalls.length);
+  const attrFetch = async (url) => { appleCalls.push({ url: String(url) }); return { ok: true, status: 200, json: async () => ({ serviceName: 'Apple Weather', 'logoDark@1x': 'https://weatherkit.apple.com/assets/branding/dark@1x.png', 'logoDark@2x': 'https://weatherkit.apple.com/assets/branding/dark@2x.png', 'logoLight@2x': 'https://weatherkit.apple.com/assets/branding/light@2x.png' }) }; };
+  const at1 = await wk.fetchAttribution(wkEnv, { fetch: attrFetch });
+  const at2 = await wk.fetchAttribution(wkEnv, { fetch: attrFetch });
+  check('WeatherKit: Attribution normalisiert (Name, Logo für helle und dunkle Flächen) und einen Tag gecacht', at1.ok && at1.name === 'Apple Weather' && at1.onLight === 'https://weatherkit.apple.com/assets/branding/dark@2x.png' && at1.onDark === 'https://weatherkit.apple.com/assets/branding/light@2x.png' && at2.onLight === at1.onLight && appleCalls.filter(c => c.url.includes('/attribution/')).length === 1, JSON.stringify(at1));
+  delete globalThis.caches;
+
   // Push-Routen mit KV-Stub; neben den Abonnements (sub:) liegen dort die Zähler der Rate-Begrenzung (rate:)
   const kv = new Map();
   const env = { SUBS: { get: async k => kv.get(k) || null, put: async (k, v) => { kv.set(k, v); }, delete: async k => { kv.delete(k); }, list: async o => ({ keys: [...kv.keys()].filter(k => !o || !o.prefix || k.startsWith(o.prefix)).map(name => ({ name })) }) }, VAPID_PUBLIC_KEY: vPub, VAPID_PRIVATE_KEY: vD, VAPID_SUBJECT: 'mailto:test@example.org' };
