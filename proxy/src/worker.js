@@ -1,4 +1,5 @@
 import { sendWebPush } from "./webpush.js";
+import { fetchWeatherKit, fetchAttribution, wkMinutely15, zoneOffsetMs } from "./weatherkit.js";
 
 /* NINA-Proxy, Regen-Alarm und Rückmeldungen für die Wetter-App (Cloudflare Worker).
  *
@@ -14,6 +15,10 @@ import { sendWebPush } from "./webpush.js";
  *   GET /nina/<ARS>                   ARS = 12-stelliger Amtlicher Regionalschlüssel
  *                                     des Kreises (Stellen 6–12 Nullen), z. B. 091620000000
  *   GET /health                       Lebenszeichen
+ *   GET /wk?lat=49.01&lon=12.10        WeatherKit-Vorhersage für einen Punkt als { timezone, data }; nur mit
+ *                                     erlaubtem Origin-Header (ohne Origin 403), Drossel je IP über das
+ *                                     Rate-Limiting-Binding WK_LIMIT, zehn Minuten Cache je Gitterpunkt
+ *   GET /wk/attribution               Apple-Weather-Logo und Name (einen Tag gecacht)
  *   POST /push/subscribe              Push-Abonnement mit Ort anlegen oder aktualisieren (KV SUBS)
  *   POST /push/unsubscribe            Push-Abonnement löschen
  *   POST /push/test                   Probenachricht an ein Abonnement (höchstens alle fünf Minuten)
@@ -93,6 +98,7 @@ export default {
            Origin-Header (curl, feedback.sh, Cron-Tests) bleiben erlaubt, sie kommen nicht aus einem Browser. */
         if (origin && ALLOWED_ORIGINS.indexOf(origin) < 0) return json({ error: "Origin nicht erlaubt" }, 403, cors);
         if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+        if (url.pathname === "/wk" || url.pathname === "/wk/attribution") return wkRoute(url, request, env, ctx, origin, cors);
         if (url.pathname === "/push/subscribe" || url.pathname === "/push/unsubscribe") {
             if (request.method !== "POST") return json({ error: "Nur POST" }, 405, cors);
             return pushRoute(url.pathname, request, env, cors);
@@ -160,6 +166,35 @@ export default {
         return new Response(res.body, { status: res.status, headers: headers });
     }
 };
+
+/* WeatherKit-Routen. Strenger als /nina: ohne Origin-Header (curl, Skripte) 403, weil der
+   500 000er-Topf für die App da ist. Drossel je IP über das Rate-Limiting-Binding (KV wäre im freien
+   Tarif auf 1 000 Schreibzugriffe am Tag begrenzt). env.__now und env.__fetch nur für Tests. */
+let wkLimitWarned = false;
+async function wkLimited(env, request) {
+    if (!env.WK_LIMIT || typeof env.WK_LIMIT.limit !== "function") {
+        if (!wkLimitWarned) { wkLimitWarned = true; console.warn("WK_LIMIT-Binding fehlt, /wk läuft ohne Drossel"); }
+        return false;
+    }
+    const r = await env.WK_LIMIT.limit({ key: clientIp(request) });
+    return !(r && r.success);
+}
+
+async function wkRoute(url, request, env, ctx, origin, cors) {
+    if (!origin) return json({ error: "Origin fehlt" }, 403, cors);
+    if (request.method !== "GET") return json({ error: "Nur GET" }, 405, cors);
+    if (await wkLimited(env, request)) return json({ error: "Zu viele Anfragen, bitte später erneut" }, 429, cors);
+    const now = typeof env.__now === "number" ? env.__now : Date.now();
+    if (url.pathname === "/wk/attribution") {
+        const a = await fetchAttribution(env, { ctx: ctx });
+        return a.ok ? json({ name: a.name, onLight: a.onLight, onDark: a.onDark }, 200, cors) : json({ error: true, reason: a.reason }, 502, cors);
+    }
+    const lat = parseFloat(url.searchParams.get("lat")), lon = parseFloat(url.searchParams.get("lon"));
+    if (!isFinite(lat) || !isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) return json({ error: "lat (-90..90) und lon (-180..180) erwartet" }, 400, cors);
+    const r = await fetchWeatherKit(env, lat, lon, { ctx: ctx, now: now });
+    if (!r.ok) return json({ error: true, reason: r.reason }, 502, cors);
+    return json({ timezone: r.timezone, data: r.data }, 200, Object.assign({ "Cache-Control": "public, max-age=600" }, cors));
+}
 
 function corsHeaders(origin) {
     /* Fremde Origins bekommen oben 403; hier bleibt nur die Freigabe für die erlaubten (und für die 403-Antwort) */

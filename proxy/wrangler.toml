@@ -23,3 +23,12 @@ id = "443e727b471547c7a7e75d8bc5703e20"
 VAPID_PUBLIC_KEY = "BLlIrCr2ZhfskoTzqOPMPkQTD5BKRVZ4idoQga8jMXCYHKln2VHfi7j6KJuDxggh_nYNaQaQHnCoYd9KKuO_-SM"
 VAPID_SUBJECT = "mailto:anferny.nash@googlemail.com"
 # VAPID_PRIVATE_KEY und FEEDBACK_TOKEN als Geheimnisse: `npx wrangler secret put <NAME>` (lokal in .dev.vars)
+WEATHERKIT_SERVICE_ID = "<Service-ID aus dem Entwicklerkonto, z. B. de.beispiel.goldstunde.weatherkit>"
+# WEATHERKIT_PRIVATE_KEY, WEATHERKIT_KEY_ID, WEATHERKIT_TEAM_ID als Geheimnisse (siehe README, Abschnitt WeatherKit)
+
+# Drossel für /wk je IP-Adresse: 20 Anfragen je Minute (Rate-Limiting-Binding, kein KV-Schreibzugriff)
+[[unsafe.bindings]]
+name = "WK_LIMIT"
+type = "ratelimit"
+namespace_id = "1001"
+simple = { limit = 20, period = 60 }

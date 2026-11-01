@@ -134,6 +134,7 @@ const te = new TextEncoder(), td = new TextDecoder();
   delete globalThis.caches;
 
   // Push-Routen mit KV-Stub; neben den Abonnements (sub:) liegen dort die Zähler der Rate-Begrenzung (rate:)
+  const REQUIRED_WK = ['WEATHERKIT_PRIVATE_KEY', 'WEATHERKIT_KEY_ID', 'WEATHERKIT_TEAM_ID', 'WEATHERKIT_SERVICE_ID'];
   const kv = new Map();
   const env = { SUBS: { get: async k => kv.get(k) || null, put: async (k, v) => { kv.set(k, v); }, delete: async k => { kv.delete(k); }, list: async o => ({ keys: [...kv.keys()].filter(k => !o || !o.prefix || k.startsWith(o.prefix)).map(name => ({ name })) }) }, VAPID_PUBLIC_KEY: vPub, VAPID_PRIVATE_KEY: vD, VAPID_SUBJECT: 'mailto:test@example.org' };
   const subs = () => [...kv.keys()].filter(k => k.startsWith('sub:'));
@@ -167,6 +168,37 @@ const te = new TextEncoder(), td = new TextDecoder();
   const floodOther = await worker.default.fetch(flood('198.51.100.8'), env, ctx);
   check('Worker: höchstens 120 Anmeldungen je IP und Stunde, die 121. bekommt 429, eine andere IP nicht', floodLast.status === 429 && floodOther.status === 200 && subs().length === 1 && [...kv.keys()].some(k => k.startsWith('rate:sub:')), floodLast.status + ' ' + floodOther.status);
   await worker.default.fetch(req('/push/unsubscribe', { endpoint: sub.endpoint }), env, ctx);
+
+  // WeatherKit-Route: Origin-Pflicht, Prüfung der Koordinaten, Drossel über das Binding, Durchreichen, Attribution
+  globalThis.caches = { default: cacheStub };
+  cacheStore.clear();
+  const wkRouteCalls = [];
+  Object.assign(env, wkEnv, { __now: nowWk, __fetch: async (url, init) => { wkRouteCalls.push(String(url)); return String(url).includes('/attribution/') ? attrFetch(url) : appleFetch(url, init); } });
+  const w0 = await worker.default.fetch(new Request(BASE + '/wk?lat=49.0134&lon=12.1016'), env, ctx);
+  const w1 = await worker.default.fetch(req('/wk?lat=49.0134&lon=12.1016', undefined, 'GET', { Origin: 'https://fremd.example' }), env, ctx);
+  const w2 = await worker.default.fetch(req('/wk?lat=49.0134&lon=12.1016', undefined, 'GET'), env, ctx);
+  const wj2 = await w2.json();
+  check('Route /wk: ohne Origin 403 (anders als /nina), fremder Origin 403, erlaubter Origin bekommt {timezone, data} mit CORS', w0.status === 403 && w1.status === 403 && w2.status === 200 && wj2.timezone === 'Europe/Berlin' && wj2.data.currentWeather.asOf === '2026-09-25T12:20:00Z' && w2.headers.get('Access-Control-Allow-Origin') === 'https://anferny33.github.io' && wkRouteCalls.length === 1 && wkRouteCalls[0].startsWith('https://weatherkit.apple.com/api/v1/weather/de/49.01/12.1?'), w0.status + ' ' + w1.status + ' ' + w2.status + ' ' + JSON.stringify(wj2).slice(0, 80));
+  const w3 = await worker.default.fetch(req('/wk?lat=91&lon=12', undefined, 'GET'), env, ctx);
+  const w4 = await worker.default.fetch(req('/wk?lat=49.0134&lon=12.1016', undefined, 'POST'), env, ctx);
+  const w5 = await worker.default.fetch(req('/wk?lat=49.0134&lon=12.1016', undefined, 'GET'), env, ctx);
+  check('Route /wk: Koordinaten außerhalb 400, POST 405, zweiter Aufruf desselben Punkts aus dem Cache', w3.status === 400 && w4.status === 405 && w5.status === 200 && wkRouteCalls.length === 1, w3.status + ' ' + w4.status + ' ' + wkRouteCalls.length);
+  env.__fetch = failFetch;
+  const w6 = await worker.default.fetch(req('/wk?lat=52.52&lon=13.405', undefined, 'GET'), env, ctx);
+  const wj6 = await w6.json();
+  check('Route /wk: Apple-Fehler als 502 mit {error: true, reason}', w6.status === 502 && wj6.error === true && wj6.reason === 'WeatherKit HTTP 401', w6.status + ' ' + JSON.stringify(wj6));
+  env.__fetch = async (url, init) => { wkRouteCalls.push(String(url)); return String(url).includes('/attribution/') ? attrFetch(url) : appleFetch(url, init); };
+  env.WK_LIMIT = { limit: async () => ({ success: false }) };
+  const w7 = await worker.default.fetch(req('/wk?lat=49.0134&lon=12.1016', undefined, 'GET'), env, ctx);
+  check('Route /wk: Drossel über das Rate-Limiting-Binding, 429', w7.status === 429, w7.status);
+  delete env.WK_LIMIT;
+  const w8 = await worker.default.fetch(req('/wk/attribution', undefined, 'GET'), env, ctx);
+  const wj8 = await w8.json();
+  check('Route /wk/attribution: normalisierte Attribution mit CORS', w8.status === 200 && wj8.name === 'Apple Weather' && wj8.onLight.endsWith('dark@2x.png') && wj8.onDark.endsWith('light@2x.png'), JSON.stringify(wj8));
+  const w9 = await worker.default.fetch(new Request(BASE + '/wk/attribution'), env, ctx);
+  check('Route /wk/attribution: ebenfalls nur mit Origin', w9.status === 403, w9.status);
+  delete env.__now; delete env.__fetch; delete globalThis.caches;
+  REQUIRED_WK.forEach(k => { delete env[k]; });
 
   // Prüf-Lauf: Regen in 30 Minuten → eine Nachricht, danach Sperrfrist; verschwundenes Abonnement wird gelöscht
   await worker.default.fetch(req('/push/subscribe', { subscription: sub, lat: 45.69, lon: 13.12, name: 'Lignano' }), env, ctx);

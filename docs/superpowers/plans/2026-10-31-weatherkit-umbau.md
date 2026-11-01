@@ -423,7 +423,7 @@ Erwartet: alle `WeatherKit:`-Zeilen `ok`, „Alle Checks bestanden.“
 - Modify: `proxy/src/worker.js` (Kopfkommentar, Import, `fetch`-Handler), `proxy/wrangler.toml`
 - Test: `tests/smoke-push.js` (Block „// WeatherKit-Route“ vor „// Prüf-Lauf“)
 
-- [ ] **Schritt 1: Fehlschlagende Tests schreiben**
+- [x] **Schritt 1: Fehlschlagende Tests schreiben**
 
 Vor der Zeile `// Prüf-Lauf: Regen in 30 Minuten …` einfügen:
 
@@ -466,7 +466,7 @@ Und vor `const kv = new Map();` (Beginn der Push-Routen-Tests) die Hilfsliste an
   const REQUIRED_WK = ['WEATHERKIT_PRIVATE_KEY', 'WEATHERKIT_KEY_ID', 'WEATHERKIT_TEAM_ID', 'WEATHERKIT_SERVICE_ID'];
 ```
 
-- [ ] **Schritt 2: Fehlschlag sehen**
+- [x] **Schritt 2: Fehlschlag sehen**
 
 ```bash
 cd ~/Projekte/Apps-IOS && node tests/smoke-push.js 2>&1 | grep -E "FAIL|bestanden|fehlgeschlagen"
@@ -474,7 +474,7 @@ cd ~/Projekte/Apps-IOS && node tests/smoke-push.js 2>&1 | grep -E "FAIL|bestande
 
 Erwartet: `FAIL Route /wk: …` (404 statt 403/200) und am Ende „… Check(s) fehlgeschlagen.“
 
-- [ ] **Schritt 3: Routen einbauen**
+- [x] **Schritt 3: Routen einbauen**
 
 In `proxy/src/worker.js`:
 
@@ -548,7 +548,7 @@ simple = { limit = 20, period = 60 }
 
 Den Platzhalter in `WEATHERKIT_SERVICE_ID` erst in Task 5 durch den echten Wert ersetzen.
 
-- [ ] **Schritt 4: Tests laufen lassen**
+- [x] **Schritt 4: Tests laufen lassen**
 
 ```bash
 cd ~/Projekte/Apps-IOS && node tests/smoke-push.js 2>&1 | grep -E "Route|FAIL|bestanden|fehlgeschlagen"
